@@ -32,6 +32,7 @@ function Forum() {
   const [posts, setPosts] = useState([]);
   const [showReactionPicker, setShowReactionPicker] = useState(null);
   const [userReactions, setUserReactions] = useState({});
+  const [reactingPosts, setReactingPosts] = useState(new Set());
 
   // Facebook-like reaction types
   const reactionTypes = [
@@ -69,23 +70,35 @@ function Forum() {
         const forumPosts = await Promise.all(querySnapshot.docs.map(async (doc) => {
           const data = doc.data();
           
-          // Fetch reactions for this post
-          const reactionsRef = collection(db, 'forum-posts', doc.id, 'reactions');
-          const reactionsSnapshot = await getDocs(reactionsRef);
-          const reactions = {};
-          reactionsSnapshot.docs.forEach(reactionDoc => {
-            const reactionData = reactionDoc.data();
-            reactions[reactionData.userId] = reactionData.type;
-          });
+          // Initialize default values
+          let userReaction = null;
+          let reactionCounts = {};
+          let totalReactions = 0;
           
-          // Get user's reaction for this post
-          const userReaction = reactions[currentUser.uid] || null;
-          
-          // Count reactions by type
-          const reactionCounts = {};
-          Object.values(reactions).forEach(type => {
-            reactionCounts[type] = (reactionCounts[type] || 0) + 1;
-          });
+          try {
+            // Fetch reactions for this post
+            const reactionsRef = collection(db, 'forum-posts', doc.id, 'reactions');
+            const reactionsSnapshot = await getDocs(reactionsRef);
+            const reactions = {};
+            
+            reactionsSnapshot.docs.forEach(reactionDoc => {
+              const reactionData = reactionDoc.data();
+              reactions[reactionData.userId] = reactionData.type;
+            });
+            
+            // Get user's reaction for this post
+            userReaction = reactions[currentUser.uid] || null;
+            
+            // Count reactions by type
+            Object.values(reactions).forEach(type => {
+              reactionCounts[type] = (reactionCounts[type] || 0) + 1;
+            });
+            
+            totalReactions = Object.values(reactions).length;
+          } catch (error) {
+            console.log('No reactions found for post:', doc.id);
+            // Continue with default values
+          }
           
           return {
             id: doc.id,
@@ -101,7 +114,7 @@ function Forum() {
             category: data.category,
             userReaction: userReaction,
             reactionCounts: reactionCounts,
-            totalReactions: Object.values(reactions).length
+            totalReactions: totalReactions
           };
         }));
         
@@ -229,7 +242,12 @@ function Forum() {
 
     try {
       const post = threads.find(p => p.id === postId);
-      if (!post) return;
+      if (!post) {
+        console.error('Post not found:', postId);
+        return;
+      }
+
+      console.log('Handling reaction:', { postId, reactionType, userId: currentUser.uid });
 
       const reactionsRef = collection(db, 'forum-posts', postId, 'reactions');
       const userReactionQuery = query(reactionsRef, where('userId', '==', currentUser.uid));
@@ -237,6 +255,7 @@ function Forum() {
 
       if (userReactionSnapshot.empty) {
         // Add new reaction
+        console.log('Adding new reaction');
         await addDoc(reactionsRef, {
           userId: currentUser.uid,
           type: reactionType,
@@ -248,11 +267,15 @@ function Forum() {
       } else {
         // Update existing reaction
         const existingReaction = userReactionSnapshot.docs[0];
-        if (existingReaction.data().type === reactionType) {
+        const existingType = existingReaction.data().type;
+        
+        if (existingType === reactionType) {
           // Remove reaction if same type
+          console.log('Removing existing reaction');
           await deleteDoc(existingReaction.ref);
         } else {
           // Update to new reaction type
+          console.log('Updating reaction type from', existingType, 'to', reactionType);
           await updateDoc(existingReaction.ref, {
             type: reactionType,
             updatedAt: serverTimestamp()
@@ -263,8 +286,11 @@ function Forum() {
         }
       }
 
-      // Refresh the posts to show updated reactions
+      console.log('Reaction handled successfully, refreshing posts...');
+      
+      // Simple refresh - reload the posts
       window.location.reload();
+      
     } catch (error) {
       console.error('Error handling reaction:', error);
       alert('Failed to react to post. Please try again.');
@@ -295,8 +321,10 @@ function Forum() {
       };
 
       await addDoc(collection(db, 'notifications'), notification);
+      console.log('Notification created successfully');
     } catch (error) {
       console.error('Error creating reaction notification:', error);
+      // Don't throw error, just log it
     }
   };
 
