@@ -174,7 +174,8 @@ function StudentDashboard() {
             comments: data.replyCount || 0,
             isLiked: false,
             forumPostId: doc.id,
-            category: data.category
+            category: data.category,
+            authorId: data.authorId // Add authorId to the post data
           };
         });
         
@@ -365,6 +366,9 @@ function StudentDashboard() {
     }
 
     try {
+      console.log('Selected post data:', selectedPost);
+      console.log('Post authorId:', selectedPost.authorId);
+      
       // Create a comment/reply
       const comment = {
         postId: selectedPost.id,
@@ -376,24 +380,31 @@ function StudentDashboard() {
 
       await addDoc(collection(db, 'forum-comments'), comment);
 
-      // Create notification for post author
-      const notification = {
-        recipientId: selectedPost.authorId,
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
-        type: 'forum-comment',
-        title: '💬 New Comment',
-        message: `${currentUser.displayName || 'Someone'} commented on your post "${selectedPost.content.substring(0, 50)}..."`,
-        data: {
-          postId: selectedPost.id,
-          postContent: selectedPost.content,
-          commentContent: commentText
-        },
-        read: false,
-        createdAt: serverTimestamp()
-      };
+      // Create notification for post author (only if authorId exists and is not the current user)
+      if (selectedPost.authorId && selectedPost.authorId !== currentUser.uid) {
+        console.log('Creating notification for author:', selectedPost.authorId);
+        
+        const notification = {
+          recipientId: selectedPost.authorId,
+          senderId: currentUser.uid,
+          senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+          type: 'forum-comment',
+          title: '💬 New Comment',
+          message: `${currentUser.displayName || 'Someone'} commented on your post "${selectedPost.content.substring(0, 50)}..."`,
+          data: {
+            postId: selectedPost.id,
+            postContent: selectedPost.content,
+            commentContent: commentText
+          },
+          read: false,
+          createdAt: serverTimestamp()
+        };
 
-      await addDoc(collection(db, 'notifications'), notification);
+        await addDoc(collection(db, 'notifications'), notification);
+        console.log('Notification created successfully');
+      } else {
+        console.log('Skipping notification - no authorId or self-comment');
+      }
 
       alert('Comment posted successfully!');
       setCommentText('');
