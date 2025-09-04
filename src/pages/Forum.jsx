@@ -230,8 +230,8 @@ function Forum() {
 
   const fetchComments = async (postId) => {
     try {
-      const commentsRef = collection(db, 'forum-posts', postId, 'comments');
-      const q = query(commentsRef, orderBy('createdAt', 'asc'));
+      const commentsRef = collection(db, 'comments');
+      const q = query(commentsRef, where('postId', '==', postId), orderBy('createdAt', 'asc'));
       const querySnapshot = await getDocs(q);
       
       const commentsData = querySnapshot.docs.map(doc => ({
@@ -268,12 +268,13 @@ function Forum() {
         authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
         content: replyContent,
         parentCommentId: null, // Top-level comment
-        createdAt: serverTimestamp()
+        createdAt: new Date()
       };
 
       console.log('Comment data:', comment);
       
-      const commentsRef = collection(db, 'forum-posts', selectedThread.id, 'comments');
+      // Try creating in main comments collection first
+      const commentsRef = collection(db, 'comments');
       console.log('Comments collection reference:', commentsRef);
       
       const docRef = await addDoc(commentsRef, comment);
@@ -332,12 +333,13 @@ function Forum() {
         authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
         content: replyToCommentText,
         parentCommentId: showReplyToComment.id,
-        createdAt: serverTimestamp()
+        createdAt: new Date()
       };
 
       console.log('Reply data:', reply);
       
-      const commentsRef = collection(db, 'forum-posts', selectedThread.id, 'comments');
+      // Try creating in main comments collection first
+      const commentsRef = collection(db, 'comments');
       console.log('Comments collection reference:', commentsRef);
       
       const docRef = await addDoc(commentsRef, reply);
