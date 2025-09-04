@@ -231,7 +231,7 @@ function Profile() {
 
       {/* Profile Header */}
       <div className="profile-header">
-        <div className="container">
+        <div className="dashboard-container">
           <div className="profile-picture">
             {userData.profilePictureUrl ? (
               <img src={userData.profilePictureUrl} alt="Profile" />

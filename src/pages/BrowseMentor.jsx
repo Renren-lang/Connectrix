@@ -291,7 +291,7 @@ function BrowseMentor() {
   return (
     <div className="browse-mentor">
       <main className="main-content">
-        <div className="container">
+        <div className="dashboard-container">
           {/* Header */}
           <div className="browse-header">
             <div className="header-content">

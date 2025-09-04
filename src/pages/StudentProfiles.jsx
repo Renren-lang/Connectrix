@@ -78,7 +78,7 @@ function StudentProfiles() {
   if (loading) {
     return (
       <div className="student-profiles">
-        <div className="container">
+        <div className="dashboard-container">
           <div className="loading">Loading student profiles...</div>
         </div>
       </div>
@@ -88,7 +88,7 @@ function StudentProfiles() {
   if (error) {
     return (
       <div className="student-profiles">
-        <div className="container">
+        <div className="dashboard-container">
           <div className="error">
             <h2>Error Loading Profiles</h2>
             <p>{error}</p>

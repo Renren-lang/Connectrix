@@ -214,7 +214,7 @@ function Forum() {
   return (
     <>
       {/* Main Content */}
-      <div className="container">
+      <div className="dashboard-container">
         <div className="main-content">
           {/* Forum Sidebar */}
           <div className="forum-sidebar">

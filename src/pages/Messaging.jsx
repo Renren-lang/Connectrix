@@ -1061,7 +1061,7 @@ function Messaging() {
   // Show loading state while fetching data
   if (isLoading) {
     return (
-      <div className="container">
+      <div className="dashboard-container">
         <div className="main-content">
           <div className="loading-chats">
             <p>Loading chats...</p>
@@ -1079,7 +1079,7 @@ function Messaging() {
 
 
       {/* Main Content */}
-      <div className="container">
+      <div className="dashboard-container">
         <div className="main-content">
           {/* Sidebar */}
           <div className="sidebar">

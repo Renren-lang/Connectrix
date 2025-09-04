@@ -296,7 +296,7 @@ function Events() {
 
       {/* Main Content */}
       <main className="main-content">
-        <div className="container">
+        <div className="dashboard-container">
           <div className="page-header">
             <h1 className="page-title">Events & Opportunities</h1>
             <p className="page-subtitle">Discover job postings, seminars, and alumni meetups</p>

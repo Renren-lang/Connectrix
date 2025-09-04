@@ -418,7 +418,7 @@ function NotificationSettings() {
 
   return (
     <div className="notification-settings">
-      <div className="container">
+      <div className="dashboard-container">
         <div className="settings-header">
           <h1>Settings</h1>
           <p>Manage your notification preferences, profile, and security for Connectrix</p>

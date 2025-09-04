@@ -194,7 +194,7 @@ function MentorshipMatching() {
     <>
       {/* Main Content */}
       <main className="main-content">
-        <div className="container">
+        <div className="dashboard-container">
           <div className="page-header">
             <h1 className="page-title">Mentorship Requests</h1>
             <p className="page-subtitle">Manage your mentorship requests from students</p>
