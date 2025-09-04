@@ -46,6 +46,14 @@ service cloud.firestore {
         request.auth.uid == resource.data.authorId;
     }
     
+    // Forum posts collection (for Forum.jsx)
+    match /forum-posts/{postId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+        request.auth.uid == resource.data.authorId;
+    }
+    
     // Events
     match /events/{eventId} {
       allow read: if request.auth != null;

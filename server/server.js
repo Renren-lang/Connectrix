@@ -138,17 +138,11 @@ io.on('connection', (socket) => {
           });
         } catch (error) {
           if (error.code === 5) { // NOT_FOUND error
-            // User document doesn't exist, create it with basic info
-            await db.collection('users').doc(userId).set({
-              uid: userId,
-              online: true,
-              lastSeen: new Date(),
-              createdAt: new Date(),
-              role: 'student', // Default role
-              firstName: 'User',
-              lastName: 'User'
-            });
-            console.log(`Created new user document for ${userId}`);
+            // User document doesn't exist, but don't create it here
+            // The user document should have been created during the Google auth process
+            // If it doesn't exist, there might be an issue with the auth flow
+            console.log(`User document not found for ${userId} during socket authentication`);
+            console.log('This might indicate an issue with the Google auth flow');
           } else {
             throw error; // Re-throw other errors
           }
@@ -301,7 +295,7 @@ io.on('connection', (socket) => {
 
 // Root route - redirect to frontend
 app.get('/', (req, res) => {
-  res.redirect('https://cconnect-7f562.web.app');
+  res.redirect(301, 'https://cconnect-7f562.web.app');
 });
 
 // API Routes
