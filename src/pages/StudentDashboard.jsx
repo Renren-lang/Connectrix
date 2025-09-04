@@ -369,7 +369,7 @@ function StudentDashboard() {
                 navigate('/forum');
               }}>
                  <div className="card-icon forum">
-                   <i className="fas fa-comments-alt"></i>
+                   <i className="fas fa-comments-alt" title="Forum Discussions">💬</i>
                  </div>
                  <h3 className="card-title">Forum Discussions</h3>
                  <p className="card-description">Join discussions and connect with the community</p>
