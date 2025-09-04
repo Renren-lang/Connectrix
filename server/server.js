@@ -71,11 +71,32 @@ app.use(sanitizeInput);
 app.use('/api', apiRateLimit);
 
 // Initialize Firebase Admin
-const serviceAccount = require('./firebase-service-account.json');
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  databaseURL: "https://cconnect-7f562-default-rtdb.firebaseio.com"
-});
+let firebaseConfig;
+if (process.env.NODE_ENV === 'production') {
+  // Use environment variables in production
+  firebaseConfig = {
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    }),
+    databaseURL: process.env.FIREBASE_DATABASE_URL || "https://cconnect-7f562-default-rtdb.firebaseio.com"
+  };
+} else {
+  // Use service account file in development
+  try {
+    const serviceAccount = require('./firebase-service-account.json');
+    firebaseConfig = {
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: "https://cconnect-7f562-default-rtdb.firebaseio.com"
+    };
+  } catch (error) {
+    console.error('Firebase service account file not found. Please create firebase-service-account.json or set environment variables.');
+    process.exit(1);
+  }
+}
+
+admin.initializeApp(firebaseConfig);
 
 const db = admin.firestore();
 
