@@ -4,8 +4,8 @@ const API_CONFIG = {
   // Development API URL
   development: 'http://localhost:5000',
   
-  // Production API URL (update this when backend is deployed)
-  production: 'https://your-backend-domain.com',
+  // Production API URL (Railway deployment)
+  production: 'https://connectrix-production.up.railway.app',
   
   // Get current API URL based on environment
   getBaseURL: () => {
