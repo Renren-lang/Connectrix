@@ -206,12 +206,16 @@ function AlumniDashboard() {
                 <h3 className="card-title">Mentor Students</h3>
                 <p className="card-description">Connect with students seeking guidance in your field</p>
               </div>
-              <div className="quick-access-card" onClick={() => handleQuickAccessClick('View Student Profiles')}>
-                <div className="card-icon profiles">
-                  <i className="fas fa-user-graduate"></i>
+              <div className="quick-access-card" onClick={() => {
+                console.log('Forum clicked!');
+                console.log('Navigating to /forum');
+                navigate('/forum');
+              }}>
+                <div className="card-icon forum">
+                  <i className="fas fa-comments"></i>
                 </div>
-                <h3 className="card-title">View Student Profiles</h3>
-                <p className="card-description">Explore student profiles and career aspirations</p>
+                <h3 className="card-title">Forum Discussions</h3>
+                <p className="card-description">Join discussions and connect with the community</p>
               </div>
               <div className="quick-access-card" onClick={() => handleQuickAccessClick('Messages')}>
                 <div className="card-icon messages">
