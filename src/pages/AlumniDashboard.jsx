@@ -77,6 +77,7 @@ function AlumniDashboard() {
         
         setFeedPosts(forumPosts);
         console.log('Fetched student forum posts:', forumPosts.length);
+        console.log('Forum posts data:', forumPosts);
       } catch (error) {
         console.error('Error fetching student forum posts:', error);
         // Fallback to empty array if there's an error
