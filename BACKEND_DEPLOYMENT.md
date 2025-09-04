@@ -35,6 +35,7 @@ Railway will automatically build and deploy your app.
 
 2. Sign up/Sign in
 3. Click "New +" → "Web Service"
+
 4. Connect your GitHub repository
 5. Configure:
    - **Name**: `connectrix-api`
