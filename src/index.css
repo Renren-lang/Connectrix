@@ -355,6 +355,33 @@ body {
   padding: 0 20px;
 }
 
+/* Dashboard containers should use full width */
+.dashboard-container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 20px;
+}
+
+/* Dashboard specific styles */
+.dashboard {
+  min-height: 100vh;
+  background-color: var(--background-color);
+}
+
+/* Responsive dashboard padding */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 0 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-container {
+    padding: 0 10px;
+  }
+}
+
 /* Header Styles - Removed for Landing Page */
 
 .header-container {
@@ -7881,6 +7908,10 @@ input:focus, textarea:focus, select:focus, .form-control:focus {
   transform: none !important;
   width: 100% !important;
   box-sizing: border-box !important;
+}
+
+.card-icon.forum {
+  background-color: var(--accent-color);
 }
 
 

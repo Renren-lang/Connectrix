@@ -275,7 +275,7 @@ function StudentDashboard() {
     <>
       {/* Main Dashboard Content */}
       <main className="dashboard">
-        <div className="container">
+        <div className="dashboard-container">
           {/* Welcome Section */}
           <div className="welcome-section">
             <h1 className="welcome-title">
