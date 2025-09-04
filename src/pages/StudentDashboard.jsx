@@ -18,6 +18,7 @@ function StudentDashboard() {
   const [commentText, setCommentText] = useState('');
   const [showCommentInput, setShowCommentInput] = useState({});
   const [postComments, setPostComments] = useState({});
+  const [showReplyInput, setShowReplyInput] = useState({});
 
   // Facebook-like reaction types
   const reactionTypes = [
@@ -420,6 +421,7 @@ function StudentDashboard() {
         authorId: currentUser.uid,
         authorName: authorName,
         content: commentText,
+        parentCommentId: null, // Top-level comment
         createdAt: serverTimestamp()
       };
 
@@ -460,6 +462,89 @@ function StudentDashboard() {
     } catch (error) {
       console.error('Error posting comment:', error);
       alert('Failed to post comment. Please try again.');
+    }
+  };
+
+  const handleReplySubmit = async (e, postId, parentCommentId) => {
+    e.preventDefault();
+    
+    const replyInput = e.target.querySelector('textarea');
+    const replyText = replyInput.value.trim();
+    
+    if (!replyText) {
+      alert('Please enter a reply');
+      return;
+    }
+
+    const post = feedPosts.find(p => p.id === postId);
+    if (!post) {
+      alert('Post not found');
+      return;
+    }
+
+    try {
+      console.log('Posting reply for post:', postId, 'parent comment:', parentCommentId);
+      
+      // Get user's actual name from their profile
+      const userRef = doc(db, 'users', currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      const userData = userSnap.exists() ? userSnap.data() : {};
+      
+      const authorName = userData.firstName && userData.lastName 
+        ? `${userData.firstName} ${userData.lastName}`
+        : userData.displayName || currentUser.displayName || currentUser.email?.split('@')[0] || 'User';
+      
+      // Create a reply
+      const reply = {
+        postId: postId,
+        authorId: currentUser.uid,
+        authorName: authorName,
+        content: replyText,
+        parentCommentId: parentCommentId, // This makes it a reply
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'forum-comments'), reply);
+
+      // Find the parent comment to get its author
+      const parentComment = postComments[postId]?.find(c => c.id === parentCommentId);
+      if (parentComment && parentComment.authorId !== currentUser.uid) {
+        console.log('Creating notification for comment author:', parentComment.authorId);
+        
+        const notification = {
+          recipientId: parentComment.authorId,
+          senderId: currentUser.uid,
+          senderName: authorName,
+          type: 'comment-reply',
+          title: '💬 Reply to Your Comment',
+          message: `${authorName} replied to your comment`,
+          data: {
+            postId: postId,
+            postContent: post.content,
+            commentContent: replyText,
+            originalCommentId: parentCommentId
+          },
+          read: false,
+          createdAt: serverTimestamp()
+        };
+
+        await addDoc(collection(db, 'notifications'), notification);
+        console.log('Reply notification created successfully');
+      }
+
+      // Clear the input and hide reply form
+      replyInput.value = '';
+      setShowReplyInput(prev => ({
+        ...prev,
+        [parentCommentId]: false
+      }));
+      
+      // Refresh comments for this post
+      await fetchPostComments(postId);
+      
+    } catch (error) {
+      console.error('Error posting reply:', error);
+      alert('Failed to post reply. Please try again.');
     }
   };
 
@@ -763,7 +848,9 @@ function StudentDashboard() {
                       {/* Show comments if they exist */}
                       {postComments[post.id] && postComments[post.id].length > 0 && (
                         <div className="comments-list">
-                          {postComments[post.id].map(comment => (
+                          {postComments[post.id]
+                            .filter(comment => !comment.parentCommentId) // Only show top-level comments
+                            .map(comment => (
                             <div key={comment.id} className="comment-item">
                               <div className="comment-avatar">
                                 {comment.authorName ? comment.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
@@ -776,6 +863,74 @@ function StudentDashboard() {
                                   </span>
                                 </div>
                                 <div className="comment-text">{comment.content}</div>
+                                
+                                {/* Reply button */}
+                                <div className="comment-actions">
+                                  <button 
+                                    className="reply-btn"
+                                    onClick={() => setShowReplyInput(prev => ({
+                                      ...prev,
+                                      [comment.id]: !prev[comment.id]
+                                    }))}
+                                  >
+                                    Reply
+                                  </button>
+                                </div>
+                                
+                                {/* Nested Replies */}
+                                {postComments[post.id]
+                                  .filter(reply => reply.parentCommentId === comment.id)
+                                  .map(reply => (
+                                    <div key={reply.id} className="reply-item">
+                                      <div className="reply-avatar">
+                                        {reply.authorName ? reply.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
+                                      </div>
+                                      <div className="reply-content">
+                                        <div className="reply-header">
+                                          <span className="reply-author">{reply.authorName || 'Anonymous'}</span>
+                                          <span className="reply-time">
+                                            {reply.createdAt ? new Date(reply.createdAt.toDate()).toLocaleString() : 'Unknown time'}
+                                          </span>
+                                        </div>
+                                        <div className="reply-text">{reply.content}</div>
+                                        
+                                        {/* Reply to reply button */}
+                                        <div className="reply-actions">
+                                          <button 
+                                            className="reply-btn"
+                                            onClick={() => setShowReplyInput(prev => ({
+                                              ...prev,
+                                              [reply.id]: !prev[reply.id]
+                                            }))}
+                                          >
+                                            Reply
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                
+                                {/* Reply Input for this comment */}
+                                {showReplyInput[comment.id] && (
+                                  <div className="reply-input-section">
+                                    <form onSubmit={(e) => handleReplySubmit(e, post.id, comment.id)}>
+                                      <div className="reply-input-wrapper">
+                                        <div className="reply-input-avatar">
+                                          {currentUser.displayName ? currentUser.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
+                                        </div>
+                                        <textarea
+                                          className="reply-input"
+                                          placeholder="Write a reply..."
+                                          rows="2"
+                                          required
+                                        />
+                                        <button type="submit" className="reply-submit-btn">
+                                          <i className="fas fa-paper-plane"></i>
+                                        </button>
+                                      </div>
+                                    </form>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ))}

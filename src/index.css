@@ -8255,6 +8255,139 @@ input:focus, textarea:focus, select:focus, .form-control:focus {
   background-color: var(--secondary-color);
 }
 
+/* Nested Replies */
+.reply-item {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  margin-left: 2rem;
+  padding: 0.5rem;
+  border-radius: 6px;
+  background-color: #f1f3f4;
+  border-left: 3px solid var(--primary-color);
+}
+
+.reply-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--secondary-color);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.reply-content {
+  flex: 1;
+}
+
+.reply-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.reply-author {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.85rem;
+}
+
+.reply-time {
+  font-size: 0.7rem;
+  color: #6c757d;
+}
+
+.reply-text {
+  color: #333;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.comment-actions, .reply-actions {
+  margin-top: 0.5rem;
+}
+
+.reply-btn {
+  background: none;
+  border: none;
+  color: #6c757d;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.reply-btn:hover {
+  background-color: #f8f9fa;
+  color: var(--primary-color);
+}
+
+.reply-input-section {
+  margin-top: 0.75rem;
+  margin-left: 2rem;
+}
+
+.reply-input-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.reply-input-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.reply-input {
+  flex: 1;
+  border: 1px solid #e9ecef;
+  border-radius: 16px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.reply-input:focus {
+  border-color: var(--primary-color);
+}
+
+.reply-submit-btn {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-size: 0.7rem;
+}
+
+.reply-submit-btn:hover {
+  background-color: var(--secondary-color);
+}
+
 /* Responsive Design for Reactions */
 @media (max-width: 768px) {
   .thread-actions {
