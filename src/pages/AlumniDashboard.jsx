@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function AlumniDashboard() {
@@ -31,6 +31,7 @@ function AlumniDashboard() {
 
   const [feedPosts, setFeedPosts] = useState([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
 
   // Fetch forum posts from students for alumni dashboard
   useEffect(() => {
@@ -90,6 +91,41 @@ function AlumniDashboard() {
     fetchStudentForumPosts();
   }, [currentUser]);
 
+  // Fetch mentorship requests from Firestore
+  useEffect(() => {
+    const fetchMentorshipRequests = async () => {
+      if (!currentUser) return;
+      
+      try {
+        setIsLoadingRequests(true);
+        
+        // Fetch mentorship requests where current user is the mentor
+        const requestsRef = collection(db, 'mentorship-requests');
+        const q = query(
+          requestsRef,
+          where('mentorId', '==', currentUser.uid),
+          orderBy('createdAt', 'desc'),
+          limit(10)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        const requests = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        setMentorshipRequests(requests);
+        console.log('Fetched mentorship requests:', requests.length);
+      } catch (error) {
+        console.error('Error fetching mentorship requests:', error);
+      } finally {
+        setIsLoadingRequests(false);
+      }
+    };
+
+    fetchMentorshipRequests();
+  }, [currentUser]);
+
   const handleQuickAccessClick = (cardTitle) => {
     switch (cardTitle) {
       case 'Mentor Students':
@@ -145,29 +181,60 @@ function AlumniDashboard() {
     }
   };
 
-  const handleMentorshipRequest = (requestId, action) => {
-    if (action === 'accept') {
+  const handleMentorshipRequest = async (requestId, action) => {
+    try {
+      const request = mentorshipRequests.find(r => r.id === requestId);
+      if (!request) {
+        console.error('Request not found');
+        return;
+      }
+
+      // Update the request in Firestore
+      const requestRef = doc(db, 'mentorship-requests', requestId);
+      await updateDoc(requestRef, {
+        status: action === 'accept' ? 'accepted' : 'declined',
+        updatedAt: serverTimestamp()
+      });
+
+      // Create notification for the student
+      const notification = {
+        recipientId: request.studentId,
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Alumni',
+        type: 'mentorship-response',
+        title: action === 'accept' ? 'Mentorship Request Accepted!' : 'Mentorship Request Declined',
+        message: action === 'accept' 
+          ? `${currentUser.displayName || 'An alumni'} has accepted your mentorship request. You can now start messaging them!`
+          : `${currentUser.displayName || 'An alumni'} has declined your mentorship request.`,
+        data: {
+          requestId: requestId,
+          mentorId: currentUser.uid,
+          mentorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Alumni',
+          action: action === 'accept' ? 'accepted' : 'declined'
+        },
+        read: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      // Add notification to Firestore
+      await addDoc(collection(db, 'notifications'), notification);
+      console.log('Notification created for student:', request.studentId);
+
+      // Update local state
       setMentorshipRequests(prevRequests =>
-        prevRequests.map(request =>
-          request.id === requestId
-            ? { ...request, status: 'accepted' }
-            : request
+        prevRequests.map(req =>
+          req.id === requestId
+            ? { ...req, status: action === 'accept' ? 'accepted' : 'declined' }
+            : req
         )
       );
-      
-      const request = mentorshipRequests.find(r => r.id === requestId);
-      alert(`Mentorship request from ${request.name} accepted!`);
-    } else if (action === 'decline') {
-      const request = mentorshipRequests.find(r => r.id === requestId);
-      if (confirm(`Are you sure you want to decline the mentorship request from ${request.name}?`)) {
-        setMentorshipRequests(prevRequests =>
-          prevRequests.map(req =>
-            req.id === requestId
-              ? { ...req, status: 'declined' }
-              : req
-          )
-        );
-      }
+
+      const actionText = action === 'accept' ? 'accepted' : 'declined';
+      alert(`Mentorship request from ${request.name} ${actionText}! The student has been notified.`);
+    } catch (error) {
+      console.error('Error updating mentorship request:', error);
+      alert('Failed to update mentorship request. Please try again.');
     }
   };
 
@@ -325,13 +392,19 @@ function AlumniDashboard() {
                 <a href="#" className="view-all" onClick={handleViewAllClick}>View All</a>
               </div>
               <div className="requests-list">
-                {mentorshipRequests.map(request => (
-                  <div key={request.id} className="request-item" style={{ opacity: request.status === 'declined' ? 0.5 : 1 }}>
-                    <div className="request-avatar">{request.name.split(' ').map(n => n[0]).join('')}</div>
-                    <div className="request-info">
-                      <div className="request-name">{request.name}</div>
-                      <div className="request-details">{request.details}</div>
-                    </div>
+                {isLoadingRequests ? (
+                  <div className="loading-state">
+                    <div className="loading-spinner"></div>
+                    <p>Loading mentorship requests...</p>
+                  </div>
+                ) : mentorshipRequests.length > 0 ? (
+                  mentorshipRequests.map(request => (
+                    <div key={request.id} className="request-item" style={{ opacity: request.status === 'declined' ? 0.5 : 1 }}>
+                      <div className="request-avatar">{request.studentName ? request.studentName.split(' ').map(n => n[0]).join('') : 'S'}</div>
+                      <div className="request-info">
+                        <div className="request-name">{request.studentName || 'Student'}</div>
+                        <div className="request-details">{request.message || 'Mentorship request'}</div>
+                      </div>
                     <div className="request-actions">
                       {request.status === 'pending' && (
                         <>
@@ -361,7 +434,16 @@ function AlumniDashboard() {
                       )}
                     </div>
                   </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="empty-state">
+                    <div className="empty-icon">
+                      <i className="fas fa-user-friends"></i>
+                    </div>
+                    <h3 className="empty-title">No Mentorship Requests</h3>
+                    <p className="empty-message">You don't have any mentorship requests at the moment.</p>
+                  </div>
+                )}
               </div>
             </div>
           </section>
