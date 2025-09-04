@@ -132,51 +132,10 @@ function StudentDashboard() {
       try {
         setIsLoadingPosts(true);
         
-        // For now, we'll create sample posts from real alumni data
-        // In a real app, you'd have a separate 'posts' collection
-        const alumniRef = collection(db, 'users');
-        const q = query(
-          alumniRef,
-          where('role', '==', 'alumni'),
-          limit(3)
-        );
-        
-        const querySnapshot = await getDocs(q);
-        const alumniData = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          const firstName = data.firstName || '';
-          const lastName = data.lastName || '';
-          const fullName = `${firstName} ${lastName}`.trim();
-          
-          // Better fallback logic for display name
-          let displayName = fullName;
-          if (!displayName && data.displayName) {
-            displayName = data.displayName;
-          }
-          if (!displayName && data.email) {
-            displayName = data.email.split('@')[0];
-          }
-          if (!displayName) {
-            displayName = 'Alumni User';
-          }
-          
-          return {
-            id: doc.id,
-            avatar: displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-            name: displayName,
-            meta: `${data.course || 'General'} '${data.batch || ''} • ${Math.floor(Math.random() * 24)} hours ago`,
-            content: data.experience ? 
-              `Hello students! I'm ${displayName}, a ${data.course || 'alumni'} graduate from batch ${data.batch || 'N/A'}. ${data.experience}. Feel free to reach out if you have any questions about your career path!` :
-              `Hi everyone! I'm ${displayName}, a ${data.course || 'alumni'} graduate. I'm here to help students with career guidance and mentorship. Don't hesitate to reach out!`,
-            type: ['job', 'tip', 'event'][Math.floor(Math.random() * 3)],
-            likes: Math.floor(Math.random() * 50),
-            comments: Math.floor(Math.random() * 20),
-            isLiked: false
-          };
-        });
-        
-        setFeedPosts(alumniData);
-        console.log('Fetched alumni posts:', alumniData.length);
+        // TODO: Implement real alumni posts system
+        // For now, we'll show an empty state to avoid misleading fake posts
+        setFeedPosts([]);
+        console.log('Alumni posts feature not yet implemented - showing empty state');
       } catch (error) {
         console.error('Error fetching alumni posts:', error);
         // Fallback to empty array if there's an error
@@ -469,8 +428,8 @@ function StudentDashboard() {
                     <div className="empty-icon">
                       <i className="fas fa-newspaper"></i>
                     </div>
-                    <h3 className="empty-title">No alumni posts yet</h3>
-                    <p className="empty-message">Check back later for updates from alumni mentors.</p>
+                    <h3 className="empty-title">Alumni Posts Coming Soon</h3>
+                    <p className="empty-message">This feature is under development. Alumni will be able to share job opportunities, career tips, and events here.</p>
                   </div>
                 )}
               </div>
