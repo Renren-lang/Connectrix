@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, orderBy, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, orderBy, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function StudentDashboard() {
@@ -13,6 +13,19 @@ function StudentDashboard() {
   const [mentorsError, setMentorsError] = useState(null);
   const [feedPosts, setFeedPosts] = useState([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [commentText, setCommentText] = useState('');
+
+  // Facebook-like reaction types
+  const reactionTypes = [
+    { type: 'like', emoji: '👍', label: 'Like' },
+    { type: 'love', emoji: '❤️', label: 'Love' },
+    { type: 'laugh', emoji: '😂', label: 'Haha' },
+    { type: 'wow', emoji: '😮', label: 'Wow' },
+    { type: 'sad', emoji: '😢', label: 'Sad' },
+    { type: 'angry', emoji: '😡', label: 'Angry' }
+  ];
 
   // Debug logging
   useEffect(() => {
@@ -189,25 +202,206 @@ function StudentDashboard() {
     console.log(`Filtering feed by: ${filterType}`);
   };
 
+  const handleReaction = async (postId, reactionType) => {
+    if (!currentUser) {
+      alert('Please log in to react to posts');
+      return;
+    }
+
+    try {
+      const post = feedPosts.find(p => p.id === postId);
+      if (!post) {
+        console.error('Post not found:', postId);
+        return;
+      }
+
+      console.log('Handling reaction:', { postId, reactionType, userId: currentUser.uid });
+
+      const reactionsRef = collection(db, 'forum-posts', postId, 'reactions');
+      const userReactionQuery = query(reactionsRef, where('userId', '==', currentUser.uid));
+      const userReactionSnapshot = await getDocs(userReactionQuery);
+
+      if (userReactionSnapshot.empty) {
+        // Add new reaction
+        console.log('Adding new reaction');
+        await addDoc(reactionsRef, {
+          userId: currentUser.uid,
+          type: reactionType,
+          createdAt: serverTimestamp()
+        });
+        
+        // Create notification for post author
+        await createReactionNotification(post.authorId, postId, reactionType, post.content);
+      } else {
+        // Update existing reaction
+        const existingReaction = userReactionSnapshot.docs[0];
+        const existingType = existingReaction.data().type;
+        
+        if (existingType === reactionType) {
+          // Remove reaction if same type
+          console.log('Removing existing reaction');
+          await deleteDoc(existingReaction.ref);
+        } else {
+          // Update to new reaction type
+          console.log('Updating reaction type from', existingType, 'to', reactionType);
+          await updateDoc(existingReaction.ref, {
+            type: reactionType,
+            updatedAt: serverTimestamp()
+          });
+          
+          // Create notification for post author
+          await createReactionNotification(post.authorId, postId, reactionType, post.content);
+        }
+      }
+
+      console.log('Reaction handled successfully');
+      alert(`Reacted with ${reactionTypes.find(r => r.type === reactionType)?.emoji} ${reactionTypes.find(r => r.type === reactionType)?.label}!`);
+      
+    } catch (error) {
+      console.error('Error handling reaction:', error);
+      alert('Failed to react to post. Please try again.');
+    }
+  };
+
+  const createReactionNotification = async (authorId, postId, reactionType, postContent) => {
+    if (authorId === currentUser.uid) return; // Don't notify self
+
+    try {
+      const reactionEmoji = reactionTypes.find(r => r.type === reactionType)?.emoji || '👍';
+      const reactionLabel = reactionTypes.find(r => r.type === reactionType)?.label || 'Like';
+      
+      const notification = {
+        recipientId: authorId,
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        type: 'forum-reaction',
+        title: `${reactionEmoji} New Reaction`,
+        message: `${currentUser.displayName || 'Someone'} reacted with ${reactionLabel} to your post "${postContent.substring(0, 50)}..."`,
+        data: {
+          postId: postId,
+          reactionType: reactionType,
+          postContent: postContent
+        },
+        read: false,
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'notifications'), notification);
+      console.log('Notification created successfully');
+    } catch (error) {
+      console.error('Error creating reaction notification:', error);
+    }
+  };
+
   const handlePostAction = (postId, actionType) => {
     if (actionType === 'like') {
-      // In a real app, this would update the database
-      console.log(`Liked post ${postId}`);
+      handleReaction(postId, 'like');
     } else if (actionType === 'comment') {
       const post = feedPosts.find(p => p.id === postId);
-      if (post && post.forumPostId) {
-        // Navigate to Forum with the specific post
-        navigate('/forum', { 
-          state: { 
-            scrollToPost: post.forumPostId,
-            category: post.category 
-          } 
-        });
-      } else {
-        alert(`Replying to: ${post.content.substring(0, 50)}...`);
+      if (post) {
+        setSelectedPost(post);
+        setShowCommentModal(true);
       }
     } else if (actionType === 'share') {
-      alert('Share functionality would be implemented here');
+      const post = feedPosts.find(p => p.id === postId);
+      if (post) {
+        handleSharePost(postId, post);
+      }
+    }
+  };
+
+  const handleSharePost = async (postId, post) => {
+    if (!currentUser) {
+      alert('Please log in to share posts');
+      return;
+    }
+
+    try {
+      // Create a shared post
+      const sharedPost = {
+        originalPostId: postId,
+        originalAuthorId: post.authorId,
+        originalTitle: post.content.substring(0, 100),
+        originalContent: post.content,
+        sharedBy: currentUser.uid,
+        sharedByName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        category: post.category || 'general',
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'forum-posts'), sharedPost);
+
+      // Create notification for original author
+      const notification = {
+        recipientId: post.authorId,
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        type: 'forum-share',
+        title: '📤 Post Shared',
+        message: `${currentUser.displayName || 'Someone'} shared your post "${post.content.substring(0, 50)}..."`,
+        data: {
+          originalPostId: postId,
+          postContent: post.content
+        },
+        read: false,
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'notifications'), notification);
+
+      alert('Post shared successfully!');
+    } catch (error) {
+      console.error('Error sharing post:', error);
+      alert('Failed to share post. Please try again.');
+    }
+  };
+
+  const handleCommentSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!commentText.trim() || !selectedPost) {
+      alert('Please enter a comment');
+      return;
+    }
+
+    try {
+      // Create a comment/reply
+      const comment = {
+        postId: selectedPost.id,
+        authorId: currentUser.uid,
+        authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        content: commentText,
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'forum-comments'), comment);
+
+      // Create notification for post author
+      const notification = {
+        recipientId: selectedPost.authorId,
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        type: 'forum-comment',
+        title: '💬 New Comment',
+        message: `${currentUser.displayName || 'Someone'} commented on your post "${selectedPost.content.substring(0, 50)}..."`,
+        data: {
+          postId: selectedPost.id,
+          postContent: selectedPost.content,
+          commentContent: commentText
+        },
+        read: false,
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'notifications'), notification);
+
+      alert('Comment posted successfully!');
+      setCommentText('');
+      setShowCommentModal(false);
+      setSelectedPost(null);
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      alert('Failed to post comment. Please try again.');
     }
   };
 
@@ -444,26 +638,65 @@ function StudentDashboard() {
                       {post.content}
                     </div>
                     <div className="post-actions">
-                      <div 
-                        className="post-action"
-                        onClick={() => handlePostAction(post.id, 'like')}
-                      >
-                        <i className={post.isLiked ? 'fas fa-heart' : 'far fa-heart'}></i>
-                        <span>{post.likes}</span>
+                      <div className="reaction-buttons">
+                        <button 
+                          className="reaction-btn"
+                          onClick={() => handleReaction(post.id, 'like')}
+                          title="Like"
+                        >
+                          👍
+                        </button>
+                        <button 
+                          className="reaction-btn"
+                          onClick={() => handleReaction(post.id, 'love')}
+                          title="Love"
+                        >
+                          ❤️
+                        </button>
+                        <button 
+                          className="reaction-btn"
+                          onClick={() => handleReaction(post.id, 'laugh')}
+                          title="Haha"
+                        >
+                          😂
+                        </button>
+                        <button 
+                          className="reaction-btn"
+                          onClick={() => handleReaction(post.id, 'wow')}
+                          title="Wow"
+                        >
+                          😮
+                        </button>
+                        <button 
+                          className="reaction-btn"
+                          onClick={() => handleReaction(post.id, 'sad')}
+                          title="Sad"
+                        >
+                          😢
+                        </button>
+                        <button 
+                          className="reaction-btn"
+                          onClick={() => handleReaction(post.id, 'angry')}
+                          title="Angry"
+                        >
+                          😡
+                        </button>
                       </div>
-                      <div 
-                        className="post-action"
-                        onClick={() => handlePostAction(post.id, 'comment')}
-                      >
-                        <i className="far fa-comment"></i>
-                        <span>{post.comments}</span>
-                      </div>
-                      <div 
-                        className="post-action"
-                        onClick={() => handlePostAction(post.id, 'share')}
-                      >
-                        <i className="far fa-share"></i>
-                        <span>Share</span>
+                      <div className="action-buttons">
+                        <button 
+                          className="action-btn"
+                          onClick={() => handlePostAction(post.id, 'comment')}
+                        >
+                          <i className="far fa-comment"></i>
+                          Comment
+                        </button>
+                        <button 
+                          className="action-btn"
+                          onClick={() => handlePostAction(post.id, 'share')}
+                        >
+                          <i className="far fa-share"></i>
+                          Share
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -534,6 +767,64 @@ function StudentDashboard() {
           </section>
         </div>
       </main>
+
+      {/* Comment Modal */}
+      {showCommentModal && selectedPost && (
+        <div className="modal-overlay" onClick={() => setShowCommentModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Add a Comment</h3>
+              <button 
+                className="modal-close"
+                onClick={() => setShowCommentModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="post-preview">
+                <div className="post-header">
+                  <div className="post-avatar">{selectedPost.avatar}</div>
+                  <div className="post-user">
+                    <div className="post-name">{selectedPost.name}</div>
+                    <div className="post-meta">{selectedPost.meta}</div>
+                  </div>
+                </div>
+                <div className="post-content">
+                  {selectedPost.content}
+                </div>
+              </div>
+              <form onSubmit={handleCommentSubmit}>
+                <div className="form-group">
+                  <textarea
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    placeholder="Write your comment..."
+                    rows="4"
+                    required
+                  />
+                </div>
+                <div className="modal-actions">
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary"
+                    onClick={() => setShowCommentModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    disabled={!commentText.trim()}
+                  >
+                    Post Comment
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
