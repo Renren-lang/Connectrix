@@ -299,6 +299,11 @@ io.on('connection', (socket) => {
   });
 });
 
+// Root route - redirect to frontend
+app.get('/', (req, res) => {
+  res.redirect('https://cconnect-7f562.web.app');
+});
+
 // API Routes
 
 // Health check endpoint (no auth required)
