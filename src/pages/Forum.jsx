@@ -31,6 +31,12 @@ function Forum() {
   const [threads, setThreads] = useState([]);
   const [posts, setPosts] = useState([]);
 
+  // Reset view to threads when component mounts
+  useEffect(() => {
+    setActiveView('threads');
+    setSelectedThread(null);
+  }, []);
+
   // Fetch forum posts from Firestore
   useEffect(() => {
     const fetchForumPosts = async () => {
