@@ -8090,6 +8090,44 @@ input:focus, textarea:focus, select:focus, .form-control:focus {
   background-color: #5a6268;
 }
 
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+/* Nested Comments */
+.nested-reply {
+  margin-left: 2rem;
+  border-left: 3px solid #e9ecef;
+  padding-left: 1rem;
+  margin-top: 0.5rem;
+}
+
+.reply-to-comment-form {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border-left: 3px solid var(--primary-color);
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #6c757d;
+}
+
+.empty-state p {
+  margin: 0;
+  font-style: italic;
+}
+
 /* Responsive Design for Reactions */
 @media (max-width: 768px) {
   .thread-actions {

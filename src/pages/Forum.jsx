@@ -32,7 +32,9 @@ function Forum() {
   const [posts, setPosts] = useState([]);
   const [showReactionPicker, setShowReactionPicker] = useState(null);
   const [userReactions, setUserReactions] = useState({});
-  const [reactingPosts, setReactingPosts] = useState(new Set());
+  const [comments, setComments] = useState([]);
+  const [showReplyToComment, setShowReplyToComment] = useState(null);
+  const [replyToCommentText, setReplyToCommentText] = useState('');
 
   // Facebook-like reaction types
   const reactionTypes = [
@@ -137,9 +139,11 @@ function Forum() {
     setSelectedThread(null);
   };
 
-  const handleThreadClick = (thread) => {
+  const handleThreadClick = async (thread) => {
     setSelectedThread(thread);
     setActiveView('detail');
+    // Fetch comments for this thread
+    await fetchComments(thread.id);
   };
 
   const handleBackToThreads = () => {
@@ -224,13 +228,122 @@ function Forum() {
     }
   };
 
-  const handleReplySubmit = (e) => {
+  const fetchComments = async (postId) => {
+    try {
+      const commentsRef = collection(db, 'forum-posts', postId, 'comments');
+      const q = query(commentsRef, orderBy('createdAt', 'asc'));
+      const querySnapshot = await getDocs(q);
+      
+      const commentsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setComments(commentsData);
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    }
+  };
+
+  const handleReplySubmit = async (e) => {
     e.preventDefault();
     
-    if (replyContent.trim()) {
-      // In a real app, this would add the reply to the database
-      alert('Reply posted successfully!');
+    if (!replyContent.trim() || !selectedThread) {
+      alert('Please enter a comment');
+      return;
+    }
+
+    try {
+      const comment = {
+        postId: selectedThread.id,
+        authorId: currentUser.uid,
+        authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        content: replyContent,
+        parentCommentId: null, // Top-level comment
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'forum-posts', selectedThread.id, 'comments'), comment);
+
+      // Create notification for post author
+      const notification = {
+        recipientId: selectedThread.authorId,
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        type: 'forum-comment',
+        title: '💬 New Comment',
+        message: `${currentUser.displayName || 'Someone'} commented on your post "${selectedThread.title}"`,
+        data: {
+          postId: selectedThread.id,
+          postTitle: selectedThread.title,
+          commentContent: replyContent
+        },
+        read: false,
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'notifications'), notification);
+
+      alert('Comment posted successfully!');
       setReplyContent('');
+      
+      // Refresh comments
+      await fetchComments(selectedThread.id);
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      alert('Failed to post comment. Please try again.');
+    }
+  };
+
+  const handleReplyToComment = async (e) => {
+    e.preventDefault();
+    
+    if (!replyToCommentText.trim() || !showReplyToComment) {
+      alert('Please enter a reply');
+      return;
+    }
+
+    try {
+      const reply = {
+        postId: selectedThread.id,
+        authorId: currentUser.uid,
+        authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        content: replyToCommentText,
+        parentCommentId: showReplyToComment.id,
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'forum-posts', selectedThread.id, 'comments'), reply);
+
+      // Create notification for comment author
+      const notification = {
+        recipientId: showReplyToComment.authorId,
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        type: 'comment-reply',
+        title: '💬 Reply to Your Comment',
+        message: `${currentUser.displayName || 'Someone'} replied to your comment`,
+        data: {
+          postId: selectedThread.id,
+          postTitle: selectedThread.title,
+          commentContent: replyToCommentText,
+          originalCommentId: showReplyToComment.id
+        },
+        read: false,
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'notifications'), notification);
+
+      alert('Reply posted successfully!');
+      setReplyToCommentText('');
+      setShowReplyToComment(null);
+      
+      // Refresh comments
+      await fetchComments(selectedThread.id);
+    } catch (error) {
+      console.error('Error posting reply:', error);
+      alert('Failed to post reply. Please try again.');
     }
   };
 
@@ -331,11 +444,11 @@ function Forum() {
   const handlePostAction = (postId, action) => {
     if (action === 'like') {
       handleReaction(postId, 'like');
-    } else if (action === 'reply') {
-      // Scroll to reply form
-      const replyForm = document.querySelector('.reply-form');
-      if (replyForm) {
-        replyForm.scrollIntoView({ behavior: 'smooth' });
+    } else if (action === 'comment') {
+      // Scroll to comment form
+      const commentForm = document.querySelector('.reply-form');
+      if (commentForm) {
+        commentForm.scrollIntoView({ behavior: 'smooth' });
         document.getElementById('reply-content')?.focus();
       }
     } else if (action === 'share') {
@@ -547,10 +660,10 @@ function Forum() {
                           <div className="action-buttons">
                             <button 
                               className="action-btn"
-                              onClick={() => handlePostAction(thread.id, 'reply')}
+                              onClick={() => handlePostAction(thread.id, 'comment')}
                             >
                               <i className="far fa-comment"></i>
-                              Reply
+                              Comment
                             </button>
                             <button 
                               className="action-btn"
@@ -599,51 +712,92 @@ function Forum() {
                   </div>
                 </div>
 
-                {/* Posts Container */}
+                {/* Comments Container */}
                 <div className="posts-container">
-                  <div className="posts-header">Discussion</div>
+                  <div className="posts-header">Comments ({comments.length})</div>
                   <div className="posts-list">
-                    {posts.map(post => (
-                      <div key={post.id} className="post-item">
+                    {comments.filter(comment => !comment.parentCommentId).map(comment => (
+                      <div key={comment.id} className="post-item">
                         <div className="post-header">
-                          <div className="post-avatar">{post.avatar}</div>
+                          <div className="post-avatar">{comment.authorName ? comment.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}</div>
                           <div className="post-info">
-                            <div className="post-author">{post.author}</div>
-                            <div className="post-time">{post.time}</div>
+                            <div className="post-author">{comment.authorName || 'Anonymous'}</div>
+                            <div className="post-time">{comment.createdAt ? new Date(comment.createdAt.toDate()).toLocaleString() : 'Unknown time'}</div>
                           </div>
                         </div>
                         <div className="post-content">
-                          {post.content.split('\n').map((line, index) => (
-                            <React.Fragment key={index}>
-                              {line}
-                              {index < post.content.split('\n').length - 1 && <br />}
-                            </React.Fragment>
-                          ))}
+                          {comment.content}
                         </div>
                         <div className="post-actions">
                           <div 
-                            className={`post-action ${post.isLiked ? 'liked' : ''}`}
-                            onClick={() => handlePostAction(post.id, 'like')}
-                          >
-                            <i className={post.isLiked ? 'fas fa-heart' : 'far fa-heart'}></i>
-                            <span>{post.likes}</span>
-                          </div>
-                          <div 
                             className="post-action"
-                            onClick={() => handlePostAction(post.id, 'reply')}
+                            onClick={() => setShowReplyToComment(comment)}
                           >
                             <i className="far fa-comment"></i>
                             <span>Reply</span>
                           </div>
                         </div>
+                        
+                        {/* Nested Replies */}
+                        {comments.filter(reply => reply.parentCommentId === comment.id).map(reply => (
+                          <div key={reply.id} className="post-item nested-reply">
+                            <div className="post-header">
+                              <div className="post-avatar">{reply.authorName ? reply.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}</div>
+                              <div className="post-info">
+                                <div className="post-author">{reply.authorName || 'Anonymous'}</div>
+                                <div className="post-time">{reply.createdAt ? new Date(reply.createdAt.toDate()).toLocaleString() : 'Unknown time'}</div>
+                              </div>
+                            </div>
+                            <div className="post-content">
+                              {reply.content}
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {/* Reply to Comment Form */}
+                        {showReplyToComment && showReplyToComment.id === comment.id && (
+                          <div className="reply-to-comment-form">
+                            <form onSubmit={handleReplyToComment}>
+                              <div className="form-group">
+                                <textarea
+                                  className="form-control"
+                                  value={replyToCommentText}
+                                  onChange={(e) => setReplyToCommentText(e.target.value)}
+                                  placeholder="Write a reply..."
+                                  rows="3"
+                                  required
+                                />
+                              </div>
+                              <div className="form-actions">
+                                <button type="submit" className="btn btn-primary btn-sm">Post Reply</button>
+                                <button 
+                                  type="button" 
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => {
+                                    setShowReplyToComment(null);
+                                    setReplyToCommentText('');
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          </div>
+                        )}
                       </div>
                     ))}
+                    
+                    {comments.length === 0 && (
+                      <div className="empty-state">
+                        <p>No comments yet. Be the first to comment!</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Reply Form */}
+                {/* Comment Form */}
                 <div className="reply-form">
-                  <h3 className="form-label">Post a Reply</h3>
+                  <h3 className="form-label">Post a Comment</h3>
                   <form onSubmit={handleReplySubmit}>
                     <div className="form-group">
                       <textarea
@@ -656,7 +810,7 @@ function Forum() {
                         required
                       ></textarea>
                     </div>
-                    <button type="submit" className="btn btn-primary">Post Reply</button>
+                    <button type="submit" className="btn btn-primary">Post Comment</button>
                   </form>
                 </div>
               </div>
