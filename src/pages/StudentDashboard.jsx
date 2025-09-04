@@ -16,6 +16,8 @@ function StudentDashboard() {
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [commentText, setCommentText] = useState('');
+  const [showCommentInput, setShowCommentInput] = useState({});
+  const [postComments, setPostComments] = useState({});
 
   // Facebook-like reaction types
   const reactionTypes = [
@@ -294,14 +296,39 @@ function StudentDashboard() {
     }
   };
 
+  const fetchPostComments = async (postId) => {
+    try {
+      const commentsRef = collection(db, 'forum-comments');
+      const q = query(commentsRef, where('postId', '==', postId), orderBy('createdAt', 'asc'));
+      const querySnapshot = await getDocs(q);
+      
+      const comments = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setPostComments(prev => ({
+        ...prev,
+        [postId]: comments
+      }));
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    }
+  };
+
   const handlePostAction = (postId, actionType) => {
     if (actionType === 'like') {
       handleReaction(postId, 'like');
     } else if (actionType === 'comment') {
-      const post = feedPosts.find(p => p.id === postId);
-      if (post) {
-        setSelectedPost(post);
-        setShowCommentModal(true);
+      // Toggle comment input for this post
+      setShowCommentInput(prev => ({
+        ...prev,
+        [postId]: !prev[postId]
+      }));
+      
+      // Fetch comments if not already loaded
+      if (!postComments[postId]) {
+        fetchPostComments(postId);
       }
     } else if (actionType === 'share') {
       const post = feedPosts.find(p => p.id === postId);
@@ -357,23 +384,41 @@ function StudentDashboard() {
     }
   };
 
-  const handleCommentSubmit = async (e) => {
+  const handleCommentSubmit = async (e, postId) => {
     e.preventDefault();
     
-    if (!commentText.trim() || !selectedPost) {
+    const commentInput = e.target.querySelector('textarea');
+    const commentText = commentInput.value.trim();
+    
+    if (!commentText) {
       alert('Please enter a comment');
       return;
     }
 
+    const post = feedPosts.find(p => p.id === postId);
+    if (!post) {
+      alert('Post not found');
+      return;
+    }
+
     try {
-      console.log('Selected post data:', selectedPost);
-      console.log('Post authorId:', selectedPost.authorId);
+      console.log('Posting comment for post:', postId);
+      console.log('Post authorId:', post.authorId);
       
-      // Create a comment/reply
+      // Get user's actual name from their profile
+      const userRef = doc(db, 'users', currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      const userData = userSnap.exists() ? userSnap.data() : {};
+      
+      const authorName = userData.firstName && userData.lastName 
+        ? `${userData.firstName} ${userData.lastName}`
+        : userData.displayName || currentUser.displayName || currentUser.email?.split('@')[0] || 'User';
+      
+      // Create a comment
       const comment = {
-        postId: selectedPost.id,
+        postId: postId,
         authorId: currentUser.uid,
-        authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        authorName: authorName,
         content: commentText,
         createdAt: serverTimestamp()
       };
@@ -381,19 +426,19 @@ function StudentDashboard() {
       await addDoc(collection(db, 'forum-comments'), comment);
 
       // Create notification for post author (only if authorId exists and is not the current user)
-      if (selectedPost.authorId && selectedPost.authorId !== currentUser.uid) {
-        console.log('Creating notification for author:', selectedPost.authorId);
+      if (post.authorId && post.authorId !== currentUser.uid) {
+        console.log('Creating notification for author:', post.authorId);
         
         const notification = {
-          recipientId: selectedPost.authorId,
+          recipientId: post.authorId,
           senderId: currentUser.uid,
-          senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+          senderName: authorName,
           type: 'forum-comment',
           title: '💬 New Comment',
-          message: `${currentUser.displayName || 'Someone'} commented on your post "${selectedPost.content.substring(0, 50)}..."`,
+          message: `${authorName} commented on your post "${post.content.substring(0, 50)}..."`,
           data: {
-            postId: selectedPost.id,
-            postContent: selectedPost.content,
+            postId: postId,
+            postContent: post.content,
             commentContent: commentText
           },
           read: false,
@@ -406,10 +451,12 @@ function StudentDashboard() {
         console.log('Skipping notification - no authorId or self-comment');
       }
 
-      alert('Comment posted successfully!');
-      setCommentText('');
-      setShowCommentModal(false);
-      setSelectedPost(null);
+      // Clear the input
+      commentInput.value = '';
+      
+      // Refresh comments for this post
+      await fetchPostComments(postId);
+      
     } catch (error) {
       console.error('Error posting comment:', error);
       alert('Failed to post comment. Please try again.');
@@ -709,6 +756,60 @@ function StudentDashboard() {
                           Share
                         </button>
                       </div>
+                    </div>
+                    
+                    {/* Facebook-like Comments Section */}
+                    <div className="comments-section">
+                      {/* Show comments if they exist */}
+                      {postComments[post.id] && postComments[post.id].length > 0 && (
+                        <div className="comments-list">
+                          {postComments[post.id].map(comment => (
+                            <div key={comment.id} className="comment-item">
+                              <div className="comment-avatar">
+                                {comment.authorName ? comment.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
+                              </div>
+                              <div className="comment-content">
+                                <div className="comment-header">
+                                  <span className="comment-author">{comment.authorName || 'Anonymous'}</span>
+                                  <span className="comment-time">
+                                    {comment.createdAt ? new Date(comment.createdAt.toDate()).toLocaleString() : 'Unknown time'}
+                                  </span>
+                                </div>
+                                <div className="comment-text">{comment.content}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Show "No comments yet" if no comments */}
+                      {postComments[post.id] && postComments[post.id].length === 0 && (
+                        <div className="no-comments">
+                          <p>No comments yet</p>
+                        </div>
+                      )}
+                      
+                      {/* Comment Input - Show when comment button is clicked */}
+                      {showCommentInput[post.id] && (
+                        <div className="comment-input-section">
+                          <form onSubmit={(e) => handleCommentSubmit(e, post.id)}>
+                            <div className="comment-input-wrapper">
+                              <div className="comment-input-avatar">
+                                {currentUser.displayName ? currentUser.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
+                              </div>
+                              <textarea
+                                className="comment-input"
+                                placeholder="Write a comment..."
+                                rows="2"
+                                required
+                              />
+                              <button type="submit" className="comment-submit-btn">
+                                <i className="fas fa-paper-plane"></i>
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      )}
                     </div>
                   </div>
                   ))
