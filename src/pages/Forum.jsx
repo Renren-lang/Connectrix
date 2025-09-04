@@ -253,7 +253,15 @@ function Forum() {
       return;
     }
 
+    if (!currentUser) {
+      alert('Please log in to post comments');
+      return;
+    }
+
     try {
+      console.log('Creating comment for post:', selectedThread.id);
+      console.log('Current user:', currentUser.uid);
+      
       const comment = {
         postId: selectedThread.id,
         authorId: currentUser.uid,
@@ -263,7 +271,13 @@ function Forum() {
         createdAt: serverTimestamp()
       };
 
-      await addDoc(collection(db, 'forum-posts', selectedThread.id, 'comments'), comment);
+      console.log('Comment data:', comment);
+      
+      const commentsRef = collection(db, 'forum-posts', selectedThread.id, 'comments');
+      console.log('Comments collection reference:', commentsRef);
+      
+      const docRef = await addDoc(commentsRef, comment);
+      console.log('Comment created with ID:', docRef.id);
 
       // Create notification for post author
       const notification = {
@@ -303,7 +317,15 @@ function Forum() {
       return;
     }
 
+    if (!currentUser) {
+      alert('Please log in to post replies');
+      return;
+    }
+
     try {
+      console.log('Creating reply to comment:', showReplyToComment.id);
+      console.log('Current user:', currentUser.uid);
+      
       const reply = {
         postId: selectedThread.id,
         authorId: currentUser.uid,
@@ -313,7 +335,13 @@ function Forum() {
         createdAt: serverTimestamp()
       };
 
-      await addDoc(collection(db, 'forum-posts', selectedThread.id, 'comments'), reply);
+      console.log('Reply data:', reply);
+      
+      const commentsRef = collection(db, 'forum-posts', selectedThread.id, 'comments');
+      console.log('Comments collection reference:', commentsRef);
+      
+      const docRef = await addDoc(commentsRef, reply);
+      console.log('Reply created with ID:', docRef.id);
 
       // Create notification for comment author
       const notification = {
