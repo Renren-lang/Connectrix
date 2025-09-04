@@ -1,0 +1,385 @@
+/* Screen reader only class for accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Ensure buttons maintain their styling */
+.chat-item {
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+
+.chat-item:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.chat-item.active {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure emoji buttons maintain their styling */
+.emoji-category,
+.emoji-item {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+
+.emoji-category:hover,
+.emoji-item:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure chat action buttons maintain their styling */
+.chat-action {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+
+.chat-action:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure tool buttons maintain their styling */
+.tool-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+
+.tool-btn:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure close modal button maintains its styling */
+.close-modal {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+
+.close-modal:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure download button maintains its styling */
+.download-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+
+.download-btn:hover {
+  background-color: rgba(0, 123, 255, 0.1);
+}
+
+/* Image message styles */
+.message-image {
+  margin: 10px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 300px;
+}
+
+.message-sender-info {
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.sender-name {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 4px 8px;
+  border-radius: 12px;
+  display: inline-block;
+}
+
+.message.sent .sender-name {
+  background: rgba(67, 97, 238, 0.1);
+  color: #4361ee;
+}
+
+.message.received .sender-name {
+  background: rgba(108, 117, 125, 0.1);
+  color: #6c757d;
+}
+
+.chat-image {
+  width: 100%;
+  height: auto;
+  max-height: 300px;
+  object-fit: cover;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: transform 0.2s ease;
+}
+
+.chat-image:hover {
+  transform: scale(1.02);
+}
+
+.image-error {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  color: #721c24;
+}
+
+.image-error p {
+  margin: 0 0 10px 0;
+  font-weight: 500;
+}
+
+.image-error small {
+  color: #856404;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.image-info {
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Image Modal Styles */
+.image-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  cursor: pointer;
+}
+
+.image-modal-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  cursor: default;
+}
+
+.image-modal-img {
+  max-width: 100%;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.image-modal-close {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  color: #333;
+  transition: all 0.2s ease;
+  z-index: 10001;
+}
+
+.image-modal-close:hover {
+  background: white;
+  transform: scale(1.1);
+}
+
+.image-name {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.image-size {
+  font-size: 11px;
+  color: #999;
+}
+
+/* File message styles */
+.message-file {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  margin: 8px 0;
+  max-width: 300px;
+}
+
+.file-icon {
+  margin-right: 12px;
+  font-size: 24px;
+  color: #666;
+}
+
+.file-info {
+  flex: 1;
+}
+
+.file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.file-size {
+  font-size: 12px;
+  color: #666;
+}
+
+.download-btn {
+  padding: 8px;
+  border-radius: 4px;
+  color: #007bff;
+  transition: background-color 0.2s ease;
+}
+
+.download-btn:hover {
+  background-color: rgba(0, 123, 255, 0.1);
+}
+
+/* File preview styles */
+.file-preview {
+  text-align: center;
+  padding: 20px;
+}
+
+.preview-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.file-icon-preview {
+  font-size: 48px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.selected-file-info {
+  text-align: center;
+}
+
+.selected-file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.selected-file-size {
+  font-size: 12px;
+  color: #666;
+}
+
+/* Uploading indicator styles */
+.uploading-indicator {
+  text-align: center;
+  padding: 20px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.uploading-indicator p {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+}
+
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #2c3e50;
+  flex: 1;
+}
+
+.refresh-btn {
+  background: none;
+  border: none;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+}
+
+.refresh-btn:hover {
+  background: #f8f9fa;
+  color: #495057;
+  transform: rotate(180deg);
+}
+
+.refresh-btn:active {
+  transform: rotate(360deg);
+}
