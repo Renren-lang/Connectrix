@@ -132,10 +132,42 @@ function StudentDashboard() {
       try {
         setIsLoadingPosts(true);
         
-        // TODO: Implement real alumni posts system
-        // For now, we'll show an empty state to avoid misleading fake posts
-        setFeedPosts([]);
-        console.log('Alumni posts feature not yet implemented - showing empty state');
+        // Fetch real forum posts from alumni
+        const forumRef = collection(db, 'forum-posts');
+        const q = query(
+          forumRef,
+          where('authorRole', '==', 'alumni'),
+          orderBy('createdAt', 'desc'),
+          limit(5)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        const forumPosts = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          const timeAgo = data.createdAt ? 
+            Math.floor((new Date() - data.createdAt.toDate()) / (1000 * 60 * 60)) : 
+            Math.floor(Math.random() * 24);
+          
+          return {
+            id: doc.id,
+            avatar: data.authorName ? data.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A',
+            name: data.authorName || 'Alumni',
+            meta: `${data.category || 'General'} • ${timeAgo} hours ago`,
+            content: data.content || 'No content available',
+            type: data.category === 'career' ? 'tip' : 
+                  data.category === 'technical' ? 'tip' : 
+                  data.category === 'general' ? 'job' : 'event',
+            likes: data.likes || 0,
+            comments: data.replyCount || 0,
+            isLiked: false,
+            forumPostId: doc.id,
+            category: data.category
+          };
+        });
+        
+        setFeedPosts(forumPosts);
+        console.log('Fetched alumni forum posts:', forumPosts.length);
+        console.log('Alumni posts data:', forumPosts);
       } catch (error) {
         console.error('Error fetching alumni posts:', error);
         // Fallback to empty array if there's an error
@@ -161,8 +193,21 @@ function StudentDashboard() {
     if (actionType === 'like') {
       // In a real app, this would update the database
       console.log(`Liked post ${postId}`);
-    } else {
-      alert(`${actionType.charAt(0).toUpperCase() + actionType.slice(1)} functionality would be implemented here`);
+    } else if (actionType === 'comment') {
+      const post = feedPosts.find(p => p.id === postId);
+      if (post && post.forumPostId) {
+        // Navigate to Forum with the specific post
+        navigate('/forum', { 
+          state: { 
+            scrollToPost: post.forumPostId,
+            category: post.category 
+          } 
+        });
+      } else {
+        alert(`Replying to: ${post.content.substring(0, 50)}...`);
+      }
+    } else if (actionType === 'share') {
+      alert('Share functionality would be implemented here');
     }
   };
 
@@ -428,8 +473,8 @@ function StudentDashboard() {
                     <div className="empty-icon">
                       <i className="fas fa-newspaper"></i>
                     </div>
-                    <h3 className="empty-title">Alumni Posts Coming Soon</h3>
-                    <p className="empty-message">This feature is under development. Alumni will be able to share job opportunities, career tips, and events here.</p>
+                    <h3 className="empty-title">No Recent Alumni Posts</h3>
+                    <p className="empty-message">No recent posts from alumni at the moment. Check the Forum section to see all discussions and posts.</p>
                   </div>
                 )}
               </div>
