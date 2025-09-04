@@ -196,15 +196,74 @@ function Login() {
           const userRole = await getUserRole(result.user.uid);
           
           if (userRole) {
-            // Existing user, redirect to dashboard
-            SafeLogger.userAction('Existing user redirecting to dashboard', { role: userRole });
-            localStorage.removeItem('selectedRole');
-            
-            // Force a small delay to ensure AuthContext is updated
-            setTimeout(() => {
-              // Force reload the page to ensure AuthContext is properly updated
-              window.location.href = userRole === 'alumni' ? '/alumni-dashboard' : '/student-dashboard';
-            }, 1000);
+            // Existing user - check if they want to change their role
+            if (userRole !== storedRole) {
+              // User wants to change their role, update it in Firestore
+              SafeLogger.userAction('Existing user changing role', { oldRole: userRole, newRole: storedRole });
+              
+              const displayName = result.user.displayName || '';
+              const nameParts = displayName.split(' ').filter(part => part.trim() !== '');
+              const firstName = nameParts[0] || '';
+              const lastName = nameParts.slice(1).join(' ') || '';
+              
+              const userData = {
+                uid: result.user.uid,
+                email: result.user.email,
+                firstName: firstName,
+                lastName: lastName,
+                displayName: displayName,
+                profilePicture: result.user.photoURL || '',
+                role: storedRole, // Use the newly selected role
+                provider: 'google.com',
+                updatedAt: new Date()
+              };
+
+              SafeLogger.apiCall('/api/users/google', 'POST', { role: storedRole, email: userData.email });
+              
+              try {
+                const response = await fetch(API_CONFIG.getURL(API_CONFIG.endpoints.googleUser), {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(userData),
+                });
+                
+                if (response.ok) {
+                  SafeLogger.apiResponse('/api/users/google', response.status, { role: storedRole });
+                  SafeLogger.userAction('Role updated successfully', { newRole: storedRole });
+                  
+                  // Store the new role in localStorage
+                  localStorage.setItem('userRole', storedRole);
+                  localStorage.removeItem('selectedRole');
+                  
+                  // Refresh the user role in AuthContext
+                  await refreshUserRole();
+                  
+                  // Redirect to the correct dashboard based on new role
+                  setTimeout(() => {
+                    SafeLogger.userAction('Redirecting to dashboard after role change', { role: storedRole });
+                    window.location.href = storedRole === 'alumni' ? '/alumni-dashboard' : '/student-dashboard';
+                  }, 1000);
+                } else {
+                  SafeLogger.apiError('/api/users/google', { status: response.status });
+                  setErrors({ general: 'Failed to update user role. Please try again.' });
+                }
+              } catch (fetchError) {
+                SafeLogger.apiError('/api/users/google', fetchError);
+                setErrors({ general: 'Network error. Please check your connection and try again.' });
+              }
+            } else {
+              // Same role, redirect to dashboard
+              SafeLogger.userAction('Existing user redirecting to dashboard', { role: userRole });
+              localStorage.removeItem('selectedRole');
+              
+              // Force a small delay to ensure AuthContext is updated
+              setTimeout(() => {
+                // Force reload the page to ensure AuthContext is properly updated
+                window.location.href = userRole === 'alumni' ? '/alumni-dashboard' : '/student-dashboard';
+              }, 1000);
+            }
           } else {
             // New user, save to Firestore
             const displayName = result.user.displayName || '';
