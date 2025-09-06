@@ -311,34 +311,43 @@ function NotificationSettings() {
   // Security form submission
   const handleSecuritySubmit = async (e) => {
     e.preventDefault();
+    console.log('Password change form submitted');
+    console.log('Security data:', securityData);
+    console.log('Password strength:', passwordStrength);
     
     // Validate passwords match
     if (securityData.newPassword !== securityData.confirmPassword) {
+      console.log('Passwords do not match');
       alert('New passwords do not match. Please try again.');
       return;
     }
     
     // Validate password length
     if (securityData.newPassword.length < 8) {
+      console.log('Password too short');
       alert('Password must be at least 8 characters long. Please try again.');
       return;
     }
     
     // Validate password strength
     if (passwordStrength.score < 3) {
+      console.log('Password too weak');
       alert('Password is too weak. Please include uppercase, lowercase, number, and special character.');
       return;
     }
     
     // Validate current password is provided
     if (!securityData.currentPassword) {
+      console.log('Current password not provided');
       alert('Please enter your current password.');
       return;
     }
     
+    console.log('Starting password change process...');
     setSubmitting(true);
     
     try {
+      console.log('Re-authenticating user...');
       // Re-authenticate user with current password
       const credential = EmailAuthProvider.credential(
         currentUser.email,
@@ -348,10 +357,12 @@ function NotificationSettings() {
       await reauthenticateWithCredential(currentUser, credential);
       console.log('User re-authenticated successfully');
       
+      console.log('Updating password...');
       // Update password
       await updatePassword(currentUser, securityData.newPassword);
       console.log('Password updated successfully');
       
+      console.log('Setting success state...');
       setShowSecuritySuccess(true);
       setSecurityData({
         currentPassword: '',
@@ -362,9 +373,14 @@ function NotificationSettings() {
       // Scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
       
-      setTimeout(() => setShowSecuritySuccess(false), 5000);
+      setTimeout(() => {
+        console.log('Hiding success message');
+        setShowSecuritySuccess(false);
+      }, 5000);
     } catch (error) {
       console.error('Password change failed:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
       
       // Handle specific error cases
       if (error.code === 'auth/wrong-password') {
@@ -377,6 +393,7 @@ function NotificationSettings() {
         alert(`Password change failed: ${error.message}`);
       }
     } finally {
+      console.log('Password change process completed');
       setSubmitting(false);
     }
   };

@@ -550,6 +550,11 @@ textarea.form-control {
   border-radius: 6px;
   margin-bottom: 1.5rem;
   border: 1px solid #c3e6cb;
+  display: none;
+}
+
+.success-message.show {
+  display: block;
 }
 
 /* Responsive Design */
