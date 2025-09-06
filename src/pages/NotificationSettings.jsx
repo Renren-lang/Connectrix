@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, getDocs, deleteDoc } from 'firebase/firestore';
+import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { createTestNotification, createMultipleTestNotifications } from '../utils/testNotifications';
 import './NotificationSettings.css';
 
@@ -38,6 +39,12 @@ function NotificationSettings() {
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
+  });
+  
+  // Password strength state
+  const [passwordStrength, setPasswordStrength] = useState({
+    score: 0,
+    feedback: ''
   });
   
   // Profile picture state
@@ -159,14 +166,51 @@ function NotificationSettings() {
     }));
   };
 
-  // Security form handlers
+  // Password strength checker
+  const checkPasswordStrength = (password) => {
+    let score = 0;
+    let feedback = [];
+    
+    if (password.length >= 8) score += 1;
+    else feedback.push('At least 8 characters');
+    
+    if (/[a-z]/.test(password)) score += 1;
+    else feedback.push('Lowercase letter');
+    
+    if (/[A-Z]/.test(password)) score += 1;
+    else feedback.push('Uppercase letter');
+    
+    if (/[0-9]/.test(password)) score += 1;
+    else feedback.push('Number');
+    
+    if (/[^A-Za-z0-9]/.test(password)) score += 1;
+    else feedback.push('Special character');
+    
+    const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+    const strengthColors = ['#dc3545', '#fd7e14', '#ffc107', '#20c997', '#28a745'];
+    
+    return {
+      score,
+      label: strengthLabels[score] || 'Very Weak',
+      color: strengthColors[score] || '#dc3545',
+      feedback: feedback.length > 0 ? `Missing: ${feedback.join(', ')}` : 'Strong password!'
+    };
+  };
+
   const handleSecurityInputChange = (e) => {
     const { name, value } = e.target;
     setSecurityData(prev => ({
       ...prev,
       [name]: value
     }));
+    
+    // Check password strength for new password
+    if (name === 'newPassword') {
+      const strength = checkPasswordStrength(value);
+      setPasswordStrength(strength);
+    }
   };
+
 
   // Profile picture handlers
   const handlePictureUpload = (e) => {
@@ -280,11 +324,33 @@ function NotificationSettings() {
       return;
     }
     
+    // Validate password strength
+    if (passwordStrength.score < 3) {
+      alert('Password is too weak. Please include uppercase, lowercase, number, and special character.');
+      return;
+    }
+    
+    // Validate current password is provided
+    if (!securityData.currentPassword) {
+      alert('Please enter your current password.');
+      return;
+    }
+    
     setSubmitting(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Re-authenticate user with current password
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        securityData.currentPassword
+      );
+      
+      await reauthenticateWithCredential(currentUser, credential);
+      console.log('User re-authenticated successfully');
+      
+      // Update password
+      await updatePassword(currentUser, securityData.newPassword);
+      console.log('Password updated successfully');
       
       setShowSecuritySuccess(true);
       setSecurityData({
@@ -296,9 +362,20 @@ function NotificationSettings() {
       // Scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
       
-      setTimeout(() => setShowSecuritySuccess(false), 3000);
+      setTimeout(() => setShowSecuritySuccess(false), 5000);
     } catch (error) {
       console.error('Password change failed:', error);
+      
+      // Handle specific error cases
+      if (error.code === 'auth/wrong-password') {
+        alert('Current password is incorrect. Please try again.');
+      } else if (error.code === 'auth/weak-password') {
+        alert('New password is too weak. Please choose a stronger password.');
+      } else if (error.code === 'auth/requires-recent-login') {
+        alert('For security reasons, please log out and log back in before changing your password.');
+      } else {
+        alert(`Password change failed: ${error.message}`);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -1029,7 +1106,23 @@ function NotificationSettings() {
                     onChange={handleSecurityInputChange}
                     required 
                   />
-                  <div className="form-text">Password must be at least 8 characters long</div>
+                  {securityData.newPassword && (
+                    <div className="password-strength" style={{ marginTop: '8px' }}>
+                      <div className="strength-bar">
+                        <div 
+                          className="strength-fill" 
+                          style={{ 
+                            width: `${(passwordStrength.score / 5) * 100}%`,
+                            backgroundColor: passwordStrength.color
+                          }}
+                        ></div>
+                      </div>
+                      <div className="strength-text" style={{ color: passwordStrength.color, fontSize: '12px', marginTop: '4px' }}>
+                        {passwordStrength.label} - {passwordStrength.feedback}
+                      </div>
+                    </div>
+                  )}
+                  <div className="form-text">Password must be at least 8 characters long with uppercase, lowercase, number, and special character</div>
                 </div>
 
                 <div className="form-group">
