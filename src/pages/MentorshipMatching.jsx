@@ -22,6 +22,7 @@ function MentorshipMatching() {
   const [activeRole, setActiveRole] = useState('alumni');
   const [mentorshipRequests, setMentorshipRequests] = useState([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
+  const [activeFilter, setActiveFilter] = useState('all'); // 'all', 'pending', 'accepted', 'declined'
 
 
 
@@ -33,7 +34,7 @@ function MentorshipMatching() {
       const q = query(
         requestsRef,
         where('mentorId', '==', currentUser.uid),
-        where('status', '==', 'pending')
+        orderBy('createdAt', 'desc')
       );
       
       const querySnapshot = await getDocs(q);
@@ -188,7 +189,23 @@ function MentorshipMatching() {
 
 
 
+  // Filter requests based on active filter
+  const filteredRequests = mentorshipRequests.filter(request => {
+    switch (activeFilter) {
+      case 'pending':
+        return request.status === 'pending';
+      case 'accepted':
+        return request.status === 'accepted';
+      case 'declined':
+        return request.status === 'declined';
+      default:
+        return true; // 'all'
+    }
+  });
+
   const pendingRequestsCount = mentorshipRequests.filter(request => request.status === 'pending').length;
+  const acceptedRequestsCount = mentorshipRequests.filter(request => request.status === 'accepted').length;
+  const declinedRequestsCount = mentorshipRequests.filter(request => request.status === 'declined').length;
 
   return (
     <>
@@ -199,7 +216,33 @@ function MentorshipMatching() {
             <h1 className="page-title">Mentorship Requests</h1>
             <p className="page-subtitle">Manage your mentorship requests from students</p>
             
-
+            {/* Filter Buttons */}
+            <div className="filter-buttons" style={{ marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button 
+                className={`filter-btn ${activeFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setActiveFilter('all')}
+              >
+                All ({mentorshipRequests.length})
+              </button>
+              <button 
+                className={`filter-btn ${activeFilter === 'pending' ? 'active' : ''}`}
+                onClick={() => setActiveFilter('pending')}
+              >
+                Pending ({pendingRequestsCount})
+              </button>
+              <button 
+                className={`filter-btn ${activeFilter === 'accepted' ? 'active' : ''}`}
+                onClick={() => setActiveFilter('accepted')}
+              >
+                Accepted ({acceptedRequestsCount})
+              </button>
+              <button 
+                className={`filter-btn ${activeFilter === 'declined' ? 'active' : ''}`}
+                onClick={() => setActiveFilter('declined')}
+              >
+                Declined ({declinedRequestsCount})
+              </button>
+            </div>
           </div>
 
 
@@ -210,8 +253,13 @@ function MentorshipMatching() {
           <div className="mentorship-requests active">
               <div className="requests-container">
                 <div className="requests-header">
-                  <h2 className="requests-title">Pending Mentorship Requests</h2>
-                  <span className="request-count">{pendingRequestsCount}</span>
+                  <h2 className="requests-title">
+                    {activeFilter === 'all' ? 'All Mentorship Requests' :
+                     activeFilter === 'pending' ? 'Pending Mentorship Requests' :
+                     activeFilter === 'accepted' ? 'Accepted Mentorship Requests' :
+                     'Declined Mentorship Requests'}
+                  </h2>
+                  <span className="request-count">{filteredRequests.length}</span>
                 </div>
                 <div className="requests-list">
                   {isLoadingRequests ? (
@@ -219,8 +267,8 @@ function MentorshipMatching() {
                       <div className="loading-spinner"></div>
                       <p>Loading mentorship requests...</p>
                     </div>
-                  ) : mentorshipRequests.length > 0 ? (
-                    mentorshipRequests.map(request => (
+                  ) : filteredRequests.length > 0 ? (
+                    filteredRequests.map(request => (
                     <div key={request.id} className="request-item">
                       <div className="request-avatar">{request.avatar}</div>
                       <div className="request-info">
@@ -269,8 +317,18 @@ function MentorshipMatching() {
                       <div className="empty-icon">
                         <i className="fas fa-inbox"></i>
                       </div>
-                      <h3 className="empty-title">No mentorship requests</h3>
-                      <p className="empty-message">You don't have any pending mentorship requests at the moment.</p>
+                      <h3 className="empty-title">
+                        {activeFilter === 'all' ? 'No mentorship requests' :
+                         activeFilter === 'pending' ? 'No pending requests' :
+                         activeFilter === 'accepted' ? 'No accepted requests' :
+                         'No declined requests'}
+                      </h3>
+                      <p className="empty-message">
+                        {activeFilter === 'all' ? 'You don\'t have any mentorship requests at the moment.' :
+                         activeFilter === 'pending' ? 'You don\'t have any pending mentorship requests at the moment.' :
+                         activeFilter === 'accepted' ? 'You don\'t have any accepted mentorship requests at the moment.' :
+                         'You don\'t have any declined mentorship requests at the moment.'}
+                      </p>
                     </div>
                   )}
                 </div>
