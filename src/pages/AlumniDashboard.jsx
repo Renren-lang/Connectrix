@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function AlumniDashboard() {
@@ -244,11 +244,20 @@ function AlumniDashboard() {
     if (!commentText.trim() || !currentUser) return;
 
     try {
+      // Get user's actual name from their profile
+      const userRef = doc(db, 'users', currentUser.uid);
+      const userSnap = await getDoc(userRef);
+      const userData = userSnap.exists() ? userSnap.data() : {};
+      
+      const authorName = userData.firstName && userData.lastName 
+        ? `${userData.firstName} ${userData.lastName}`
+        : userData.displayName || currentUser.displayName || currentUser.email?.split('@')[0] || 'Alumni';
+
       const commentData = {
         postId,
         content: commentText.trim(),
         authorId: currentUser.uid,
-        authorName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email,
+        authorName: authorName,
         authorRole: 'alumni',
         parentCommentId: parentCommentId || null,
         createdAt: serverTimestamp(),
@@ -286,15 +295,24 @@ function AlumniDashboard() {
   // Create notification for comment
   const createCommentNotification = async (recipientId, postId, commenter) => {
     try {
+      // Get commenter's actual name
+      const userRef = doc(db, 'users', commenter.uid);
+      const userSnap = await getDoc(userRef);
+      const userData = userSnap.exists() ? userSnap.data() : {};
+      
+      const commenterName = userData.firstName && userData.lastName 
+        ? `${userData.firstName} ${userData.lastName}`
+        : userData.displayName || commenter.displayName || commenter.email?.split('@')[0] || 'Alumni';
+
       const notificationsRef = collection(db, 'notifications');
       await addDoc(notificationsRef, {
         recipientId,
         type: 'comment',
         title: 'New Comment',
-        message: `${commenter.firstName || commenter.email} commented on your post`,
+        message: `${commenterName} commented on your post`,
         postId,
         commenterId: commenter.uid,
-        commenterName: `${commenter.firstName || ''} ${commenter.lastName || ''}`.trim() || commenter.email,
+        commenterName: commenterName,
         read: false,
         createdAt: serverTimestamp()
       });
