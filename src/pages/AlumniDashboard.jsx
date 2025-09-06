@@ -309,6 +309,14 @@ function AlumniDashboard() {
       }
 
       console.log('Handling reaction:', { postId, reactionType, userId: currentUser.uid });
+      
+      // Debug log to see post structure
+      console.log('Post data for reaction:', {
+        id: post.id,
+        authorId: post.authorId,
+        content: post.content?.substring(0, 50),
+        hasAuthorId: !!post.authorId
+      });
 
       const reactionsRef = collection(db, 'forum-posts', postId, 'reactions');
       const userReactionQuery = query(reactionsRef, where('userId', '==', currentUser.uid));
@@ -323,8 +331,10 @@ function AlumniDashboard() {
           createdAt: serverTimestamp()
         });
         
-        // Create notification for post author
-        await createReactionNotification(post.authorId, postId, reactionType, post.content);
+        // Create notification for post author (only if authorId exists)
+        if (post.authorId) {
+          await createReactionNotification(post.authorId, postId, reactionType, post.content);
+        }
       } else {
         // Update existing reaction
         const existingReaction = userReactionSnapshot.docs[0];
@@ -342,8 +352,10 @@ function AlumniDashboard() {
             updatedAt: serverTimestamp()
           });
           
-          // Create notification for post author
-          await createReactionNotification(post.authorId, postId, reactionType, post.content);
+          // Create notification for post author (only if authorId exists)
+          if (post.authorId) {
+            await createReactionNotification(post.authorId, postId, reactionType, post.content);
+          }
         }
       }
 
@@ -356,7 +368,12 @@ function AlumniDashboard() {
   };
 
   const createReactionNotification = async (authorId, postId, reactionType, postContent) => {
-    if (authorId === currentUser.uid) return; // Don't notify self
+    // Validate required data
+    if (!authorId || authorId === currentUser.uid) return; // Don't notify self or if no author
+    if (!postId || !reactionType || !postContent) {
+      console.warn('Missing required data for reaction notification:', { authorId, postId, reactionType, postContent });
+      return;
+    }
 
     try {
       const reactionEmoji = reactionTypes.find(r => r.type === reactionType)?.emoji || '👍';
