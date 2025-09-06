@@ -104,26 +104,53 @@ function AlumniDashboard() {
   const fetchCommentsForPost = async (postId) => {
     try {
       const commentsRef = collection(db, 'post-comments');
-      const q = query(
-        commentsRef,
-        where('postId', '==', postId),
-        orderBy('createdAt', 'asc')
-      );
       
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const commentsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
-        }));
+      // Try the indexed query first
+      try {
+        const q = query(
+          commentsRef,
+          where('postId', '==', postId),
+          orderBy('createdAt', 'asc')
+        );
         
-        setComments(prev => ({
-          ...prev,
-          [postId]: commentsData
-        }));
-      });
-      
-      return unsubscribe;
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const commentsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
+          }));
+          
+          setComments(prev => ({
+            ...prev,
+            [postId]: commentsData
+          }));
+        });
+        
+        return unsubscribe;
+      } catch (indexError) {
+        // If index is not ready, use a fallback query without orderBy
+        console.warn('Index not ready, using fallback query:', indexError.message);
+        
+        const fallbackQuery = query(
+          commentsRef,
+          where('postId', '==', postId)
+        );
+        
+        const unsubscribe = onSnapshot(fallbackQuery, (snapshot) => {
+          const commentsData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
+          })).sort((a, b) => a.createdAt - b.createdAt); // Sort in JavaScript
+          
+          setComments(prev => ({
+            ...prev,
+            [postId]: commentsData
+          }));
+        });
+        
+        return unsubscribe;
+      }
     } catch (error) {
       console.error('Error fetching comments for post:', postId, error);
     }
