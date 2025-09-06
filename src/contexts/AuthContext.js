@@ -94,7 +94,22 @@ export function AuthProvider({ children }) {
   // Login function
   async function login(email, password) {
     try {
+      console.log('Attempting to sign in with email:', email);
+      console.log('Firebase Auth instance:', auth);
+      console.log('Auth app:', auth.app);
+      
+      // Validate email format
+      if (!email || !email.includes('@')) {
+        throw new Error('Please enter a valid email address.');
+      }
+      
+      // Validate password
+      if (!password || password.length < 6) {
+        throw new Error('Password must be at least 6 characters long.');
+      }
+      
       const result = await signInWithEmailAndPassword(auth, email, password);
+      console.log('Sign in successful:', result.user.uid);
       
       // Get user role from Firestore
       const userRef = doc(db, 'users', result.user.uid);
@@ -102,17 +117,85 @@ export function AuthProvider({ children }) {
       
       if (userSnap.exists()) {
         const role = userSnap.data().role;
+        console.log('User role found:', role);
         setUserRole(role);
         // Also store role in localStorage for persistence
         localStorage.setItem('userRole', role);
       } else {
-        // If no user document exists, this is an error
-        throw new Error('User profile not found. Please contact support.');
+        console.log('User document does not exist, creating default...');
+        // Create a default user document if it doesn't exist
+        const defaultUserData = {
+          firstName: result.user.displayName?.split(' ')[0] || '',
+          lastName: result.user.displayName?.split(' ')[1] || '',
+          email: result.user.email,
+          role: 'student', // Default role
+          createdAt: new Date(),
+          profilePictureUrl: result.user.photoURL || '',
+          profilePictureBase64: '',
+          bio: '',
+          skills: [],
+          interests: [],
+          graduationYear: '',
+          major: '',
+          company: '',
+          position: '',
+          experience: '',
+          location: '',
+          phone: '',
+          website: '',
+          linkedin: '',
+          github: '',
+          twitter: '',
+          instagram: '',
+          facebook: '',
+          youtube: '',
+          tiktok: '',
+          snapchat: '',
+          discord: '',
+          telegram: '',
+          whatsapp: '',
+          skype: '',
+          zoom: '',
+          teams: '',
+          slack: '',
+          other: ''
+        };
+        
+        try {
+          await setDoc(userRef, defaultUserData);
+          console.log('Default user document created successfully');
+          setUserRole('student');
+          localStorage.setItem('userRole', 'student');
+        } catch (createError) {
+          console.error('Error creating user document:', createError);
+          // Don't throw error, just use default role
+          setUserRole('student');
+          localStorage.setItem('userRole', 'student');
+        }
       }
       
       return result;
     } catch (error) {
-      throw error;
+      console.error('Login error:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
+      // Handle specific Firebase Auth errors
+      if (error.code === 'auth/user-not-found') {
+        throw new Error('No account found with this email address.');
+      } else if (error.code === 'auth/wrong-password') {
+        throw new Error('Incorrect password. Please try again.');
+      } else if (error.code === 'auth/invalid-email') {
+        throw new Error('Invalid email address format.');
+      } else if (error.code === 'auth/user-disabled') {
+        throw new Error('This account has been disabled. Please contact support.');
+      } else if (error.code === 'auth/too-many-requests') {
+        throw new Error('Too many failed login attempts. Please try again later.');
+      } else if (error.code === 'auth/network-request-failed') {
+        throw new Error('Network error. Please check your internet connection.');
+      } else {
+        throw new Error(`Login failed: ${error.message}`);
+      }
     }
   }
 
