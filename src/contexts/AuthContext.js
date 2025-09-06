@@ -130,6 +130,12 @@ export function AuthProvider({ children }) {
       console.log('Current user:', currentUser);
       console.log('Auth state:', auth.currentUser);
       
+      // Check if user is authenticated
+      if (!auth.currentUser) {
+        console.log('No authenticated user found');
+        return null;
+      }
+      
       const userRef = doc(db, 'users', uid);
       console.log('User ref created:', userRef.path);
       
@@ -147,12 +153,65 @@ export function AuthProvider({ children }) {
           setUserRole(role);
         }
         return role;
+      } else {
+        console.log('User document does not exist, creating default user document...');
+        
+        // Create a default user document if it doesn't exist
+        const defaultUserData = {
+          firstName: auth.currentUser.displayName?.split(' ')[0] || '',
+          lastName: auth.currentUser.displayName?.split(' ')[1] || '',
+          email: auth.currentUser.email,
+          role: 'student', // Default role
+          createdAt: new Date(),
+          profilePictureUrl: auth.currentUser.photoURL || '',
+          profilePictureBase64: '',
+          bio: '',
+          skills: [],
+          interests: [],
+          graduationYear: '',
+          major: '',
+          company: '',
+          position: '',
+          experience: '',
+          location: '',
+          phone: '',
+          website: '',
+          linkedin: '',
+          github: '',
+          twitter: '',
+          instagram: '',
+          facebook: '',
+          youtube: '',
+          tiktok: '',
+          snapchat: '',
+          discord: '',
+          telegram: '',
+          whatsapp: '',
+          skype: '',
+          zoom: '',
+          teams: '',
+          slack: '',
+          other: ''
+        };
+        
+        try {
+          await setDoc(userRef, defaultUserData);
+          console.log('Default user document created successfully');
+          
+          // Update the userRole state
+          if (currentUser && currentUser.uid === uid) {
+            setUserRole('student');
+          }
+          return 'student';
+        } catch (createError) {
+          console.error('Error creating user document:', createError);
+          return null;
+        }
       }
-      console.log('User document does not exist');
-      return null;
     } catch (error) {
       console.error('Error getting user role:', error);
       console.error('Error details:', error.code, error.message);
+      console.error('Full error object:', error);
       return null;
     }
   }
