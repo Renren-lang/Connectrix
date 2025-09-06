@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function AlumniDashboard() {
@@ -32,6 +32,10 @@ function AlumniDashboard() {
   const [feedPosts, setFeedPosts] = useState([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
+  const [expandedComments, setExpandedComments] = useState({});
+  const [commentInputs, setCommentInputs] = useState({});
+  const [replyingTo, setReplyingTo] = useState({});
+  const [comments, setComments] = useState({});
 
   // Fetch forum posts from students for alumni dashboard
   useEffect(() => {
@@ -79,6 +83,11 @@ function AlumniDashboard() {
         setFeedPosts(forumPosts);
         console.log('Fetched student forum posts:', forumPosts.length);
         console.log('Forum posts data:', forumPosts);
+        
+        // Fetch comments for each post
+        forumPosts.forEach(post => {
+          fetchCommentsForPost(post.id);
+        });
       } catch (error) {
         console.error('Error fetching student forum posts:', error);
         // Fallback to empty array if there's an error
@@ -90,6 +99,35 @@ function AlumniDashboard() {
 
     fetchStudentForumPosts();
   }, [currentUser]);
+
+  // Fetch comments for a specific post
+  const fetchCommentsForPost = async (postId) => {
+    try {
+      const commentsRef = collection(db, 'post-comments');
+      const q = query(
+        commentsRef,
+        where('postId', '==', postId),
+        orderBy('createdAt', 'asc')
+      );
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const commentsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
+        }));
+        
+        setComments(prev => ({
+          ...prev,
+          [postId]: commentsData
+        }));
+      });
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error fetching comments for post:', postId, error);
+    }
+  };
 
   // Fetch mentorship requests from Firestore
   useEffect(() => {
@@ -164,21 +202,98 @@ function AlumniDashboard() {
         )
       );
     } else if (actionType === 'comment') {
-      const post = feedPosts.find(p => p.id === postId);
-      if (post && post.forumPostId) {
-        // Navigate to Forum with the specific post
-        navigate('/forum', { 
-          state: { 
-            scrollToPost: post.forumPostId,
-            category: post.category 
-          } 
-        });
-      } else {
-        alert(`Replying to: ${post.content.substring(0, 50)}...`);
-      }
+      // Toggle comment section instead of navigating
+      setExpandedComments(prev => ({
+        ...prev,
+        [postId]: !prev[postId]
+      }));
     } else if (actionType === 'share') {
       alert('Share functionality would be implemented here');
     }
+  };
+
+  // Handle comment submission
+  const handleCommentSubmit = async (postId, commentText, parentCommentId = null) => {
+    if (!commentText.trim() || !currentUser) return;
+
+    try {
+      const commentData = {
+        postId,
+        content: commentText.trim(),
+        authorId: currentUser.uid,
+        authorName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email,
+        authorRole: 'alumni',
+        parentCommentId: parentCommentId || null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      const commentsRef = collection(db, 'post-comments');
+      await addDoc(commentsRef, commentData);
+
+      // Clear comment input
+      setCommentInputs(prev => ({
+        ...prev,
+        [postId]: ''
+      }));
+
+      // Clear reply state
+      setReplyingTo(prev => ({
+        ...prev,
+        [postId]: null
+      }));
+
+      // Create notification for post author
+      const post = feedPosts.find(p => p.id === postId);
+      if (post && post.authorId && post.authorId !== currentUser.uid) {
+        await createCommentNotification(post.authorId, postId, currentUser);
+      }
+
+      console.log('Comment submitted successfully');
+    } catch (error) {
+      console.error('Error submitting comment:', error);
+      alert('Failed to submit comment. Please try again.');
+    }
+  };
+
+  // Create notification for comment
+  const createCommentNotification = async (recipientId, postId, commenter) => {
+    try {
+      const notificationsRef = collection(db, 'notifications');
+      await addDoc(notificationsRef, {
+        recipientId,
+        type: 'comment',
+        title: 'New Comment',
+        message: `${commenter.firstName || commenter.email} commented on your post`,
+        postId,
+        commenterId: commenter.uid,
+        commenterName: `${commenter.firstName || ''} ${commenter.lastName || ''}`.trim() || commenter.email,
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error creating comment notification:', error);
+    }
+  };
+
+  // Handle reply to comment
+  const handleReplyToComment = (postId, commentId, commenterName) => {
+    setReplyingTo(prev => ({
+      ...prev,
+      [postId]: commentId
+    }));
+    setCommentInputs(prev => ({
+      ...prev,
+      [postId]: `@${commenterName} `
+    }));
+  };
+
+  // Handle comment input change
+  const handleCommentInputChange = (postId, value) => {
+    setCommentInputs(prev => ({
+      ...prev,
+      [postId]: value
+    }));
   };
 
   const handleMentorshipRequest = async (requestId, action) => {
@@ -358,7 +473,7 @@ function AlumniDashboard() {
                         onClick={() => handlePostAction(post.id, 'comment')}
                       >
                         <i className="far fa-comment"></i>
-                        <span>{post.comments > 0 ? post.comments : 'Reply'}</span>
+                        <span>Comment</span>
                       </div>
                       <div 
                         className="post-action"
@@ -368,6 +483,94 @@ function AlumniDashboard() {
                         <span>Share</span>
                       </div>
                     </div>
+
+                    {/* Comments Section */}
+                    {expandedComments[post.id] && (
+                      <div className="comments-section">
+                        {/* Comments List */}
+                        <div className="comments-list">
+                          {comments[post.id]?.map(comment => (
+                            <div key={comment.id} className="comment-item">
+                              <div className="comment-avatar">
+                                {comment.authorName ? comment.authorName.split(' ').map(n => n[0]).join('') : 'U'}
+                              </div>
+                              <div className="comment-content">
+                                <div className="comment-header">
+                                  <span className="comment-author">{comment.authorName}</span>
+                                  <span className="comment-time">
+                                    {comment.createdAt ? 
+                                      new Date(comment.createdAt).toLocaleDateString() : 
+                                      'Just now'
+                                    }
+                                  </span>
+                                </div>
+                                <div className="comment-text">{comment.content}</div>
+                                <div className="comment-actions">
+                                  <button 
+                                    className="reply-btn"
+                                    onClick={() => handleReplyToComment(post.id, comment.id, comment.authorName)}
+                                  >
+                                    Reply
+                                  </button>
+                                </div>
+                                
+                                {/* Reply to comment input */}
+                                {replyingTo[post.id] === comment.id && (
+                                  <div className="reply-input">
+                                    <input
+                                      type="text"
+                                      placeholder={`Reply to ${comment.authorName}...`}
+                                      value={commentInputs[post.id] || ''}
+                                      onChange={(e) => handleCommentInputChange(post.id, e.target.value)}
+                                      onKeyPress={(e) => {
+                                        if (e.key === 'Enter') {
+                                          handleCommentSubmit(post.id, e.target.value, comment.id);
+                                        }
+                                      }}
+                                    />
+                                    <button 
+                                      className="reply-submit-btn"
+                                      onClick={() => handleCommentSubmit(post.id, commentInputs[post.id], comment.id)}
+                                    >
+                                      Reply
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Comment Input */}
+                        <div className="comment-input-section">
+                          <div className="comment-input-avatar">
+                            {currentUser ? 
+                              (currentUser.firstName ? currentUser.firstName[0] : currentUser.email[0]) : 
+                              'U'
+                            }
+                          </div>
+                          <div className="comment-input-wrapper">
+                            <input
+                              type="text"
+                              placeholder="Write a comment..."
+                              value={commentInputs[post.id] || ''}
+                              onChange={(e) => handleCommentInputChange(post.id, e.target.value)}
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleCommentSubmit(post.id, e.target.value);
+                                }
+                              }}
+                            />
+                            <button 
+                              className="comment-submit-btn"
+                              onClick={() => handleCommentSubmit(post.id, commentInputs[post.id])}
+                            >
+                              Post
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   ))
                 ) : (
