@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp, onSnapshot, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp, onSnapshot, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function AlumniDashboard() {
@@ -36,6 +36,17 @@ function AlumniDashboard() {
   const [commentInputs, setCommentInputs] = useState({});
   const [replyingTo, setReplyingTo] = useState({});
   const [comments, setComments] = useState({});
+  const [postReactions, setPostReactions] = useState({});
+
+  // Facebook-like reaction types
+  const reactionTypes = [
+    { type: 'like', emoji: '👍', label: 'Like' },
+    { type: 'love', emoji: '❤️', label: 'Love' },
+    { type: 'laugh', emoji: '😂', label: 'Haha' },
+    { type: 'wow', emoji: '😮', label: 'Wow' },
+    { type: 'sad', emoji: '😢', label: 'Sad' },
+    { type: 'angry', emoji: '😡', label: 'Angry' }
+  ];
 
   // Fetch forum posts from students for alumni dashboard
   useEffect(() => {
@@ -108,9 +119,48 @@ function AlumniDashboard() {
         if (!comments[post.id]) {
           fetchCommentsForPost(post.id);
         }
+        // Load reactions for each post
+        fetchPostReactions(post.id);
       });
     }
   }, [feedPosts, currentUser]);
+
+  // Fetch reactions for a specific post
+  const fetchPostReactions = async (postId) => {
+    try {
+      const reactionsRef = collection(db, 'forum-posts', postId, 'reactions');
+      const q = query(reactionsRef);
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const reactionsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Count reactions by type
+        const reactionCounts = {};
+        reactionsData.forEach(reaction => {
+          reactionCounts[reaction.type] = (reactionCounts[reaction.type] || 0) + 1;
+        });
+        
+        // Check if current user has reacted
+        const userReaction = reactionsData.find(r => r.userId === currentUser?.uid);
+        
+        setPostReactions(prev => ({
+          ...prev,
+          [postId]: {
+            counts: reactionCounts,
+            userReaction: userReaction?.type || null,
+            total: reactionsData.length
+          }
+        }));
+      });
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error fetching reactions for post:', postId, error);
+    }
+  };
 
   // Fetch comments for a specific post
   const fetchCommentsForPost = async (postId) => {
@@ -243,19 +293,99 @@ function AlumniDashboard() {
     console.log(`Filtering feed by: ${filterType}`);
   };
 
+  const handleReaction = async (postId, reactionType) => {
+    if (!currentUser) {
+      alert('Please log in to react to posts');
+      return;
+    }
+
+    try {
+      const post = feedPosts.find(p => p.id === postId);
+      if (!post) {
+        console.error('Post not found:', postId);
+        return;
+      }
+
+      console.log('Handling reaction:', { postId, reactionType, userId: currentUser.uid });
+
+      const reactionsRef = collection(db, 'forum-posts', postId, 'reactions');
+      const userReactionQuery = query(reactionsRef, where('userId', '==', currentUser.uid));
+      const userReactionSnapshot = await getDocs(userReactionQuery);
+
+      if (userReactionSnapshot.empty) {
+        // Add new reaction
+        console.log('Adding new reaction');
+        await addDoc(reactionsRef, {
+          userId: currentUser.uid,
+          type: reactionType,
+          createdAt: serverTimestamp()
+        });
+        
+        // Create notification for post author
+        await createReactionNotification(post.authorId, postId, reactionType, post.content);
+      } else {
+        // Update existing reaction
+        const existingReaction = userReactionSnapshot.docs[0];
+        const existingType = existingReaction.data().type;
+        
+        if (existingType === reactionType) {
+          // Remove reaction if same type
+          console.log('Removing existing reaction');
+          await deleteDoc(existingReaction.ref);
+        } else {
+          // Update to new reaction type
+          console.log('Updating reaction type from', existingType, 'to', reactionType);
+          await updateDoc(existingReaction.ref, {
+            type: reactionType,
+            updatedAt: serverTimestamp()
+          });
+          
+          // Create notification for post author
+          await createReactionNotification(post.authorId, postId, reactionType, post.content);
+        }
+      }
+
+      console.log('Reaction handled successfully');
+      
+    } catch (error) {
+      console.error('Error handling reaction:', error);
+      alert('Failed to react to post. Please try again.');
+    }
+  };
+
+  const createReactionNotification = async (authorId, postId, reactionType, postContent) => {
+    if (authorId === currentUser.uid) return; // Don't notify self
+
+    try {
+      const reactionEmoji = reactionTypes.find(r => r.type === reactionType)?.emoji || '👍';
+      const reactionLabel = reactionTypes.find(r => r.type === reactionType)?.label || 'Like';
+      
+      const notification = {
+        recipientId: authorId,
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        type: 'forum-reaction',
+        title: `${reactionEmoji} New Reaction`,
+        message: `${currentUser.displayName || 'Someone'} reacted with ${reactionLabel} to your post "${postContent.substring(0, 50)}..."`,
+        data: {
+          postId: postId,
+          reactionType: reactionType,
+          postContent: postContent
+        },
+        read: false,
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'notifications'), notification);
+      console.log('Notification created successfully');
+    } catch (error) {
+      console.error('Error creating reaction notification:', error);
+    }
+  };
+
   const handlePostAction = (postId, actionType) => {
     if (actionType === 'like') {
-      setFeedPosts(prevPosts => 
-        prevPosts.map(post => 
-          post.id === postId 
-            ? { 
-                ...post, 
-                isLiked: !post.isLiked,
-                likes: post.isLiked ? post.likes - 1 : post.likes + 1
-              }
-            : post
-        )
-      );
+      handleReaction(postId, 'like');
     } else if (actionType === 'comment') {
       // Toggle comment section instead of navigating
       setExpandedComments(prev => ({
@@ -533,27 +663,65 @@ function AlumniDashboard() {
                       {post.content}
                     </div>
                     <div className="post-actions">
-                      <div 
-                        className="post-action"
-                        onClick={() => handlePostAction(post.id, 'like')}
-                      >
-                        <i className={post.isLiked ? 'fas fa-heart' : 'far fa-heart'} 
-                           style={{ color: post.isLiked ? 'var(--danger-color)' : '' }}></i>
-                        <span>{post.likes}</span>
+                      <div className="reaction-buttons">
+                        <button 
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'like' ? 'active' : ''}`}
+                          onClick={() => handleReaction(post.id, 'like')}
+                          title="Like"
+                        >
+                          👍 {postReactions[post.id]?.counts?.like || 0}
+                        </button>
+                        <button 
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'love' ? 'active' : ''}`}
+                          onClick={() => handleReaction(post.id, 'love')}
+                          title="Love"
+                        >
+                          ❤️ {postReactions[post.id]?.counts?.love || 0}
+                        </button>
+                        <button 
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'laugh' ? 'active' : ''}`}
+                          onClick={() => handleReaction(post.id, 'laugh')}
+                          title="Haha"
+                        >
+                          😂 {postReactions[post.id]?.counts?.laugh || 0}
+                        </button>
+                        <button 
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'wow' ? 'active' : ''}`}
+                          onClick={() => handleReaction(post.id, 'wow')}
+                          title="Wow"
+                        >
+                          😮 {postReactions[post.id]?.counts?.wow || 0}
+                        </button>
+                        <button 
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'sad' ? 'active' : ''}`}
+                          onClick={() => handleReaction(post.id, 'sad')}
+                          title="Sad"
+                        >
+                          😢 {postReactions[post.id]?.counts?.sad || 0}
+                        </button>
+                        <button 
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'angry' ? 'active' : ''}`}
+                          onClick={() => handleReaction(post.id, 'angry')}
+                          title="Angry"
+                        >
+                          😡 {postReactions[post.id]?.counts?.angry || 0}
+                        </button>
                       </div>
-                      <div 
-                        className="post-action"
-                        onClick={() => handlePostAction(post.id, 'comment')}
-                      >
-                        <i className="far fa-comment"></i>
-                        <span>Comment</span>
-                      </div>
-                      <div 
-                        className="post-action"
-                        onClick={() => handlePostAction(post.id, 'share')}
-                      >
-                        <i className="far fa-share"></i>
-                        <span>Share</span>
+                      <div className="action-buttons">
+                        <button 
+                          className="action-btn"
+                          onClick={() => handlePostAction(post.id, 'comment')}
+                        >
+                          <i className="far fa-comment"></i>
+                          Comment
+                        </button>
+                        <button 
+                          className="action-btn"
+                          onClick={() => handlePostAction(post.id, 'share')}
+                        >
+                          <i className="far fa-share"></i>
+                          Share
+                        </button>
                       </div>
                     </div>
 

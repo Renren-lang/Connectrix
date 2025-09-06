@@ -19,6 +19,7 @@ function StudentDashboard() {
   const [showCommentInput, setShowCommentInput] = useState({});
   const [postComments, setPostComments] = useState({});
   const [showReplyInput, setShowReplyInput] = useState({});
+  const [postReactions, setPostReactions] = useState({});
 
   // Facebook-like reaction types
   const reactionTypes = [
@@ -196,6 +197,53 @@ function StudentDashboard() {
 
     fetchAlumniPosts();
   }, [currentUser]);
+
+  // Load reactions for existing posts when component mounts or posts change
+  useEffect(() => {
+    if (feedPosts.length > 0) {
+      feedPosts.forEach(post => {
+        // Load reactions for each post
+        fetchPostReactions(post.id);
+      });
+    }
+  }, [feedPosts, currentUser]);
+
+  // Fetch reactions for a specific post
+  const fetchPostReactions = async (postId) => {
+    try {
+      const reactionsRef = collection(db, 'forum-posts', postId, 'reactions');
+      const q = query(reactionsRef);
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const reactionsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Count reactions by type
+        const reactionCounts = {};
+        reactionsData.forEach(reaction => {
+          reactionCounts[reaction.type] = (reactionCounts[reaction.type] || 0) + 1;
+        });
+        
+        // Check if current user has reacted
+        const userReaction = reactionsData.find(r => r.userId === currentUser?.uid);
+        
+        setPostReactions(prev => ({
+          ...prev,
+          [postId]: {
+            counts: reactionCounts,
+            userReaction: userReaction?.type || null,
+            total: reactionsData.length
+          }
+        }));
+      });
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error fetching reactions for post:', postId, error);
+    }
+  };
 
   const handleQuickAccessClick = (cardTitle) => {
     alert(`Navigating to ${cardTitle} section`);
@@ -783,46 +831,46 @@ function StudentDashboard() {
                     <div className="post-actions">
                       <div className="reaction-buttons">
                         <button 
-                          className="reaction-btn"
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'like' ? 'active' : ''}`}
                           onClick={() => handleReaction(post.id, 'like')}
                           title="Like"
                         >
-                          👍
+                          👍 {postReactions[post.id]?.counts?.like || 0}
                         </button>
                         <button 
-                          className="reaction-btn"
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'love' ? 'active' : ''}`}
                           onClick={() => handleReaction(post.id, 'love')}
                           title="Love"
                         >
-                          ❤️
+                          ❤️ {postReactions[post.id]?.counts?.love || 0}
                         </button>
                         <button 
-                          className="reaction-btn"
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'laugh' ? 'active' : ''}`}
                           onClick={() => handleReaction(post.id, 'laugh')}
                           title="Haha"
                         >
-                          😂
+                          😂 {postReactions[post.id]?.counts?.laugh || 0}
                         </button>
                         <button 
-                          className="reaction-btn"
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'wow' ? 'active' : ''}`}
                           onClick={() => handleReaction(post.id, 'wow')}
                           title="Wow"
                         >
-                          😮
+                          😮 {postReactions[post.id]?.counts?.wow || 0}
                         </button>
                         <button 
-                          className="reaction-btn"
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'sad' ? 'active' : ''}`}
                           onClick={() => handleReaction(post.id, 'sad')}
                           title="Sad"
                         >
-                          😢
+                          😢 {postReactions[post.id]?.counts?.sad || 0}
                         </button>
                         <button 
-                          className="reaction-btn"
+                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'angry' ? 'active' : ''}`}
                           onClick={() => handleReaction(post.id, 'angry')}
                           title="Angry"
                         >
-                          😡
+                          😡 {postReactions[post.id]?.counts?.angry || 0}
                         </button>
                       </div>
                       <div className="action-buttons">
