@@ -3,8 +3,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, getDocs, deleteDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase';
 import { createTestNotification, createMultipleTestNotifications } from '../utils/testNotifications';
 import './NotificationSettings.css';
 
@@ -199,43 +197,58 @@ function NotificationSettings() {
     try {
       let updatedProfileData = { ...profileData };
       
-      // Upload profile picture if one was selected
+      // Handle profile picture if one was selected
       if (profilePicture) {
         try {
-          // Create a reference to the file in Firebase Storage
-          const imageRef = ref(storage, `profile-pictures/${currentUser.uid}/${Date.now()}_${profilePicture.name}`);
+          // Convert image to base64 for storage in Firestore
+          const reader = new FileReader();
+          reader.onload = async (e) => {
+            const base64String = e.target.result;
+            
+            // Add the base64 string to the profile data
+            updatedProfileData.profilePictureBase64 = base64String;
+            
+            // Also create a data URL for immediate display
+            updatedProfileData.profilePictureUrl = base64String;
+            
+            console.log('Profile picture converted to base64 successfully');
+            
+            // Update profile in Firestore
+            await updateUserProfile(currentUser.uid, updatedProfileData);
+            
+            // Refresh user profile data to get the latest information
+            if (fetchUserProfile) {
+              await fetchUserProfile(currentUser.uid);
+            }
+            
+            // Clear the profile picture state after successful upload
+            setProfilePicture(null);
+            setProfilePictureUrl(null);
+            if (fileInputRef.current) {
+              fileInputRef.current.value = '';
+            }
+            
+            setShowProfileSuccess(true);
+            setTimeout(() => setShowProfileSuccess(false), 5000);
+            
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          };
           
-          // Upload the file
-          const snapshot = await uploadBytes(imageRef, profilePicture);
-          
-          // Get the download URL
-          const downloadURL = await getDownloadURL(snapshot.ref);
-          
-          // Add the URL to the profile data
-          updatedProfileData.profilePictureUrl = downloadURL;
-          
-          console.log('Profile picture uploaded successfully:', downloadURL);
-        } catch (uploadError) {
-          console.error('Error uploading profile picture:', uploadError);
-          alert('Profile picture upload failed, but other changes will be saved.');
+          reader.readAsDataURL(profilePicture);
+          return; // Exit early, the rest will be handled in the reader.onload
+        } catch (conversionError) {
+          console.error('Error converting profile picture:', conversionError);
+          alert('Profile picture conversion failed, but other changes will be saved.');
         }
       }
       
-      // Update profile in Firestore
+      // Update profile in Firestore (for cases without photo upload)
       await updateUserProfile(currentUser.uid, updatedProfileData);
       
       // Refresh user profile data to get the latest information
       if (fetchUserProfile) {
         await fetchUserProfile(currentUser.uid);
-      }
-      
-      // Clear the profile picture state after successful upload
-      if (profilePicture) {
-        setProfilePicture(null);
-        setProfilePictureUrl(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
       }
       
       setShowProfileSuccess(true);

@@ -233,8 +233,8 @@ function Profile() {
       <div className="profile-header">
         <div className="dashboard-container">
           <div className="profile-picture">
-            {userData.profilePictureUrl ? (
-              <img src={userData.profilePictureUrl} alt="Profile" />
+            {userData.profilePictureUrl || userData.profilePictureBase64 ? (
+              <img src={userData.profilePictureUrl || userData.profilePictureBase64} alt="Profile" />
             ) : (
               userData.firstName && userData.lastName 
                 ? `${userData.firstName[0]}${userData.lastName[0]}`

@@ -85,10 +85,11 @@ function BrowseMentor() {
             id: doc.id,
             ...data,
             initials: (data.firstName?.charAt(0) || '') + (data.lastName?.charAt(0) || '') || 'U',
-              mentees: 0,
-              rating: 5.0,
-              tags: data.skills ? data.skills.split(',').map(skill => skill.trim()) : [],
-              isWillingToMentor: data.willingToMentor !== undefined ? data.willingToMentor : true
+            profilePicture: data.profilePictureUrl || data.profilePictureBase64,
+            mentees: 0,
+            rating: 5.0,
+            tags: data.skills ? data.skills.split(',').map(skill => skill.trim()) : [],
+            isWillingToMentor: data.willingToMentor !== undefined ? data.willingToMentor : true
             };
           })
           .filter(mentor => mentor.isWillingToMentor); // Filter for willing mentors
@@ -515,7 +516,13 @@ function BrowseMentor() {
                   {sortedMentors.map(mentor => (
                     <div key={mentor.id} className="mentor-card">
                       <div className="mentor-header">
-                        <div className="mentor-avatar">{mentor.initials}</div>
+                        <div className="mentor-avatar">
+                          {mentor.profilePicture ? (
+                            <img src={mentor.profilePicture} alt={`${mentor.firstName} ${mentor.lastName}`} />
+                          ) : (
+                            mentor.initials
+                          )}
+                        </div>
                         <div className="mentor-info">
                           <h3>{mentor.firstName} {mentor.lastName}</h3>
                           <div className="mentor-meta">
