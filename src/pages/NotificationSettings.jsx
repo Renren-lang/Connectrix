@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, getDocs, deleteDoc } from 'firebase/firestore';
-import { updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
+import { updatePassword, reauthenticateWithCredential, EmailAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
 import { createTestNotification, createMultipleTestNotifications } from '../utils/testNotifications';
 import './NotificationSettings.css';
 
@@ -347,19 +347,42 @@ function NotificationSettings() {
     setSubmitting(true);
     
     try {
-      console.log('Re-authenticating user...');
-      // Re-authenticate user with current password
-      const credential = EmailAuthProvider.credential(
-        currentUser.email,
-        securityData.currentPassword
-      );
+      // Get the current user from Firebase Auth directly
+      let firebaseUser = auth.currentUser;
+      console.log('Firebase user:', firebaseUser);
       
-      await reauthenticateWithCredential(currentUser, credential);
-      console.log('User re-authenticated successfully');
+      if (!firebaseUser) {
+        throw new Error('No authenticated user found. Please log in again.');
+      }
+      
+      console.log('Re-authenticating user...');
+      
+      try {
+        // Try direct re-authentication first
+        const credential = EmailAuthProvider.credential(
+          firebaseUser.email,
+          securityData.currentPassword
+        );
+        
+        await reauthenticateWithCredential(firebaseUser, credential);
+        console.log('User re-authenticated successfully');
+      } catch (reauthError) {
+        console.log('Direct re-authentication failed, trying sign-in method:', reauthError);
+        
+        // Fallback: Sign in again to refresh the user object
+        const signInResult = await signInWithEmailAndPassword(
+          auth,
+          firebaseUser.email,
+          securityData.currentPassword
+        );
+        
+        firebaseUser = signInResult.user;
+        console.log('User re-authenticated via sign-in method');
+      }
       
       console.log('Updating password...');
-      // Update password
-      await updatePassword(currentUser, securityData.newPassword);
+      // Update password using the re-authenticated user
+      await updatePassword(firebaseUser, securityData.newPassword);
       console.log('Password updated successfully');
       
       console.log('Setting success state...');
@@ -381,6 +404,7 @@ function NotificationSettings() {
       console.error('Password change failed:', error);
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
+      console.error('Full error object:', error);
       
       // Handle specific error cases
       if (error.code === 'auth/wrong-password') {
@@ -389,6 +413,8 @@ function NotificationSettings() {
         alert('New password is too weak. Please choose a stronger password.');
       } else if (error.code === 'auth/requires-recent-login') {
         alert('For security reasons, please log out and log back in before changing your password.');
+      } else if (error.message.includes('_updateTokensIfNecessary')) {
+        alert('Authentication error. Please log out and log back in, then try changing your password again.');
       } else {
         alert(`Password change failed: ${error.message}`);
       }
