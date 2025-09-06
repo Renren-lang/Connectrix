@@ -42,6 +42,8 @@ function AlumniDashboard() {
   const [commentReactions, setCommentReactions] = useState({});
   const [showCommentReactionPicker, setShowCommentReactionPicker] = useState({});
   const [commentReactionPickerPosition, setCommentReactionPickerPosition] = useState({});
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [selectedPostForShare, setSelectedPostForShare] = useState(null);
 
   // Facebook-like reaction types
   const reactionTypes = [
@@ -603,6 +605,71 @@ function AlumniDashboard() {
     }));
   };
 
+  // Share post handlers
+  const handleSharePost = (post) => {
+    setSelectedPostForShare(post);
+    setShowShareModal(true);
+  };
+
+  const closeShareModal = () => {
+    setShowShareModal(false);
+    setSelectedPostForShare(null);
+  };
+
+  const copyPostLink = async () => {
+    if (!selectedPostForShare) return;
+    
+    try {
+      const postUrl = `${window.location.origin}/post/${selectedPostForShare.id}`;
+      await navigator.clipboard.writeText(postUrl);
+      alert('Post link copied to clipboard!');
+      closeShareModal();
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      alert('Failed to copy link. Please try again.');
+    }
+  };
+
+  const shareOnFacebook = () => {
+    if (!selectedPostForShare) return;
+    
+    const postUrl = `${window.location.origin}/post/${selectedPostForShare.id}`;
+    const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(postUrl)}`;
+    window.open(facebookUrl, '_blank', 'width=600,height=400');
+    closeShareModal();
+  };
+
+  const shareOnTwitter = () => {
+    if (!selectedPostForShare) return;
+    
+    const postUrl = `${window.location.origin}/post/${selectedPostForShare.id}`;
+    const text = `Check out this post: ${selectedPostForShare.content.substring(0, 100)}...`;
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(postUrl)}`;
+    window.open(twitterUrl, '_blank', 'width=600,height=400');
+    closeShareModal();
+  };
+
+  const shareOnLinkedIn = () => {
+    if (!selectedPostForShare) return;
+    
+    const postUrl = `${window.location.origin}/post/${selectedPostForShare.id}`;
+    const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(postUrl)}`;
+    window.open(linkedinUrl, '_blank', 'width=600,height=400');
+    closeShareModal();
+  };
+
+  const shareViaEmail = () => {
+    if (!selectedPostForShare) return;
+    
+    const postUrl = `${window.location.origin}/post/${selectedPostForShare.id}`;
+    const subject = `Check out this post from Connectrix`;
+    const body = `I found this interesting post and wanted to share it with you:\n\n"${selectedPostForShare.content}"\n\nView the full post: ${postUrl}`;
+    
+    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoUrl;
+    closeShareModal();
+  };
+
   const handlePostAction = (postId, actionType) => {
     if (actionType === 'like') {
       handleReaction(postId, 'like');
@@ -613,7 +680,10 @@ function AlumniDashboard() {
         [postId]: !prev[postId]
       }));
     } else if (actionType === 'share') {
-      alert('Share functionality would be implemented here');
+      const post = feedPosts.find(p => p.id === postId);
+      if (post) {
+        handleSharePost(post);
+      }
     }
   };
 
@@ -1171,6 +1241,62 @@ function AlumniDashboard() {
           </section>
         </div>
       </main>
+
+      {/* Share Post Modal */}
+      {showShareModal && selectedPostForShare && (
+        <div className="modal-overlay" onClick={closeShareModal}>
+          <div className="modal-content share-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Share Post</h3>
+              <button className="close-btn" onClick={closeShareModal}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="share-post-preview">
+              <div className="post-preview-header">
+                <div className="post-preview-avatar">
+                  {selectedPostForShare.authorName ? selectedPostForShare.authorName.split(' ').map(n => n[0]).join('') : 'U'}
+                </div>
+                <div className="post-preview-info">
+                  <span className="post-preview-author">{selectedPostForShare.authorName}</span>
+                  <span className="post-preview-role">{selectedPostForShare.authorRole}</span>
+                </div>
+              </div>
+              <div className="post-preview-content">
+                {selectedPostForShare.content}
+              </div>
+            </div>
+
+            <div className="share-options">
+              <button className="share-option" onClick={copyPostLink}>
+                <i className="fas fa-link"></i>
+                <span>Copy Link</span>
+              </button>
+              
+              <button className="share-option" onClick={shareOnFacebook}>
+                <i className="fab fa-facebook-f"></i>
+                <span>Share on Facebook</span>
+              </button>
+              
+              <button className="share-option" onClick={shareOnTwitter}>
+                <i className="fab fa-twitter"></i>
+                <span>Share on Twitter</span>
+              </button>
+              
+              <button className="share-option" onClick={shareOnLinkedIn}>
+                <i className="fab fa-linkedin-in"></i>
+                <span>Share on LinkedIn</span>
+              </button>
+              
+              <button className="share-option" onClick={shareViaEmail}>
+                <i className="fas fa-envelope"></i>
+                <span>Share via Email</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
