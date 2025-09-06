@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { db } from '../firebase';
+import { collection, addDoc, onSnapshot, query, orderBy, where, deleteDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 function Events() {
+  const { currentUser, userRole } = useAuth();
   const [activeRole, setActiveRole] = useState('student');
   const [isPostFormExpanded, setIsPostFormExpanded] = useState(false);
   const [filters, setFilters] = useState({
@@ -9,86 +13,9 @@ function Events() {
     location: '',
     tags: ''
   });
-  const [opportunities, setOpportunities] = useState([
-    {
-      id: 1,
-      type: 'job',
-      title: 'Software Engineer',
-      company: 'TechCorp Inc.',
-      date: '2023-10-25',
-      time: 'Full-time',
-      location: 'San Francisco, CA',
-      description: 'We\'re looking for a talented software engineer to join our team. The ideal candidate will have experience in modern web technologies and a passion for building scalable applications.',
-      tags: ['Tech', 'Leadership', 'Full-time'],
-      isApplied: false,
-      isSaved: false
-    },
-    {
-      id: 2,
-      type: 'seminar',
-      title: 'Digital Marketing Trends',
-      company: 'Marketing Institute',
-      date: '2023-11-05',
-      time: '2:00 PM - 4:00 PM',
-      location: 'Online Event',
-      description: 'Join us for an insightful seminar on the latest digital marketing trends. Learn from industry experts about the future of marketing in the digital age.',
-      tags: ['Marketing', 'Leadership', 'Online'],
-      isApplied: false,
-      isSaved: false
-    },
-    {
-      id: 3,
-      type: 'meetup',
-      title: 'NYC Alumni Networking Event',
-      company: 'Connectrix Alumni Association',
-      date: '2023-10-30',
-      time: '6:00 PM - 9:00 PM',
-      location: 'New York, NY',
-      description: 'Connect with fellow alumni in the NYC area. This networking event is a great opportunity to expand your professional network and catch up with old friends.',
-      tags: ['Networking', 'Alumni', 'NYC'],
-      isApplied: false,
-      isSaved: false
-    },
-    {
-      id: 4,
-      type: 'job',
-      title: 'Financial Analyst',
-      company: 'Global Finance Ltd.',
-      date: '2023-11-15',
-      time: 'Full-time',
-      location: 'London, UK',
-      description: 'Seeking a detail-oriented financial analyst to join our team. The ideal candidate will have strong analytical skills and experience in financial modeling and forecasting.',
-      tags: ['Finance', 'Analytics', 'Full-time'],
-      isApplied: false,
-      isSaved: false
-    },
-    {
-      id: 5,
-      type: 'seminar',
-      title: 'Introduction to Artificial Intelligence',
-      company: 'Tech Academy',
-      date: '2023-11-10',
-      time: '10:00 AM - 12:00 PM',
-      location: 'Online Event',
-      description: 'Learn the fundamentals of AI and machine learning in this introductory seminar. Perfect for beginners looking to understand the basics of artificial intelligence.',
-      tags: ['Tech', 'AI', 'Beginner'],
-      isApplied: false,
-      isSaved: false
-    },
-    {
-      id: 6,
-      type: 'meetup',
-      title: 'Tech Startup Mixer',
-      company: 'Startup Connect',
-      date: '2023-11-20',
-      time: '5:30 PM - 8:30 PM',
-      location: 'San Francisco, CA',
-      description: 'Join fellow alumni in the tech startup scene for an evening of networking and sharing ideas. Connect with entrepreneurs, investors, and innovators.',
-      tags: ['Tech', 'Startups', 'Networking'],
-      isApplied: false,
-      isSaved: false
-    }
-  ]);
+  const [events, setEvents] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     type: '',
     title: '',
@@ -104,6 +31,56 @@ function Events() {
     title: '',
     message: ''
   });
+
+  // Fetch events from Firebase in real-time
+  useEffect(() => {
+    if (!currentUser) return;
+
+    console.log('Setting up events listener for user:', currentUser.uid);
+    
+    const eventsRef = collection(db, 'events');
+    const eventsQuery = query(
+      eventsRef,
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(eventsQuery, (snapshot) => {
+      try {
+        const eventsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
+        }));
+        
+        console.log('Fetched events:', eventsData);
+        setEvents(eventsData);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error processing events data:', error);
+        setIsLoading(false);
+      }
+    }, (error) => {
+      console.error('Error listening to events:', error);
+      console.error('Error details:', error.code, error.message);
+      setIsLoading(false);
+    });
+
+    return () => {
+      console.log('Cleaning up events listener...');
+      try {
+        unsubscribe();
+      } catch (error) {
+        console.error('Error unsubscribing from events:', error);
+      }
+    };
+  }, [currentUser]);
+
+  // Set active role based on user role
+  useEffect(() => {
+    if (userRole) {
+      setActiveRole(userRole);
+    }
+  }, [userRole]);
 
   const handleRoleChange = (role) => {
     setActiveRole(role);
@@ -126,36 +103,60 @@ function Events() {
     }));
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     
-    const newOpportunity = {
-      id: Date.now(),
-      ...formData,
-      tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
-      isApplied: false,
-      isSaved: false
-    };
+    if (!currentUser) {
+      showNotificationToast('Error', 'You must be logged in to post events.');
+      return;
+    }
 
-    setOpportunities(prev => [newOpportunity, ...prev]);
+    setIsSubmitting(true);
     
-    // Reset form
-    setFormData({
-      type: '',
-      title: '',
-      company: '',
-      date: '',
-      time: '',
-      location: '',
-      description: '',
-      tags: ''
-    });
-    
-    // Collapse form
-    setIsPostFormExpanded(false);
-    
-    // Show notification
-    showNotificationToast('Opportunity Posted', 'Your opportunity has been successfully posted.');
+    try {
+      const eventData = {
+        type: formData.type,
+        title: formData.title,
+        company: formData.company,
+        date: formData.date,
+        time: formData.time,
+        location: formData.location,
+        description: formData.description,
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+        organizerId: currentUser.uid,
+        organizerName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim() || currentUser.email,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      const eventsRef = collection(db, 'events');
+      const docRef = await addDoc(eventsRef, eventData);
+      
+      console.log('Event created with ID:', docRef.id);
+      
+      // Reset form
+      setFormData({
+        type: '',
+        title: '',
+        company: '',
+        date: '',
+        time: '',
+        location: '',
+        description: '',
+        tags: ''
+      });
+      
+      // Collapse form
+      setIsPostFormExpanded(false);
+      
+      // Show notification
+      showNotificationToast('Event Posted', 'Your event has been successfully posted.');
+    } catch (error) {
+      console.error('Error creating event:', error);
+      showNotificationToast('Error', 'Failed to post event. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleFilterChange = (filterType, value) => {
@@ -180,44 +181,24 @@ function Events() {
     showNotificationToast('Filters Reset', 'All filters have been reset.');
   };
 
-  const handleOpportunityAction = (opportunityId, action) => {
-    setOpportunities(prev => 
-      prev.map(opp => 
-        opp.id === opportunityId 
-          ? { ...opp, [action]: !opp[action] }
-          : opp
-      )
-    );
-
-    const opportunity = opportunities.find(opp => opp.id === opportunityId);
-    let message = '';
-    
-    if (action === 'isApplied') {
-      message = `Your application for "${opportunity.title}" has been submitted.`;
-    } else if (action === 'isSaved') {
-      const isCurrentlySaved = opportunity[action];
-      message = isCurrentlySaved 
-        ? `"${opportunity.title}" has been removed from your saved items.`
-        : `"${opportunity.title}" has been saved to your profile.`;
-    }
-    
-    if (message) {
-      showNotificationToast('Action Completed', message);
+  const handleEventAction = async (eventId, action) => {
+    if (action === 'delete') {
+      if (window.confirm('Are you sure you want to delete this event?')) {
+        try {
+          const eventRef = doc(db, 'events', eventId);
+          await deleteDoc(eventRef);
+          showNotificationToast('Event Deleted', 'The event has been successfully deleted.');
+        } catch (error) {
+          console.error('Error deleting event:', error);
+          showNotificationToast('Error', 'Failed to delete event. Please try again.');
+        }
+      }
+    } else if (action === 'apply') {
+      showNotificationToast('Application', 'Thank you for your interest! The organizer will be notified.');
     }
   };
 
-  const handleEditOpportunity = (opportunity) => {
-    alert(`Edit "${opportunity.title}" - This would open an edit form in a real application.`);
-  };
 
-  const handleDeleteOpportunity = (opportunityId) => {
-    const opportunity = opportunities.find(opp => opp.id === opportunityId);
-    
-    if (confirm(`Are you sure you want to delete "${opportunity.title}"?`)) {
-      setOpportunities(prev => prev.filter(opp => opp.id !== opportunityId));
-      showNotificationToast('Opportunity Deleted', `"${opportunity.title}" has been deleted.`);
-    }
-  };
 
   const showNotificationToast = (title, message) => {
     setNotificationData({ title, message });
@@ -235,27 +216,27 @@ function Events() {
 
 
 
-  // Filter opportunities based on current filters
-  const filteredOpportunities = opportunities.filter(opportunity => {
-    if (filters.type && opportunity.type !== filters.type) return false;
-    if (filters.location && !opportunity.location.toLowerCase().includes(filters.location.toLowerCase())) return false;
-    if (filters.tags && !opportunity.tags.some(tag => tag.toLowerCase().includes(filters.tags.toLowerCase()))) return false;
+  // Filter events based on current filters
+  const filteredEvents = events.filter(event => {
+    if (filters.type && event.type !== filters.type) return false;
+    if (filters.location && !event.location.toLowerCase().includes(filters.location.toLowerCase())) return false;
+    if (filters.tags && !event.tags.some(tag => tag.toLowerCase().includes(filters.tags.toLowerCase()))) return false;
     
     if (filters.date) {
       const today = new Date();
-      const opportunityDate = new Date(opportunity.date);
+      const eventDate = new Date(event.date);
       
       if (filters.date === 'today') {
         const todayStr = today.toISOString().split('T')[0];
-        if (opportunity.date !== todayStr) return false;
+        if (event.date !== todayStr) return false;
       } else if (filters.date === 'week') {
         const weekFromNow = new Date(today);
         weekFromNow.setDate(weekFromNow.getDate() + 7);
-        if (opportunityDate < today || opportunityDate > weekFromNow) return false;
+        if (eventDate < today || eventDate > weekFromNow) return false;
       } else if (filters.date === 'month') {
         const monthFromNow = new Date(today);
         monthFromNow.setMonth(monthFromNow.getMonth() + 1);
-        if (opportunityDate < today || opportunityDate > monthFromNow) return false;
+        if (eventDate < today || eventDate > monthFromNow) return false;
       }
     }
     
@@ -435,7 +416,13 @@ function Events() {
                     />
                   </div>
                   <div className="form-group">
-                    <button type="submit" className="btn btn-primary">Post Opportunity</button>
+                    <button 
+                      type="submit" 
+                      className="btn btn-primary"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Posting...' : 'Post Event'}
+                    </button>
                   </div>
                 </form>
               </div>
@@ -515,59 +502,71 @@ function Events() {
             </div>
           </div>
 
-          {/* Opportunities Grid */}
+          {/* Events Grid */}
           <div className="opportunities-grid">
-            {filteredOpportunities.length > 0 ? (
-              filteredOpportunities.map(opportunity => {
-                const typeInfo = getTypeInfo(opportunity.type);
+            {isLoading ? (
+              <div className="loading-container">
+                <div className="loading-spinner"></div>
+                <p>Loading events...</p>
+              </div>
+            ) : filteredEvents.length > 0 ? (
+              filteredEvents.map(event => {
+                const typeInfo = getTypeInfo(event.type);
                 return (
-                  <div key={opportunity.id} className="opportunity-card">
+                  <div key={event.id} className="opportunity-card">
                     <div className="opportunity-header">
                       <span className={`opportunity-type ${typeInfo.class}`}>
                         {typeInfo.name}
                       </span>
-                      <h3 className="opportunity-title">{opportunity.title}</h3>
+                      <h3 className="opportunity-title">{event.title}</h3>
                       <div className="opportunity-company">
                         <i className={typeInfo.icon}></i>
-                        <span>{opportunity.company}</span>
+                        <span>{event.company}</span>
+                      </div>
+                      <div className="opportunity-organizer">
+                        <i className="fas fa-user"></i>
+                        <span>Posted by {event.organizerName}</span>
                       </div>
                     </div>
                     <div className="opportunity-body">
                       <div className="opportunity-meta">
                         <div className="meta-item">
                           <i className="fas fa-calendar"></i>
-                          <span>{formatDate(opportunity.date)}</span>
+                          <span>{formatDate(event.date)}</span>
                         </div>
                         <div className="meta-item">
                           <i className="fas fa-map-marker-alt"></i>
-                          <span>{opportunity.location}</span>
+                          <span>{event.location}</span>
                         </div>
                         <div className="meta-item">
                           <i className="fas fa-clock"></i>
-                          <span>{opportunity.time}</span>
+                          <span>{event.time}</span>
                         </div>
                       </div>
                       <div className="opportunity-description">
-                        {opportunity.description}
+                        {event.description}
                       </div>
                       <div className="opportunity-tags">
-                        {opportunity.tags.map((tag, index) => (
+                        {event.tags.map((tag, index) => (
                           <span key={index} className="opportunity-tag">{tag}</span>
                         ))}
                       </div>
                       <div className="opportunity-actions">
                         <button 
-                          className={`btn-apply ${opportunity.isApplied ? 'applied' : ''}`}
-                          onClick={() => handleOpportunityAction(opportunity.id, 'isApplied')}
+                          className="btn-apply"
+                          onClick={() => handleEventAction(event.id, 'apply')}
                         >
-                          {getActionButtonText(opportunity.type, opportunity.isApplied)}
+                          {getActionButtonText(event.type, false)}
                         </button>
-                        <button 
-                          className={`btn-save ${opportunity.isSaved ? 'saved' : ''}`}
-                          onClick={() => handleOpportunityAction(opportunity.id, 'isSaved')}
-                        >
-                          {opportunity.isSaved ? 'Saved' : 'Save'}
-                        </button>
+                        {currentUser && currentUser.uid === event.organizerId && (
+                          <button 
+                            className="btn-delete"
+                            onClick={() => handleEventAction(event.id, 'delete')}
+                          >
+                            <i className="fas fa-trash"></i>
+                            Delete
+                          </button>
+                        )}
                         {activeRole === 'alumni' && (
                           <>
                             <button 
