@@ -20,6 +20,27 @@ function Header() {
     let totalUnread = 0;
     let unsubscribeChats, unsubscribeNotifications;
 
+    // Get notification settings from localStorage
+    const getNotificationSettings = () => {
+      try {
+        const savedSettings = localStorage.getItem('notificationSettings');
+        return savedSettings ? JSON.parse(savedSettings) : {
+          pushNotifications: true,
+          mentorshipRequests: true,
+          messages: true,
+          likesAndComments: true
+        };
+      } catch (error) {
+        console.error('Error loading notification settings:', error);
+        return {
+          pushNotifications: true,
+          mentorshipRequests: true,
+          messages: true,
+          likesAndComments: true
+        };
+      }
+    };
+
     // Listen for unread messages in chats
     const chatsRef = collection(db, 'chats');
     const chatsQuery = query(
@@ -76,10 +97,41 @@ function Header() {
 
     unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
       try {
-        const notificationUnread = snapshot.docs.length;
+        const notificationSettings = getNotificationSettings();
+        
+        // Filter notifications based on user settings
+        const filteredNotifications = snapshot.docs.filter(doc => {
+          const notification = doc.data();
+          
+          // If push notifications are disabled, hide all notifications
+          if (!notificationSettings.pushNotifications) {
+            return false;
+          }
+          
+          // Filter by notification type based on settings
+          const notificationType = notification.type || 'general';
+          
+          switch (notificationType) {
+            case 'mentorship_request':
+              return notificationSettings.mentorshipRequests;
+            case 'message':
+              return notificationSettings.messages;
+            case 'like':
+            case 'comment':
+              return notificationSettings.likesAndComments;
+            default:
+              return true; // Show general notifications
+          }
+        });
+        
+        const notificationUnread = filteredNotifications.length;
         
         // Debug: Log notification details
-        console.log('Unread notifications:', snapshot.docs.map(doc => ({
+        console.log('All unread notifications:', snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })));
+        console.log('Filtered notifications based on settings:', filteredNotifications.map(doc => ({
           id: doc.id,
           ...doc.data()
         })));
@@ -117,6 +169,22 @@ function Header() {
       }
     };
   }, [currentUser]);
+
+  // Listen for notification settings changes
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'notificationSettings') {
+        // Force re-render by updating a dummy state
+        setUnreadCount(prev => prev);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {

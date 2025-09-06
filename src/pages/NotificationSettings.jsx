@@ -124,10 +124,33 @@ function NotificationSettings() {
         ...doc.data()
       }));
       
+      // Filter notifications based on user settings
+      const filteredNotifications = notificationsData.filter(notification => {
+        // If push notifications are disabled, hide all notifications
+        if (!notificationSettings.pushNotifications) {
+          return false;
+        }
+        
+        // Filter by notification type based on settings
+        const notificationType = notification.type || 'general';
+        
+        switch (notificationType) {
+          case 'mentorship_request':
+            return notificationSettings.mentorshipRequests;
+          case 'message':
+            return notificationSettings.messages;
+          case 'like':
+          case 'comment':
+            return notificationSettings.likesAndComments;
+          default:
+            return true; // Show general notifications
+        }
+      });
+      
       // If we used fallback query (no orderBy), sort in JavaScript
-      if (notificationsData.length > 0) {
+      if (filteredNotifications.length > 0) {
         try {
-          notificationsData.sort((a, b) => {
+          filteredNotifications.sort((a, b) => {
             const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
             const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
             return bTime - aTime; // Descending order (newest first)
@@ -140,7 +163,8 @@ function NotificationSettings() {
       }
       
       console.log('Fetched notifications:', notificationsData);
-      setNotifications(notificationsData);
+      console.log('Filtered notifications based on settings:', filteredNotifications);
+      setNotifications(filteredNotifications);
       setIsLoadingNotifications(false);
     }, (error) => {
       console.error('Error fetching notifications:', error);
@@ -155,7 +179,7 @@ function NotificationSettings() {
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, notificationSettings]);
 
   // Profile form handlers
   const handleProfileInputChange = (e) => {
