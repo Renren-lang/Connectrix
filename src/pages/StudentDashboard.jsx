@@ -20,15 +20,17 @@ function StudentDashboard() {
   const [postComments, setPostComments] = useState({});
   const [showReplyInput, setShowReplyInput] = useState({});
   const [postReactions, setPostReactions] = useState({});
+  const [showReactionPicker, setShowReactionPicker] = useState({});
+  const [reactionPickerPosition, setReactionPickerPosition] = useState({});
 
   // Facebook-like reaction types
   const reactionTypes = [
-    { type: 'like', emoji: '👍', label: 'Like' },
-    { type: 'love', emoji: '❤️', label: 'Love' },
-    { type: 'laugh', emoji: '😂', label: 'Haha' },
-    { type: 'wow', emoji: '😮', label: 'Wow' },
-    { type: 'sad', emoji: '😢', label: 'Sad' },
-    { type: 'angry', emoji: '😡', label: 'Angry' }
+    { type: 'like', emoji: '👍', label: 'Like', color: '#1877f2' },
+    { type: 'love', emoji: '❤️', label: 'Love', color: '#e74c3c' },
+    { type: 'laugh', emoji: '😂', label: 'Haha', color: '#f39c12' },
+    { type: 'wow', emoji: '😮', label: 'Wow', color: '#f1c40f' },
+    { type: 'sad', emoji: '😢', label: 'Sad', color: '#9b59b6' },
+    { type: 'angry', emoji: '😡', label: 'Angry', color: '#e67e22' }
   ];
 
   // Debug logging
@@ -363,6 +365,39 @@ function StudentDashboard() {
     } catch (error) {
       console.error('Error fetching comments:', error);
     }
+  };
+
+  // Handle long press for reaction picker
+  const handleReactionLongPress = (postId, event) => {
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    setReactionPickerPosition({
+      [postId]: {
+        x: rect.left + rect.width / 2,
+        y: rect.top - 60
+      }
+    });
+    setShowReactionPicker(prev => ({
+      ...prev,
+      [postId]: true
+    }));
+  };
+
+  // Handle reaction picker selection
+  const handleReactionSelect = (postId, reactionType) => {
+    handleReaction(postId, reactionType);
+    setShowReactionPicker(prev => ({
+      ...prev,
+      [postId]: false
+    }));
+  };
+
+  // Hide reaction picker
+  const hideReactionPicker = (postId) => {
+    setShowReactionPicker(prev => ({
+      ...prev,
+      [postId]: false
+    }));
   };
 
   const handlePostAction = (postId, actionType) => {
@@ -829,51 +864,26 @@ function StudentDashboard() {
                       {post.content}
                     </div>
                     <div className="post-actions">
-                      <div className="reaction-buttons">
-                        <button 
-                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'like' ? 'active' : ''}`}
-                          onClick={() => handleReaction(post.id, 'like')}
-                          title="Like"
-                        >
-                          👍 {postReactions[post.id]?.counts?.like || 0}
-                        </button>
-                        <button 
-                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'love' ? 'active' : ''}`}
-                          onClick={() => handleReaction(post.id, 'love')}
-                          title="Love"
-                        >
-                          ❤️ {postReactions[post.id]?.counts?.love || 0}
-                        </button>
-                        <button 
-                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'laugh' ? 'active' : ''}`}
-                          onClick={() => handleReaction(post.id, 'laugh')}
-                          title="Haha"
-                        >
-                          😂 {postReactions[post.id]?.counts?.laugh || 0}
-                        </button>
-                        <button 
-                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'wow' ? 'active' : ''}`}
-                          onClick={() => handleReaction(post.id, 'wow')}
-                          title="Wow"
-                        >
-                          😮 {postReactions[post.id]?.counts?.wow || 0}
-                        </button>
-                        <button 
-                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'sad' ? 'active' : ''}`}
-                          onClick={() => handleReaction(post.id, 'sad')}
-                          title="Sad"
-                        >
-                          😢 {postReactions[post.id]?.counts?.sad || 0}
-                        </button>
-                        <button 
-                          className={`reaction-btn ${postReactions[post.id]?.userReaction === 'angry' ? 'active' : ''}`}
-                          onClick={() => handleReaction(post.id, 'angry')}
-                          title="Angry"
-                        >
-                          😡 {postReactions[post.id]?.counts?.angry || 0}
-                        </button>
-                      </div>
                       <div className="action-buttons">
+                        <button 
+                          className={`action-btn like-btn ${postReactions[post.id]?.userReaction ? 'reacted' : ''}`}
+                          onClick={() => handleReaction(post.id, 'like')}
+                          onMouseDown={(e) => handleReactionLongPress(post.id, e)}
+                          onTouchStart={(e) => handleReactionLongPress(post.id, e)}
+                          onMouseLeave={() => hideReactionPicker(post.id)}
+                          onTouchEnd={() => hideReactionPicker(post.id)}
+                        >
+                          <i className={`fas fa-thumbs-up ${postReactions[post.id]?.userReaction === 'like' ? 'active' : ''}`}></i>
+                          <span>
+                            {postReactions[post.id]?.userReaction ? 
+                              reactionTypes.find(r => r.type === postReactions[post.id].userReaction)?.emoji : 
+                              'Like'
+                            }
+                          </span>
+                          {postReactions[post.id]?.total > 0 && (
+                            <span className="reaction-count">{postReactions[post.id].total}</span>
+                          )}
+                        </button>
                         <button 
                           className="action-btn"
                           onClick={() => handlePostAction(post.id, 'comment')}
@@ -890,6 +900,36 @@ function StudentDashboard() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Facebook-style Reaction Picker */}
+                    {showReactionPicker[post.id] && (
+                      <div 
+                        className="reaction-picker"
+                        style={{
+                          position: 'fixed',
+                          left: `${reactionPickerPosition[post.id]?.x - 120}px`,
+                          top: `${reactionPickerPosition[post.id]?.y}px`,
+                          zIndex: 1000
+                        }}
+                        onMouseLeave={() => hideReactionPicker(post.id)}
+                      >
+                        <div className="reaction-picker-content">
+                          {reactionTypes.map((reaction, index) => (
+                            <button
+                              key={reaction.type}
+                              className="reaction-option"
+                              onClick={() => handleReactionSelect(post.id, reaction.type)}
+                              style={{
+                                animationDelay: `${index * 0.1}s`
+                              }}
+                            >
+                              <span className="reaction-emoji">{reaction.emoji}</span>
+                              <span className="reaction-label">{reaction.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Facebook-like Comments Section */}
                     <div className="comments-section">
