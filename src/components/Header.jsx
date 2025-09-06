@@ -68,6 +68,12 @@ function Header() {
     unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
       const notificationUnread = snapshot.docs.length;
       
+      // Debug: Log notification details
+      console.log('Unread notifications:', snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })));
+      
       // Update total count (messages + notifications)
       setUnreadCount(totalUnread + notificationUnread);
       console.log('Unread notifications count:', notificationUnread);

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, query, where, onSnapshot, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, getDocs, deleteDoc } from 'firebase/firestore';
 import { createTestNotification, createMultipleTestNotifications } from '../utils/testNotifications';
 import './NotificationSettings.css';
 
@@ -358,6 +358,54 @@ function NotificationSettings() {
     }
   };
 
+  // Mark all notifications as read
+  const markAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(n => !n.read);
+      const updatePromises = unreadNotifications.map(notification => {
+        const notificationRef = doc(db, 'notifications', notification.id);
+        return updateDoc(notificationRef, {
+          read: true,
+          readAt: new Date()
+        });
+      });
+      
+      await Promise.all(updatePromises);
+      console.log(`Marked ${unreadNotifications.length} notifications as read`);
+      alert(`Marked ${unreadNotifications.length} notifications as read!`);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      alert('Error marking notifications as read. Please try again.');
+    }
+  };
+
+  // Clear all notifications (for debugging)
+  const clearAllNotifications = async () => {
+    if (!currentUser) return;
+    
+    const confirmed = window.confirm('Are you sure you want to delete ALL notifications? This action cannot be undone.');
+    if (!confirmed) return;
+    
+    try {
+      // Get all notifications for current user
+      const notificationsRef = collection(db, 'notifications');
+      const q = query(
+        notificationsRef,
+        where('recipientId', '==', currentUser.uid)
+      );
+      
+      const snapshot = await getDocs(q);
+      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      
+      await Promise.all(deletePromises);
+      console.log(`Deleted ${snapshot.docs.length} notifications`);
+      alert(`Deleted ${snapshot.docs.length} notifications!`);
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+      alert('Error clearing notifications. Please try again.');
+    }
+  };
+
   // Test functions for creating notifications
   const handleCreateTestNotification = async () => {
     if (!currentUser) return;
@@ -601,12 +649,30 @@ function NotificationSettings() {
                     >
                       <i className="fas fa-plus"></i> Create 4 Test Notifications
                     </button>
+                    <button 
+                      className="btn btn-danger"
+                      onClick={clearAllNotifications}
+                      style={{ marginLeft: '10px' }}
+                    >
+                      <i className="fas fa-trash"></i> Clear All Notifications
+                    </button>
                   </div>
                 </div>
 
                {/* Recent Notifications */}
                 <div className="setting-section">
-                  <h3>Recent Notifications</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                    <h3>Recent Notifications</h3>
+                    {notifications.filter(n => !n.read).length > 0 && (
+                      <button 
+                        className="btn btn-secondary btn-sm"
+                        onClick={markAllAsRead}
+                        style={{ fontSize: '12px', padding: '5px 10px' }}
+                      >
+                        Mark All as Read
+                      </button>
+                    )}
+                  </div>
                  <div className="notifications-list">
                    {isLoadingNotifications ? (
                      <div className="loading-state">
