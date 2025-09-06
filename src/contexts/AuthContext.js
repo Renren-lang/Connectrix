@@ -126,20 +126,33 @@ export function AuthProvider({ children }) {
   // Get user role
   async function getUserRole(uid) {
     try {
+      console.log('Getting user role for UID:', uid);
+      console.log('Current user:', currentUser);
+      console.log('Auth state:', auth.currentUser);
+      
       const userRef = doc(db, 'users', uid);
+      console.log('User ref created:', userRef.path);
+      
       const userSnap = await getDoc(userRef);
+      console.log('User snapshot:', userSnap.exists() ? 'exists' : 'does not exist');
       
       if (userSnap.exists()) {
-        const role = userSnap.data().role;
+        const userData = userSnap.data();
+        console.log('User data:', userData);
+        const role = userData.role;
+        console.log('User role:', role);
+        
         // Update the userRole state if we have a current user
         if (currentUser && currentUser.uid === uid) {
           setUserRole(role);
         }
         return role;
       }
+      console.log('User document does not exist');
       return null;
     } catch (error) {
       console.error('Error getting user role:', error);
+      console.error('Error details:', error.code, error.message);
       return null;
     }
   }
