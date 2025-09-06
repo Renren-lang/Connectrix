@@ -387,11 +387,18 @@ function StudentDashboard() {
   const handleReactionSelect = (postId, reactionType, event) => {
     event.preventDefault();
     event.stopPropagation();
+    event.nativeEvent.stopImmediatePropagation();
+    
+    // Handle the reaction first
     handleReaction(postId, reactionType);
-    setShowReactionPicker(prev => ({
-      ...prev,
-      [postId]: false
-    }));
+    
+    // Hide picker after a short delay to ensure reaction is processed
+    setTimeout(() => {
+      setShowReactionPicker(prev => ({
+        ...prev,
+        [postId]: false
+      }));
+    }, 100);
   };
 
   // Hide reaction picker immediately when mouse leaves
@@ -922,6 +929,8 @@ function StudentDashboard() {
                         }}
                         onMouseEnter={() => handleReactionPickerMouseEnter(post.id)}
                         onMouseLeave={() => hideReactionPicker(post.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
                       >
                         <div className="reaction-picker-content">
                           {reactionTypes.map((reaction, index) => (
