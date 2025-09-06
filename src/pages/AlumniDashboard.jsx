@@ -39,6 +39,9 @@ function AlumniDashboard() {
   const [postReactions, setPostReactions] = useState({});
   const [showReactionPicker, setShowReactionPicker] = useState({});
   const [reactionPickerPosition, setReactionPickerPosition] = useState({});
+  const [commentReactions, setCommentReactions] = useState({});
+  const [showCommentReactionPicker, setShowCommentReactionPicker] = useState({});
+  const [commentReactionPickerPosition, setCommentReactionPickerPosition] = useState({});
 
   // Facebook-like reaction types
   const reactionTypes = [
@@ -126,6 +129,19 @@ function AlumniDashboard() {
       });
     }
   }, [feedPosts, currentUser]);
+
+  // Load comment reactions when comments change
+  useEffect(() => {
+    Object.values(comments).forEach(postComments => {
+      if (postComments && postComments.length > 0) {
+        postComments.forEach(comment => {
+          if (!commentReactions[comment.id]) {
+            fetchCommentReactions(comment.id);
+          }
+        });
+      }
+    });
+  }, [comments, currentUser]);
 
   // Fetch reactions for a specific post
   const fetchPostReactions = async (postId) => {
@@ -402,6 +418,94 @@ function AlumniDashboard() {
     }
   };
 
+  // Handle comment reactions
+  const handleCommentReaction = async (commentId, reactionType) => {
+    if (!currentUser) {
+      alert('Please log in to react to comments');
+      return;
+    }
+
+    try {
+      console.log('Handling comment reaction:', { commentId, reactionType, userId: currentUser.uid });
+
+      const commentReactionsRef = collection(db, 'post-comments', commentId, 'reactions');
+      const userReactionQuery = query(commentReactionsRef, where('userId', '==', currentUser.uid));
+      const userReactionSnapshot = await getDocs(userReactionQuery);
+
+      if (userReactionSnapshot.empty) {
+        // Add new reaction
+        console.log('Adding new comment reaction');
+        await addDoc(commentReactionsRef, {
+          userId: currentUser.uid,
+          type: reactionType,
+          createdAt: serverTimestamp()
+        });
+      } else {
+        // Update existing reaction
+        const existingReaction = userReactionSnapshot.docs[0];
+        const existingType = existingReaction.data().type;
+        
+        if (existingType === reactionType) {
+          // Remove reaction if same type
+          console.log('Removing existing comment reaction');
+          await deleteDoc(existingReaction.ref);
+        } else {
+          // Update to new reaction type
+          console.log('Updating comment reaction type from', existingType, 'to', reactionType);
+          await updateDoc(existingReaction.ref, {
+            type: reactionType,
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+
+      console.log('Comment reaction handled successfully');
+      
+    } catch (error) {
+      console.error('Error handling comment reaction:', error);
+      alert('Failed to react to comment. Please try again.');
+    }
+  };
+
+  // Fetch comment reactions
+  const fetchCommentReactions = async (commentId) => {
+    try {
+      const commentReactionsRef = collection(db, 'post-comments', commentId, 'reactions');
+      const unsubscribe = onSnapshot(commentReactionsRef, (snapshot) => {
+        const reactionsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        // Count reactions by type
+        const counts = {};
+        let userReaction = null;
+        let total = 0;
+
+        reactionsData.forEach(reaction => {
+          if (reaction.userId === currentUser?.uid) {
+            userReaction = reaction.type;
+          }
+          counts[reaction.type] = (counts[reaction.type] || 0) + 1;
+          total++;
+        });
+
+        setCommentReactions(prev => ({
+          ...prev,
+          [commentId]: {
+            counts,
+            userReaction,
+            total
+          }
+        }));
+      });
+
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error fetching comment reactions:', error);
+    }
+  };
+
   // Handle long press for reaction picker
   const handleReactionLongPress = (postId, event) => {
     event.preventDefault();
@@ -449,6 +553,53 @@ function AlumniDashboard() {
     setShowReactionPicker(prev => ({
       ...prev,
       [postId]: true
+    }));
+  };
+
+  // Comment reaction handlers
+  const handleCommentReactionLongPress = (commentId, event) => {
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    setCommentReactionPickerPosition({
+      [commentId]: {
+        x: rect.left + rect.width / 2,
+        y: rect.top - 60
+      }
+    });
+    setShowCommentReactionPicker(prev => ({
+      ...prev,
+      [commentId]: true
+    }));
+  };
+
+  const handleCommentReactionSelect = (commentId, reactionType, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.nativeEvent.stopImmediatePropagation();
+    
+    // Handle the comment reaction
+    handleCommentReaction(commentId, reactionType);
+    
+    // Hide picker after a short delay
+    setTimeout(() => {
+      setShowCommentReactionPicker(prev => ({
+        ...prev,
+        [commentId]: false
+      }));
+    }, 100);
+  };
+
+  const hideCommentReactionPicker = (commentId) => {
+    setShowCommentReactionPicker(prev => ({
+      ...prev,
+      [commentId]: false
+    }));
+  };
+
+  const handleCommentReactionPickerMouseEnter = (commentId) => {
+    setShowCommentReactionPicker(prev => ({
+      ...prev,
+      [commentId]: true
     }));
   };
 
@@ -824,12 +975,63 @@ function AlumniDashboard() {
                                 <div className="comment-text">{comment.content}</div>
                                 <div className="comment-actions">
                                   <button 
+                                    className={`comment-reaction-btn ${commentReactions[comment.id]?.userReaction ? 'reacted' : ''}`}
+                                    onClick={() => handleCommentReaction(comment.id, 'like')}
+                                    onMouseDown={(e) => handleCommentReactionLongPress(comment.id, e)}
+                                    onTouchStart={(e) => handleCommentReactionLongPress(comment.id, e)}
+                                    onMouseLeave={() => hideCommentReactionPicker(comment.id)}
+                                  >
+                                    <i className={`fas fa-thumbs-up ${commentReactions[comment.id]?.userReaction === 'like' ? 'active' : ''}`}></i>
+                                    <span>
+                                      {commentReactions[comment.id]?.userReaction ? 
+                                        reactionTypes.find(r => r.type === commentReactions[comment.id].userReaction)?.emoji : 
+                                        'Like'
+                                      }
+                                    </span>
+                                    {commentReactions[comment.id]?.total > 0 && (
+                                      <span className="reaction-count">{commentReactions[comment.id].total}</span>
+                                    )}
+                                  </button>
+                                  <button 
                                     className="reply-btn"
                                     onClick={() => handleReplyToComment(post.id, comment.id, comment.authorName)}
                                   >
                                     Reply
                                   </button>
                                 </div>
+
+                                {/* Comment Reaction Picker */}
+                                {showCommentReactionPicker[comment.id] && (
+                                  <div 
+                                    className="reaction-picker comment-reaction-picker"
+                                    style={{
+                                      position: 'fixed',
+                                      left: `${commentReactionPickerPosition[comment.id]?.x - 120}px`,
+                                      top: `${commentReactionPickerPosition[comment.id]?.y}px`,
+                                      zIndex: 1000
+                                    }}
+                                    onMouseEnter={() => handleCommentReactionPickerMouseEnter(comment.id)}
+                                    onMouseLeave={() => hideCommentReactionPicker(comment.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="reaction-picker-content">
+                                      {reactionTypes.map((reaction, index) => (
+                                        <button
+                                          key={reaction.type}
+                                          className="reaction-option"
+                                          onClick={(e) => handleCommentReactionSelect(comment.id, reaction.type, e)}
+                                          style={{
+                                            animationDelay: `${index * 0.1}s`
+                                          }}
+                                        >
+                                          <span className="reaction-emoji">{reaction.emoji}</span>
+                                          <span className="reaction-label">{reaction.label}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                                 
                                 {/* Reply to comment input */}
                                 {replyingTo[post.id] === comment.id && (

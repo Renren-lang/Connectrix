@@ -8755,9 +8755,58 @@ input:focus, textarea:focus, select:focus, .form-control:focus {
   }
 }
 
+/* Comment Reaction Styles */
+.comment-reaction-btn {
+  background: none;
+  border: none;
+  color: #65676b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 16px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+}
+
+.comment-reaction-btn:hover {
+  background: #f0f2f5;
+  color: #1877f2;
+}
+
+.comment-reaction-btn.reacted {
+  background: #e3f2fd;
+  color: #1877f2;
+}
+
+.comment-reaction-btn i {
+  font-size: 12px;
+}
+
+.comment-reaction-btn .reaction-count {
+  background: #f0f2f5;
+  color: #65676b;
+  padding: 1px 4px;
+  border-radius: 8px;
+  font-size: 10px;
+  margin-left: 2px;
+}
+
+.comment-reaction-picker {
+  z-index: 1001;
+}
+
 /* Mobile responsive for reaction picker */
 @media (max-width: 768px) {
   .reaction-picker {
+    left: 50% !important;
+    transform: translateX(-50%);
+  }
+  
+  .comment-reaction-picker {
     left: 50% !important;
     transform: translateX(-50%);
   }
