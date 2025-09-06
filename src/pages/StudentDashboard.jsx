@@ -384,7 +384,9 @@ function StudentDashboard() {
   };
 
   // Handle reaction picker selection
-  const handleReactionSelect = (postId, reactionType) => {
+  const handleReactionSelect = (postId, reactionType, event) => {
+    event.preventDefault();
+    event.stopPropagation();
     handleReaction(postId, reactionType);
     setShowReactionPicker(prev => ({
       ...prev,
@@ -392,11 +394,22 @@ function StudentDashboard() {
     }));
   };
 
-  // Hide reaction picker
+  // Hide reaction picker with delay to allow clicks
   const hideReactionPicker = (postId) => {
+    setTimeout(() => {
+      setShowReactionPicker(prev => ({
+        ...prev,
+        [postId]: false
+      }));
+    }, 100);
+  };
+
+  // Handle mouse enter on reaction picker to prevent hiding
+  const handleReactionPickerMouseEnter = (postId) => {
+    // Clear any pending hide timeout
     setShowReactionPicker(prev => ({
       ...prev,
-      [postId]: false
+      [postId]: true
     }));
   };
 
@@ -871,7 +884,6 @@ function StudentDashboard() {
                           onMouseDown={(e) => handleReactionLongPress(post.id, e)}
                           onTouchStart={(e) => handleReactionLongPress(post.id, e)}
                           onMouseLeave={() => hideReactionPicker(post.id)}
-                          onTouchEnd={() => hideReactionPicker(post.id)}
                         >
                           <i className={`fas fa-thumbs-up ${postReactions[post.id]?.userReaction === 'like' ? 'active' : ''}`}></i>
                           <span>
@@ -911,6 +923,7 @@ function StudentDashboard() {
                           top: `${reactionPickerPosition[post.id]?.y}px`,
                           zIndex: 1000
                         }}
+                        onMouseEnter={() => handleReactionPickerMouseEnter(post.id)}
                         onMouseLeave={() => hideReactionPicker(post.id)}
                       >
                         <div className="reaction-picker-content">
@@ -918,7 +931,8 @@ function StudentDashboard() {
                             <button
                               key={reaction.type}
                               className="reaction-option"
-                              onClick={() => handleReactionSelect(post.id, reaction.type)}
+                              onClick={(e) => handleReactionSelect(post.id, reaction.type, e)}
+                              onMouseDown={(e) => e.preventDefault()}
                               style={{
                                 animationDelay: `${index * 0.1}s`
                               }}
