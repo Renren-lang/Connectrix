@@ -3,11 +3,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, getDocs, deleteDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebase';
 import { createTestNotification, createMultipleTestNotifications } from '../utils/testNotifications';
 import './NotificationSettings.css';
 
 function NotificationSettings() {
-  const { currentUser, logout, updateUserProfile } = useAuth();
+  const { currentUser, logout, updateUserProfile, fetchUserProfile } = useAuth();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   
@@ -195,11 +197,49 @@ function NotificationSettings() {
     setSubmitting(true);
     
     try {
+      let updatedProfileData = { ...profileData };
+      
+      // Upload profile picture if one was selected
+      if (profilePicture) {
+        try {
+          // Create a reference to the file in Firebase Storage
+          const imageRef = ref(storage, `profile-pictures/${currentUser.uid}/${Date.now()}_${profilePicture.name}`);
+          
+          // Upload the file
+          const snapshot = await uploadBytes(imageRef, profilePicture);
+          
+          // Get the download URL
+          const downloadURL = await getDownloadURL(snapshot.ref);
+          
+          // Add the URL to the profile data
+          updatedProfileData.profilePictureUrl = downloadURL;
+          
+          console.log('Profile picture uploaded successfully:', downloadURL);
+        } catch (uploadError) {
+          console.error('Error uploading profile picture:', uploadError);
+          alert('Profile picture upload failed, but other changes will be saved.');
+        }
+      }
+      
       // Update profile in Firestore
-      await updateUserProfile(currentUser.uid, profileData);
+      await updateUserProfile(currentUser.uid, updatedProfileData);
+      
+      // Refresh user profile data to get the latest information
+      if (fetchUserProfile) {
+        await fetchUserProfile(currentUser.uid);
+      }
+      
+      // Clear the profile picture state after successful upload
+      if (profilePicture) {
+        setProfilePicture(null);
+        setProfilePictureUrl(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
       
       setShowProfileSuccess(true);
-      setTimeout(() => setShowProfileSuccess(false), 3000);
+      setTimeout(() => setShowProfileSuccess(false), 5000);
       
       // Scroll to top
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -797,7 +837,8 @@ function NotificationSettings() {
 
               {showProfileSuccess && (
                 <div className="success-message show">
-                  Your profile has been updated successfully.
+                  <i className="fas fa-check-circle"></i>
+                  Your profile has been updated successfully! Changes will be visible in your profile and other users can see your updated information.
                 </div>
               )}
 
@@ -806,6 +847,8 @@ function NotificationSettings() {
                   <div className="profile-picture">
                     {profilePictureUrl ? (
                       <img src={profilePictureUrl} alt="Profile Picture" />
+                    ) : currentUser?.profilePictureUrl ? (
+                      <img src={currentUser.profilePictureUrl} alt="Profile Picture" />
                     ) : (
                       getUserInitials()
                     )}
