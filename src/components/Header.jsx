@@ -11,8 +11,12 @@ function Header() {
 
   // Listen for unread messages and notifications in real-time
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setUnreadCount(0);
+      return;
+    }
 
+    console.log('Setting up listeners for user:', currentUser.uid);
     let totalUnread = 0;
     let unsubscribeChats, unsubscribeNotifications;
 
@@ -24,23 +28,28 @@ function Header() {
     );
 
     unsubscribeChats = onSnapshot(chatsQuery, async (snapshot) => {
-      let chatUnread = 0;
-      
-      // Check each chat for unread messages
-      for (const chatDoc of snapshot.docs) {
-        const chatData = chatDoc.data();
-        const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
+      try {
+        let chatUnread = 0;
         
-        if (otherUserId && chatData.lastMessageSenderId === otherUserId && !chatData.lastMessageRead) {
-          chatUnread++;
+        // Check each chat for unread messages
+        for (const chatDoc of snapshot.docs) {
+          const chatData = chatDoc.data();
+          const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
+          
+          if (otherUserId && chatData.lastMessageSenderId === otherUserId && !chatData.lastMessageRead) {
+            chatUnread++;
+          }
         }
+        
+        // Update total count
+        totalUnread = chatUnread;
+        console.log('Unread messages count:', chatUnread);
+      } catch (error) {
+        console.error('Error processing chat data:', error);
       }
-      
-      // Update total count
-      totalUnread = chatUnread;
-      console.log('Unread messages count:', chatUnread);
     }, (error) => {
       console.error('Error listening to unread messages:', error);
+      console.error('Error details:', error.code, error.message);
     });
 
     // Listen for unread notifications
@@ -66,28 +75,46 @@ function Header() {
     }
 
     unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
-      const notificationUnread = snapshot.docs.length;
-      
-      // Debug: Log notification details
-      console.log('Unread notifications:', snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })));
-      
-      // Update total count (messages + notifications)
-      setUnreadCount(totalUnread + notificationUnread);
-      console.log('Unread notifications count:', notificationUnread);
-      console.log('Total unread count:', totalUnread + notificationUnread);
+      try {
+        const notificationUnread = snapshot.docs.length;
+        
+        // Debug: Log notification details
+        console.log('Unread notifications:', snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })));
+        
+        // Update total count (messages + notifications)
+        setUnreadCount(totalUnread + notificationUnread);
+        console.log('Unread notifications count:', notificationUnread);
+        console.log('Total unread count:', totalUnread + notificationUnread);
+      } catch (error) {
+        console.error('Error processing notification data:', error);
+      }
     }, (error) => {
       console.error('Error listening to notifications:', error);
+      console.error('Error details:', error.code, error.message);
       // Still show chat unread count even if notifications fail
       setUnreadCount(totalUnread);
     });
 
     // Cleanup function
     return () => {
-      if (unsubscribeChats) unsubscribeChats();
-      if (unsubscribeNotifications) unsubscribeNotifications();
+      console.log('Cleaning up listeners...');
+      if (unsubscribeChats) {
+        try {
+          unsubscribeChats();
+        } catch (error) {
+          console.error('Error unsubscribing from chats:', error);
+        }
+      }
+      if (unsubscribeNotifications) {
+        try {
+          unsubscribeNotifications();
+        } catch (error) {
+          console.error('Error unsubscribing from notifications:', error);
+        }
+      }
     };
   }, [currentUser]);
 

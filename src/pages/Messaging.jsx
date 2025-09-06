@@ -175,6 +175,8 @@ function Messaging() {
    useEffect(() => {
      if (!currentUser) return;
      
+     console.log('Setting up chat listener for user:', currentUser.uid);
+     
      // Set up real-time listener for chats
      const unsubscribe = onSnapshot(
        query(
@@ -183,6 +185,7 @@ function Messaging() {
          orderBy('lastMessageTime', 'desc')
        ),
        async (snapshot) => {
+         try {
          const chatsData = await Promise.all(snapshot.docs.map(async (doc) => {
            const data = doc.data();
            // Find the other participant (not current user)
@@ -222,14 +225,26 @@ function Messaging() {
          setChats(validChats);
          
          setIsLoading(false);
+         } catch (error) {
+           console.error('Error processing chat data:', error);
+           setIsLoading(false);
+         }
        },
        (error) => {
          console.error('Error listening to chats:', error);
+         console.error('Error details:', error.code, error.message);
          setIsLoading(false);
        }
      );
 
-     return () => unsubscribe();
+     return () => {
+       console.log('Cleaning up chat listener...');
+       try {
+         unsubscribe();
+       } catch (error) {
+         console.error('Error unsubscribing from chats:', error);
+       }
+     };
    }, [currentUser]);
 
     // Create or find a chat with another user
