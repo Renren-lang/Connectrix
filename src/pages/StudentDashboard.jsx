@@ -394,19 +394,16 @@ function StudentDashboard() {
     }));
   };
 
-  // Hide reaction picker with delay to allow clicks
+  // Hide reaction picker immediately when mouse leaves
   const hideReactionPicker = (postId) => {
-    setTimeout(() => {
-      setShowReactionPicker(prev => ({
-        ...prev,
-        [postId]: false
-      }));
-    }, 100);
+    setShowReactionPicker(prev => ({
+      ...prev,
+      [postId]: false
+    }));
   };
 
-  // Handle mouse enter on reaction picker to prevent hiding
+  // Handle mouse enter on reaction picker to keep it open
   const handleReactionPickerMouseEnter = (postId) => {
-    // Clear any pending hide timeout
     setShowReactionPicker(prev => ({
       ...prev,
       [postId]: true
@@ -932,7 +929,6 @@ function StudentDashboard() {
                               key={reaction.type}
                               className="reaction-option"
                               onClick={(e) => handleReactionSelect(post.id, reaction.type, e)}
-                              onMouseDown={(e) => e.preventDefault()}
                               style={{
                                 animationDelay: `${index * 0.1}s`
                               }}

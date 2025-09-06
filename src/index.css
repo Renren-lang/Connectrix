@@ -8670,6 +8670,8 @@ input:focus, textarea:focus, select:focus, .form-control:focus {
   align-items: center;
   gap: 4px;
   animation: reactionPickerAppear 0.3s ease-out;
+  pointer-events: auto;
+  user-select: none;
 }
 
 .reaction-picker-content {
@@ -8689,6 +8691,10 @@ input:focus, textarea:focus, select:focus, .form-control:focus {
   align-items: center;
   min-width: 40px;
   animation: reactionOptionAppear 0.3s ease-out;
+  pointer-events: auto;
+  user-select: none;
+  position: relative;
+  z-index: 1001;
 }
 
 .reaction-option:hover {

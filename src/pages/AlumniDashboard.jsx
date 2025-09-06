@@ -171,23 +171,23 @@ function AlumniDashboard() {
       
       // Try the indexed query first
       try {
-        const q = query(
-          commentsRef,
-          where('postId', '==', postId),
-          orderBy('createdAt', 'asc')
-        );
+      const q = query(
+        commentsRef,
+        where('postId', '==', postId),
+        orderBy('createdAt', 'asc')
+      );
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const commentsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
+        }));
         
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-          const commentsData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
-          }));
-          
-          setComments(prev => ({
-            ...prev,
-            [postId]: commentsData
-          }));
+        setComments(prev => ({
+          ...prev,
+          [postId]: commentsData
+        }));
           
           // Auto-expand comments section if there are comments
           if (commentsData.length > 0) {
@@ -227,9 +227,9 @@ function AlumniDashboard() {
               [postId]: true
             }));
           }
-        });
-        
-        return unsubscribe;
+      });
+      
+      return unsubscribe;
       }
     } catch (error) {
       console.error('Error fetching comments for post:', postId, error);
@@ -429,19 +429,16 @@ function AlumniDashboard() {
     }));
   };
 
-  // Hide reaction picker with delay to allow clicks
+  // Hide reaction picker immediately when mouse leaves
   const hideReactionPicker = (postId) => {
-    setTimeout(() => {
-      setShowReactionPicker(prev => ({
-        ...prev,
-        [postId]: false
-      }));
-    }, 100);
+    setShowReactionPicker(prev => ({
+      ...prev,
+      [postId]: false
+    }));
   };
 
-  // Handle mouse enter on reaction picker to prevent hiding
+  // Handle mouse enter on reaction picker to keep it open
   const handleReactionPickerMouseEnter = (postId) => {
-    // Clear any pending hide timeout
     setShowReactionPicker(prev => ({
       ...prev,
       [postId]: true
@@ -749,16 +746,16 @@ function AlumniDashboard() {
                         </button>
                         <button 
                           className="action-btn"
-                          onClick={() => handlePostAction(post.id, 'comment')}
-                        >
-                          <i className="far fa-comment"></i>
+                        onClick={() => handlePostAction(post.id, 'comment')}
+                      >
+                        <i className="far fa-comment"></i>
                           Comment
                         </button>
                         <button 
                           className="action-btn"
-                          onClick={() => handlePostAction(post.id, 'share')}
-                        >
-                          <i className="far fa-share"></i>
+                        onClick={() => handlePostAction(post.id, 'share')}
+                      >
+                        <i className="far fa-share"></i>
                           Share
                         </button>
                       </div>
@@ -783,7 +780,6 @@ function AlumniDashboard() {
                               key={reaction.type}
                               className="reaction-option"
                               onClick={(e) => handleReactionSelect(post.id, reaction.type, e)}
-                              onMouseDown={(e) => e.preventDefault()}
                               style={{
                                 animationDelay: `${index * 0.1}s`
                               }}
