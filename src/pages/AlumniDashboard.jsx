@@ -100,6 +100,18 @@ function AlumniDashboard() {
     fetchStudentForumPosts();
   }, [currentUser]);
 
+  // Load comments for existing posts when component mounts or posts change
+  useEffect(() => {
+    if (feedPosts.length > 0) {
+      feedPosts.forEach(post => {
+        // Only fetch if we don't already have comments for this post
+        if (!comments[post.id]) {
+          fetchCommentsForPost(post.id);
+        }
+      });
+    }
+  }, [feedPosts, currentUser]);
+
   // Fetch comments for a specific post
   const fetchCommentsForPost = async (postId) => {
     try {
@@ -124,6 +136,14 @@ function AlumniDashboard() {
             ...prev,
             [postId]: commentsData
           }));
+          
+          // Auto-expand comments section if there are comments
+          if (commentsData.length > 0) {
+            setExpandedComments(prev => ({
+              ...prev,
+              [postId]: true
+            }));
+          }
         });
         
         return unsubscribe;
@@ -147,6 +167,14 @@ function AlumniDashboard() {
             ...prev,
             [postId]: commentsData
           }));
+          
+          // Auto-expand comments section if there are comments
+          if (commentsData.length > 0) {
+            setExpandedComments(prev => ({
+              ...prev,
+              [postId]: true
+            }));
+          }
         });
         
         return unsubscribe;
@@ -529,8 +557,8 @@ function AlumniDashboard() {
                       </div>
                     </div>
 
-                    {/* Comments Section */}
-                    {expandedComments[post.id] && (
+                    {/* Comments Section - Show if expanded OR if there are comments */}
+                    {(expandedComments[post.id] || (comments[post.id] && comments[post.id].length > 0)) && (
                       <div className="comments-section">
                         {/* Comments List */}
                         <div className="comments-list">
