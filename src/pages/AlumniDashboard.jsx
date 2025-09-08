@@ -988,7 +988,6 @@ function AlumniDashboard() {
                       <div className="action-buttons">
                         <button 
                           className={`action-btn like-btn ${postReactions[post.id]?.userReaction ? 'reacted' : ''}`}
-                          onClick={() => handleReaction(post.id, 'like')}
                           onMouseDown={(e) => handleReactionLongPress(post.id, e)}
                           onTouchStart={(e) => handleReactionLongPress(post.id, e)}
                           onMouseLeave={() => hideReactionPicker(post.id)}
@@ -1078,7 +1077,6 @@ function AlumniDashboard() {
                                 <div className="comment-actions">
                                   <button 
                                     className={`comment-reaction-btn ${commentReactions[comment.id]?.userReaction ? 'reacted' : ''}`}
-                                    onClick={() => handleCommentReaction(comment.id, 'like')}
                                     onMouseDown={(e) => handleCommentReactionLongPress(comment.id, e)}
                                     onTouchStart={(e) => handleCommentReactionLongPress(comment.id, e)}
                                     onMouseLeave={() => hideCommentReactionPicker(comment.id)}

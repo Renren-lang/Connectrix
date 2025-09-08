@@ -916,7 +916,6 @@ function StudentDashboard() {
                       <div className="action-buttons">
                         <button 
                           className={`action-btn like-btn ${postReactions[post.id]?.userReaction ? 'reacted' : ''}`}
-                          onClick={() => handleReaction(post.id, 'like')}
                           onMouseDown={(e) => handleReactionLongPress(post.id, e)}
                           onTouchStart={(e) => handleReactionLongPress(post.id, e)}
                           onMouseLeave={() => hideReactionPicker(post.id)}
