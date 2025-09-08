@@ -8744,6 +8744,10 @@ input:focus, textarea:focus, select:focus, .form-control:focus {
   animation: reactionPickerAppear 0.3s ease-out;
   pointer-events: auto;
   user-select: none;
+  position: fixed;
+  z-index: 1000;
+  min-width: 200px;
+  justify-content: center;
 }
 
 .reaction-picker-content {

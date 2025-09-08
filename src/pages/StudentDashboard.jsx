@@ -403,7 +403,7 @@ function StudentDashboard() {
     setReactionPickerPosition({
       [postId]: {
         x: rect.left + rect.width / 2,
-        y: rect.top - 60
+        y: rect.top - 80
       }
     });
     setShowReactionPicker(prev => ({
@@ -954,7 +954,7 @@ function StudentDashboard() {
                         className="reaction-picker"
                         style={{
                           position: 'fixed',
-                          left: `${reactionPickerPosition[post.id]?.x - 120}px`,
+                          left: `${reactionPickerPosition[post.id]?.x - 60}px`,
                           top: `${reactionPickerPosition[post.id]?.y}px`,
                           zIndex: 1000
                         }}

@@ -544,7 +544,7 @@ function AlumniDashboard() {
     setReactionPickerPosition({
       [postId]: {
         x: rect.left + rect.width / 2,
-        y: rect.top - 60
+        y: rect.top - 80
       }
     });
     setShowReactionPicker(prev => ({
@@ -594,7 +594,7 @@ function AlumniDashboard() {
     setCommentReactionPickerPosition({
       [commentId]: {
         x: rect.left + rect.width / 2,
-        y: rect.top - 60
+        y: rect.top - 80
       }
     });
     setShowCommentReactionPicker(prev => ({
@@ -1026,7 +1026,7 @@ function AlumniDashboard() {
                         className="reaction-picker"
                         style={{
                           position: 'fixed',
-                          left: `${reactionPickerPosition[post.id]?.x - 120}px`,
+                          left: `${reactionPickerPosition[post.id]?.x - 60}px`,
                           top: `${reactionPickerPosition[post.id]?.y}px`,
                           zIndex: 1000
                         }}
@@ -1106,7 +1106,7 @@ function AlumniDashboard() {
                                     className="reaction-picker comment-reaction-picker"
                                     style={{
                                       position: 'fixed',
-                                      left: `${commentReactionPickerPosition[comment.id]?.x - 120}px`,
+                                      left: `${commentReactionPickerPosition[comment.id]?.x - 60}px`,
                                       top: `${commentReactionPickerPosition[comment.id]?.y}px`,
                                       zIndex: 1000
                                     }}
