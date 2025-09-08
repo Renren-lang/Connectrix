@@ -303,7 +303,7 @@ function AlumniDashboard() {
         scale: 1.00,
         scaleMobile: 1.00,
         color: 0xff3f81,
-        backgroundColor: 0x23153c,
+        backgroundColor: 0xffffff,
         points: 10,
         maxDistance: 20,
         spacing: 15,
