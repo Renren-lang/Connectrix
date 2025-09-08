@@ -75,11 +75,17 @@ function Login() {
     handleRedirectResult();
   }, [navigate, getUserRole]);
 
-  // Function to look up email from username
-  const lookupEmailFromUsername = async (username) => {
+  // Function to look up email from username or handle email input
+  const lookupEmailFromUsername = async (input) => {
     try {
+      // Check if input is an email (contains @)
+      if (input.includes('@')) {
+        return input; // Return as-is if it's an email
+      }
+      
+      // Otherwise, treat as username and look up in Firestore
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('username', '==', username));
+      const q = query(usersRef, where('username', '==', input));
       const querySnapshot = await getDocs(q);
       
       if (!querySnapshot.empty) {
@@ -94,8 +100,10 @@ function Login() {
   };
 
   // Validation functions
-  const validateUsername = (username) => {
-    return username.trim().length >= 3;
+  const validateUsername = (input) => {
+    const trimmed = input.trim();
+    // Allow emails (contain @) or usernames (at least 3 characters)
+    return trimmed.includes('@') || trimmed.length >= 3;
   };
 
   const validatePassword = (password) => {
@@ -124,9 +132,9 @@ function Login() {
     let isValid = true;
     const newErrors = {};
 
-    // Validate username
+    // Validate username/email
     if (!validateUsername(formData.username)) {
-      newErrors.username = 'Please enter a valid username (at least 3 characters)';
+      newErrors.username = 'Please enter a valid username (at least 3 characters) or email address';
       isValid = false;
     }
 
@@ -147,7 +155,7 @@ function Login() {
         const email = await lookupEmailFromUsername(formData.username);
         
         if (!email) {
-          newErrors.username = 'No account found with this username';
+          newErrors.username = 'No account found with this username or email';
           setErrors(newErrors);
           setIsSubmitting(false);
           return;
@@ -175,11 +183,11 @@ function Login() {
       } catch (error) {
         console.error('Login error:', error);
         if (error.code === 'auth/user-not-found') {
-          newErrors.username = 'No account found with this username';
+          newErrors.username = 'No account found with this username or email';
         } else if (error.code === 'auth/wrong-password') {
           newErrors.password = 'Incorrect password';
         } else if (error.code === 'auth/invalid-email') {
-          newErrors.username = 'Invalid username format';
+          newErrors.username = 'Invalid username or email format';
         } else if (error.code === 'auth/too-many-requests') {
           newErrors.general =
             'Too many failed attempts. Please try again later.';
@@ -552,13 +560,13 @@ function Login() {
             <>
               <form onSubmit={handleSubmit}>
                 <div className="form-group">
-                  <label htmlFor="login-username">Username</label>
+                  <label htmlFor="login-username">Username or Email</label>
                   <input
                     type="text"
                     id="login-username"
                     name="username"
                     className={`form-control ${errors.username ? 'error' : ''}`}
-                    placeholder="Enter your username"
+                    placeholder="Enter your username or email"
                     value={formData.username}
                     onChange={handleInputChange}
                     autoComplete="username"
