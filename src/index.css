@@ -414,18 +414,17 @@ body {
   font-weight: 600 !important;
 }
 
-/* Glassmorphism effect for dashboard cards */
+/* White background for quick access cards */
 .dashboard .quick-access-card {
-  background: rgba(255, 255, 255, 0.25) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37) !important;
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
 }
 
 .dashboard .quick-access-card:hover {
-  background: rgba(255, 255, 255, 0.35) !important;
-  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5) !important;
+  background: #f8f9fa !important;
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15) !important;
+  transform: translateY(-2px) !important;
 }
 
 /* Glassmorphism Profile Card Design */
