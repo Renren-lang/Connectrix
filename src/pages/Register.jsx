@@ -9,11 +9,13 @@ function Register() {
   const { signup, currentUser, userRole } = useAuth();
   const [selectedRole, setSelectedRole] = useState('');
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
+    schoolId: '',
     firstName: '',
     lastName: '',
+    email: '',
+    username: '',
+    password: '',
+    confirmPassword: '',
     batch: '',
     course: '',
     goals: '',
@@ -69,11 +71,13 @@ function Register() {
     setIsSubmitting(true);
     
     const newErrors = {};
+    if (!formData.schoolId.trim()) newErrors.schoolId = 'School ID number is required';
+    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
     if (!validateEmail(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
-    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!formData.username.trim()) newErrors.username = 'Username is required';
     if (!validatePassword(formData.password)) newErrors.password = 'Password must be at least 8 characters';
     if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
     if (!selectedRole) newErrors.role = 'Please select your role (Student or Alumni)';
@@ -98,11 +102,13 @@ function Register() {
       setShowSuccess(true);
       setTimeout(() => {
         setFormData({
-          email: '',
-          password: '',
-          confirmPassword: '',
+          schoolId: '',
           firstName: '',
           lastName: '',
+          email: '',
+          username: '',
+          password: '',
+          confirmPassword: '',
           batch: '',
           course: '',
           goals: '',
@@ -177,19 +183,19 @@ function Register() {
         
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="register-email">Email</label>
+            <label htmlFor="register-school-id">School ID Number</label>
             <input
-              type="email"
-              id="register-email"
-              name="email"
-              className={`form-control ${errors.email ? 'error' : ''}`}
-              placeholder="Enter your email"
-              value={formData.email}
+              type="text"
+              id="register-school-id"
+              name="schoolId"
+              className={`form-control ${errors.schoolId ? 'error' : ''}`}
+              placeholder="Enter your school ID number"
+              value={formData.schoolId}
               onChange={handleInputChange}
-              autoComplete="email"
+              autoComplete="off"
             />
-            {errors.email && (
-              <div className="error-message show">{errors.email}</div>
+            {errors.schoolId && (
+              <div className="error-message show">{errors.schoolId}</div>
             )}
           </div>
           
@@ -224,6 +230,40 @@ function Register() {
             />
             {errors.lastName && (
               <div className="error-message show">{errors.lastName}</div>
+            )}
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="register-email">Email</label>
+            <input
+              type="email"
+              id="register-email"
+              name="email"
+              className={`form-control ${errors.email ? 'error' : ''}`}
+              placeholder="Enter your email"
+              value={formData.email}
+              onChange={handleInputChange}
+              autoComplete="email"
+            />
+            {errors.email && (
+              <div className="error-message show">{errors.email}</div>
+            )}
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="register-username">Username</label>
+            <input
+              type="text"
+              id="register-username"
+              name="username"
+              className={`form-control ${errors.username ? 'error' : ''}`}
+              placeholder="Choose a username"
+              value={formData.username}
+              onChange={handleInputChange}
+              autoComplete="username"
+            />
+            {errors.username && (
+              <div className="error-message show">{errors.username}</div>
             )}
           </div>
           
