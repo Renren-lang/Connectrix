@@ -72,9 +72,11 @@ export function AuthProvider({ children }) {
       const userRef = doc(db, 'users', result.user.uid);
       await setDoc(userRef, {
         email: email,
+        username: userData.username || '',
         role: role,
         firstName: userData.firstName || '',
         lastName: userData.lastName || '',
+        schoolId: userData.schoolId || '',
         batch: userData.batch || '',
         course: userData.course || '',
         goals: userData.goals || '',

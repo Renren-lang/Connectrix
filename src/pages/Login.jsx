@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { signInWithPopup, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import SafeLogger from '../utils/logger';
 import API_CONFIG from '../config/api';
 
@@ -10,11 +11,11 @@ function Login() {
   const navigate = useNavigate();
   const { login, getUserRole, refreshUserRole } = useAuth();
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
     password: ''
   });
   const [errors, setErrors] = useState({
-    email: '',
+    username: '',
     password: ''
   });
   const [showSuccess, setShowSuccess] = useState(false);
@@ -74,10 +75,27 @@ function Login() {
     handleRedirectResult();
   }, [navigate, getUserRole]);
 
+  // Function to look up email from username
+  const lookupEmailFromUsername = async (username) => {
+    try {
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('username', '==', username));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        return userDoc.data().email;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error looking up email from username:', error);
+      return null;
+    }
+  };
+
   // Validation functions
-  const validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
+  const validateUsername = (username) => {
+    return username.trim().length >= 3;
   };
 
   const validatePassword = (password) => {
@@ -106,9 +124,9 @@ function Login() {
     let isValid = true;
     const newErrors = {};
 
-    // Validate email
-    if (!validateEmail(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
+    // Validate username
+    if (!validateUsername(formData.username)) {
+      newErrors.username = 'Please enter a valid username (at least 3 characters)';
       isValid = false;
     }
 
@@ -125,8 +143,18 @@ function Login() {
         // Clear any previous errors
         setErrors({});
 
-        // Attempt to login
-        const result = await login(formData.email, formData.password);
+        // Look up email from username
+        const email = await lookupEmailFromUsername(formData.username);
+        
+        if (!email) {
+          newErrors.username = 'No account found with this username';
+          setErrors(newErrors);
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Attempt to login with the found email
+        const result = await login(email, formData.password);
 
         // Get the user role directly from the login result
         const userRole = await getUserRole(result.user.uid);
@@ -147,11 +175,11 @@ function Login() {
       } catch (error) {
         console.error('Login error:', error);
         if (error.code === 'auth/user-not-found') {
-          newErrors.email = 'No account found with this email';
+          newErrors.username = 'No account found with this username';
         } else if (error.code === 'auth/wrong-password') {
           newErrors.password = 'Incorrect password';
         } else if (error.code === 'auth/invalid-email') {
-          newErrors.email = 'Invalid email format';
+          newErrors.username = 'Invalid username format';
         } else if (error.code === 'auth/too-many-requests') {
           newErrors.general =
             'Too many failed attempts. Please try again later.';
@@ -524,19 +552,19 @@ function Login() {
             <>
               <form onSubmit={handleSubmit}>
                 <div className="form-group">
-                  <label htmlFor="login-email">Email</label>
-                                  <input
-                  type="email"
-                  id="login-email"
-                  name="email"
-                  className={`form-control ${errors.email ? 'error' : ''}`}
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  autoComplete="email"
-                />
-                  {errors.email && (
-                    <div className="error-message show">{errors.email}</div>
+                  <label htmlFor="login-username">Username</label>
+                  <input
+                    type="text"
+                    id="login-username"
+                    name="username"
+                    className={`form-control ${errors.username ? 'error' : ''}`}
+                    placeholder="Enter your username"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    autoComplete="username"
+                  />
+                  {errors.username && (
+                    <div className="error-message show">{errors.username}</div>
                   )}
                 </div>
 
