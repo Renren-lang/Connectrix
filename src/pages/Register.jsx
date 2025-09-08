@@ -50,6 +50,7 @@ function Register() {
     if (role === 'student') {
       setErrors(prev => ({
         ...prev,
+        schoolId: '',
         batch: '',
         course: '',
         goals: ''
@@ -57,6 +58,7 @@ function Register() {
     } else {
       setErrors(prev => ({
         ...prev,
+        schoolId: '',
         experience: '',
         skills: ''
       }));
@@ -71,7 +73,6 @@ function Register() {
     setIsSubmitting(true);
     
     const newErrors = {};
-    if (!formData.schoolId.trim()) newErrors.schoolId = 'School ID number is required';
     if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
     if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
     if (!validateEmail(formData.email)) {
@@ -83,6 +84,7 @@ function Register() {
     if (!selectedRole) newErrors.role = 'Please select your role (Student or Alumni)';
     
     if (selectedRole === 'student') {
+      if (!formData.schoolId.trim()) newErrors.schoolId = 'School ID number is required';
       if (!formData.batch.trim()) newErrors.batch = 'Batch year is required';
       if (!formData.course.trim()) newErrors.course = 'Course/Major is required';
       if (!formData.goals.trim()) newErrors.goals = 'Career goals are required';
@@ -182,22 +184,6 @@ function Register() {
         )}
         
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="register-school-id">School ID Number</label>
-            <input
-              type="text"
-              id="register-school-id"
-              name="schoolId"
-              className={`form-control ${errors.schoolId ? 'error' : ''}`}
-              placeholder="Enter your school ID number"
-              value={formData.schoolId}
-              onChange={handleInputChange}
-              autoComplete="off"
-            />
-            {errors.schoolId && (
-              <div className="error-message show">{errors.schoolId}</div>
-            )}
-          </div>
           
           <div className="form-group">
             <label htmlFor="register-first-name">First Name</label>
@@ -364,6 +350,23 @@ function Register() {
           {/* Student Fields */}
           {selectedRole === 'student' && (
             <div className="conditional-fields active">
+              <div className="form-group">
+                <label htmlFor="register-school-id">School ID Number</label>
+                <input
+                  type="text"
+                  id="register-school-id"
+                  name="schoolId"
+                  className={`form-control ${errors.schoolId ? 'error' : ''}`}
+                  placeholder="Enter your school ID number"
+                  value={formData.schoolId}
+                  onChange={handleInputChange}
+                  autoComplete="off"
+                />
+                {errors.schoolId && (
+                  <div className="error-message show">{errors.schoolId}</div>
+                )}
+              </div>
+              
               <div className="form-group">
                 <label htmlFor="student-batch">Batch Year</label>
                 <input
