@@ -414,6 +414,25 @@ body {
   font-weight: 600 !important;
 }
 
+/* Enhanced text visibility for dashboard */
+.dashboard .welcome-title {
+  color: #1f2937 !important;
+  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.8) !important;
+  font-size: 32px !important;
+}
+
+.dashboard .welcome-subtitle {
+  color: #374151 !important;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6) !important;
+  font-size: 16px !important;
+}
+
+.dashboard .section-title {
+  color: #1f2937 !important;
+  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.8) !important;
+  font-size: 24px !important;
+}
+
 /* White background for quick access cards */
 .dashboard .quick-access-card {
   background: #ffffff !important;
