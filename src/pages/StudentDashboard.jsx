@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, orderBy, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -7,6 +7,7 @@ import { db } from '../firebase';
 function StudentDashboard() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const vantaRef = useRef(null);
   const [activeFilter, setActiveFilter] = useState('All');
   const [suggestedMentors, setSuggestedMentors] = useState([]);
   const [isLoadingMentors, setIsLoadingMentors] = useState(true);
@@ -209,6 +210,34 @@ function StudentDashboard() {
       });
     }
   }, [feedPosts, currentUser]);
+
+  // Initialize Vanta.js background
+  useEffect(() => {
+    if (window.VANTA && vantaRef.current) {
+      const vantaEffect = window.VANTA.NET({
+        el: vantaRef.current,
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.00,
+        minWidth: 200.00,
+        scale: 1.00,
+        scaleMobile: 1.00,
+        color: 0xff3f81,
+        backgroundColor: 0x23153c,
+        points: 10,
+        maxDistance: 20,
+        spacing: 15,
+        showDots: true
+      });
+
+      return () => {
+        if (vantaEffect && vantaEffect.destroy) {
+          vantaEffect.destroy();
+        }
+      };
+    }
+  }, []);
 
   // Fetch reactions for a specific post
   const fetchPostReactions = async (postId) => {
@@ -755,8 +784,11 @@ function StudentDashboard() {
 
   return (
     <>
+      {/* Vanta.js Background */}
+      <div ref={vantaRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1 }}></div>
+      
       {/* Main Dashboard Content */}
-      <main className="dashboard">
+      <main className="dashboard" style={{ position: 'relative', zIndex: 1 }}>
         <div className="dashboard-container">
           {/* Welcome Section */}
           <div className="welcome-section">
