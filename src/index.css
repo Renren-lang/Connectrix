@@ -392,6 +392,28 @@ body {
   background-color: var(--background-color);
 }
 
+/* Make all dashboard text bold */
+.dashboard * {
+  font-weight: 600 !important;
+}
+
+/* Override specific elements that should be extra bold */
+.dashboard .welcome-title,
+.dashboard .section-title,
+.dashboard .card-title {
+  font-weight: 700 !important;
+}
+
+/* Make post content bold */
+.dashboard .post-content {
+  font-weight: 600 !important;
+}
+
+/* Make welcome subtitle bold */
+.dashboard .welcome-subtitle {
+  font-weight: 600 !important;
+}
+
 /* Responsive dashboard padding */
 @media (max-width: 768px) {
   .dashboard-container {
