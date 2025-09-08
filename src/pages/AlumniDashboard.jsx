@@ -303,7 +303,7 @@ function AlumniDashboard() {
         scale: 1.00,
         scaleMobile: 1.00,
         color: 0x4361ee,
-        backgroundColor: 0xffffff,
+        backgroundColor: 0x000000,
         points: 10,
         maxDistance: 20,
         spacing: 15,
@@ -884,6 +884,23 @@ function AlumniDashboard() {
 
   return (
     <>
+      {/* Connectrix Background Image */}
+      <div 
+        style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          width: '100%', 
+          height: '100%', 
+          zIndex: -2,
+          backgroundImage: 'url(/assets/image.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'fixed'
+        }}
+      ></div>
+      
       {/* Vanta.js Background */}
       <div ref={vantaRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1 }}></div>
       

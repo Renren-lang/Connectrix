@@ -387,9 +387,9 @@ body {
 }
 
 /* Dashboard specific styles */
+/* Dashboard specific styles */
 .dashboard {
-  min-height: 100vh;
-  background-color: var(--background-color);
+  min-height: 100vh !important;
 }
 
 /* Make all dashboard text bold */
