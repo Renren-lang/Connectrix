@@ -467,21 +467,27 @@ body {
 }
 
 .dashboard .mentor-card h3,
+.dashboard .mentor-card .mentor-info h3,
 .dashboard .request-item .request-name {
-  color: #f9fafb !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
   font-size: 1.1rem !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
 }
 
 .dashboard .mentor-card p,
+.dashboard .mentor-card .mentor-info p,
+.dashboard .mentor-card .mentor-meta,
 .dashboard .request-item .request-details {
-  color: #d1d5db !important;
+  color: #e5e7eb !important;
   font-weight: 500 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
 }
 
 .dashboard .mentor-card .mentor-bio {
-  color: #e5e7eb !important;
+  color: #f1f5f9 !important;
   font-weight: 500 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
 }
 
 /* Avatar Styling */
@@ -519,6 +525,16 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
   color: #e5e7eb !important;
   font-weight: 500 !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+}
+
+.dashboard .mentor-card .mentor-tag {
+  background: rgba(59, 130, 246, 0.2) !important;
+  border: 1px solid rgba(59, 130, 246, 0.4) !important;
+  color: #e0e7ff !important;
+  font-weight: 600 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
   backdrop-filter: blur(5px) !important;
   -webkit-backdrop-filter: blur(5px) !important;
 }
