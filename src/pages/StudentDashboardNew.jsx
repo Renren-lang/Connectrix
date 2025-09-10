@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp, onSnapshot, getDoc, deleteDoc } from 'firebase/firestore';
@@ -8,7 +8,6 @@ import DashboardLayout from '../components/DashboardLayout';
 function StudentDashboard() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const vantaRef = useRef(null);
   const [activeFilter, setActiveFilter] = useState('All');
   const [suggestedMentors, setSuggestedMentors] = useState([
     {
@@ -59,33 +58,6 @@ function StudentDashboard() {
     { type: 'angry', emoji: '😡', label: 'Angry' }
   ];
 
-  // Initialize Vanta.js background
-  useEffect(() => {
-    if (window.VANTA && vantaRef.current) {
-      const vantaEffect = window.VANTA.NET({
-        el: vantaRef.current,
-        mouseControls: true,
-        touchControls: true,
-        gyroControls: false,
-        minHeight: 200.00,
-        minWidth: 200.00,
-        scale: 1.00,
-        scaleMobile: 1.00,
-        color: 0x4361ee, // Connectrix blue
-        backgroundColor: 0x000000, // Black for contrast with blue network
-        points: 10,
-        maxDistance: 20,
-        spacing: 15,
-        showDots: true
-      });
-
-      return () => {
-        if (vantaEffect && vantaEffect.destroy) {
-          vantaEffect.destroy();
-        }
-      };
-    }
-  }, []);
 
   // Fetch posts from Firestore
   useEffect(() => {
@@ -216,14 +188,11 @@ function StudentDashboard() {
       {/* Connectrix Background Image */}
       <div 
         style={{ 
-          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -2,
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1,
           backgroundImage: 'url(/assets/image.png)', backgroundSize: 'cover',
           backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundAttachment: 'fixed'
         }}
       ></div>
-      
-      {/* Vanta.js Background */}
-      <div ref={vantaRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1 }}></div>
       
       {/* Main Dashboard Content */}
       <div className="p-6">
