@@ -185,44 +185,32 @@ function StudentDashboard() {
 
   return (
     <DashboardLayout userRole="student">
-      {/* Connectrix Background Image */}
-      <div 
-        style={{ 
-          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1,
-          backgroundImage: 'url(/assets/image.png)', backgroundSize: 'cover',
-          backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundAttachment: 'fixed'
-        }}
-      ></div>
       
       {/* Main Dashboard Content */}
-      <div className="p-6">
+      <div className="dashboard-content">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">
+        <div className="welcome-section">
+          <h1 className="welcome-title">
             Welcome back, {currentUser?.displayName || 'Student'}!
           </h1>
-          <p className="text-gray-300 text-lg">
+          <p className="welcome-subtitle">
             Here's what's happening with your mentorship network today.
           </p>
         </div>
 
         {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="dashboard-grid">
           {/* Suggested Mentors */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-800">Suggested Mentors</h2>
-                <div className="flex space-x-2">
+          <div className="dashboard-card-container">
+            <div className="dashboard-card">
+              <div className="card-header">
+                <h2 className="card-title">Suggested Mentors</h2>
+                <div className="filter-buttons">
                   {['All', 'AI/ML', 'Product', 'Data'].map(filter => (
                     <button
                       key={filter}
                       onClick={() => setActiveFilter(filter)}
-                      className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                        activeFilter === filter
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
+                      className={`filter-btn ${activeFilter === filter ? 'active' : ''}`}
                     >
                       {filter}
                     </button>
@@ -230,27 +218,27 @@ function StudentDashboard() {
                 </div>
               </div>
               
-              <div className="space-y-4">
+              <div className="mentor-list">
                 {filteredMentors.map(mentor => (
-                  <div key={mentor.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-start space-x-3">
-                      <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
-                        <span className="text-white font-medium text-lg">
+                  <div key={mentor.id} className="mentor-item">
+                    <div className="mentor-content">
+                      <div className="mentor-avatar">
+                        <span className="mentor-avatar-text">
                           {mentor.name.split(' ').map(n => n[0]).join('')}
                         </span>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-800">{mentor.name}</h3>
-                        <p className="text-sm text-gray-600">{mentor.title}</p>
-                        <p className="text-sm text-blue-600 font-medium">{mentor.expertise}</p>
-                        <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+                      <div className="mentor-info">
+                        <h3 className="mentor-name">{mentor.name}</h3>
+                        <p className="mentor-title">{mentor.title}</p>
+                        <p className="mentor-expertise">{mentor.expertise}</p>
+                        <div className="mentor-stats">
                           <span>{mentor.experience} exp</span>
                           <span>⭐ {mentor.rating}</span>
                           <span>{mentor.students} students</span>
                         </div>
                         <button
                           onClick={() => handleRequestMentorship(mentor.id)}
-                          className="w-full mt-3 px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                          className="btn-primary mentor-request-btn"
                         >
                           Request Mentorship
                         </button>
@@ -263,13 +251,13 @@ function StudentDashboard() {
           </div>
 
           {/* Recent Alumni Posts */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Recent Alumni Posts</h2>
+          <div className="dashboard-card-container">
+            <div className="dashboard-card">
+              <h2 className="card-title">Recent Alumni Posts</h2>
               
               {isLoadingPosts ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="loading-spinner">
+                  <div className="spinner"></div>
                 </div>
               ) : (
                 <div className="space-y-6">
