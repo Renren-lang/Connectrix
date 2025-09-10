@@ -221,6 +221,12 @@ export function AuthProvider({ children }) {
         return null;
       }
       
+      // Validate UID
+      if (!uid || typeof uid !== 'string') {
+        console.log('Invalid UID provided:', uid);
+        return null;
+      }
+      
       const userRef = doc(db, 'users', uid);
       console.log('User ref created:', userRef.path);
       
@@ -297,7 +303,9 @@ export function AuthProvider({ children }) {
       console.error('Error getting user role:', error);
       console.error('Error details:', error.code, error.message);
       console.error('Full error object:', error);
-      return null;
+      
+      // Return a default role instead of null to prevent crashes
+      return 'student';
     }
   }
 
@@ -315,6 +323,11 @@ export function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
         if (user) {
+          console.log('Auth state changed - user authenticated:', user.uid);
+          
+          // Set current user immediately to prevent timing issues
+          setCurrentUser(user);
+          
           // Fetch user profile data from Firestore
           const profileData = await fetchUserProfile(user.uid);
           
@@ -334,11 +347,12 @@ export function AuthProvider({ children }) {
           const storedRole = localStorage.getItem('userRole');
           console.log('AuthContext: Stored role from localStorage:', storedRole);
           
-          // Use stored role if available, otherwise use fetched role
-          const finalRole = storedRole || role;
+          // Use stored role if available, otherwise use fetched role, default to 'student'
+          const finalRole = storedRole || role || 'student';
           console.log('AuthContext: Setting final role:', finalRole);
           setUserRole(finalRole);
         } else {
+          console.log('Auth state changed - user not authenticated');
           setCurrentUser(null);
           setUserRole(null);
           localStorage.removeItem('userRole');
@@ -347,7 +361,7 @@ export function AuthProvider({ children }) {
         console.error('Error in auth state change:', error);
         // Handle error gracefully - set user to null but don't crash
         setCurrentUser(null);
-        setUserRole(null);
+        setUserRole('student'); // Default to student role instead of null
         localStorage.removeItem('userRole');
       } finally {
         setLoading(false);
