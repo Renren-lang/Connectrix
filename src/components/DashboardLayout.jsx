@@ -3,8 +3,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   SidebarProvider, 
-  Sidebar, 
-  SidebarBody, 
   DesktopSidebar, 
   SidebarLink 
 } from './ui/sidebar';
@@ -58,67 +56,65 @@ const DashboardLayout = ({ children, userRole = 'student' }) => {
   return (
     <SidebarProvider open={isSidebarOpen} setOpen={setIsSidebarOpen}>
       <div className="dashboard-layout">
-        <SidebarBody>
-          <DesktopSidebar className="new-sidebar">
-            {/* Top Logo */}
-            <div className="sidebar-top">
-              <div className="sidebar-logo">
-                <div className="logo-icon">C</div>
-                <span className="logo-text">Connectrix</span>
-              </div>
+        <DesktopSidebar className="new-sidebar">
+          {/* Top Logo */}
+          <div className="sidebar-top">
+            <div className="sidebar-logo">
+              <div className="logo-icon">C</div>
+              <span className="logo-text">Connectrix</span>
             </div>
+          </div>
 
-            {/* Navigation Menu */}
-            <div className="sidebar-nav">
-              {menuItems.map((item, index) => (
-                <SidebarLink
-                  key={index}
-                  link={item}
-                  className="sidebar-menu-item"
-                />
-              ))}
-            </div>
-
-            {/* Bottom Section with Settings and User */}
-            <div className="sidebar-bottom">
-              {/* Settings */}
+          {/* Navigation Menu */}
+          <div className="sidebar-nav">
+            {menuItems.map((item, index) => (
               <SidebarLink
-                link={{
-                  icon: <IconSettings size={20} />,
-                  label: 'Settings',
-                  href: '/profile',
-                }}
+                key={index}
+                link={item}
                 className="sidebar-menu-item"
               />
+            ))}
+          </div>
 
-              {/* User Profile */}
-              <div className="user-profile">
-                <div className="user-avatar">
-                  {currentUser?.displayName?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
-                </div>
-                <div className="user-info">
-                  <div className="user-name">{currentUser?.displayName || 'User'}</div>
-                  <div className="user-role">{userRole === 'alumni' ? 'Alumni' : 'Student'}</div>
-                </div>
-                <button
-                  className="logout-btn"
-                  onClick={handleLogout}
-                  title="Logout"
-                >
-                  <IconLogout size={18} />
-                </button>
+          {/* Bottom Section with Settings and User */}
+          <div className="sidebar-bottom">
+            {/* Settings */}
+            <SidebarLink
+              link={{
+                icon: <IconSettings size={20} />,
+                label: 'Settings',
+                href: '/profile',
+              }}
+              className="sidebar-menu-item"
+            />
+
+            {/* User Profile */}
+            <div className="user-profile">
+              <div className="user-avatar">
+                {currentUser?.displayName?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
               </div>
-
-              {/* Collapse Arrow */}
-              <button 
-                className="collapse-btn"
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              <div className="user-info">
+                <div className="user-name">{currentUser?.displayName || 'User'}</div>
+                <div className="user-role">{userRole === 'alumni' ? 'Alumni' : 'Student'}</div>
+              </div>
+              <button
+                className="logout-btn"
+                onClick={handleLogout}
+                title="Logout"
               >
-                <IconChevronLeft size={20} />
+                <IconLogout size={18} />
               </button>
             </div>
-          </DesktopSidebar>
-        </SidebarBody>
+
+            {/* Collapse Arrow */}
+            <button 
+              className="collapse-btn"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            >
+              <IconChevronLeft size={20} />
+            </button>
+          </div>
+        </DesktopSidebar>
 
         {/* Main Content */}
         <div className="main-content">
