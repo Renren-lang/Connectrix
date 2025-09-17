@@ -333,7 +333,7 @@ function Events() {
               <div className={`post-body ${isPostFormExpanded ? 'expanded' : ''}`}>
                 <form onSubmit={handleFormSubmit}>
                   <div className="form-group">
-                    <label className="form-label">Opportunity Type</label>
+                    <label className="form-label" htmlFor="opportunityType">Opportunity Type</label>
                     <select 
                       id="opportunityType"
                       name="type"
@@ -349,7 +349,7 @@ function Events() {
                     </select>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Title</label>
+                    <label className="form-label" htmlFor="opportunityTitle">Title</label>
                     <input 
                       id="opportunityTitle"
                       type="text" 
@@ -362,7 +362,7 @@ function Events() {
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Company/Organization</label>
+                    <label className="form-label" htmlFor="opportunityCompany">Company/Organization</label>
                     <input 
                       id="opportunityCompany"
                       type="text" 
@@ -376,7 +376,7 @@ function Events() {
                   </div>
                   <div className="form-row">
                     <div className="form-group">
-                      <label className="form-label">Date</label>
+                      <label className="form-label" htmlFor="opportunityDate">Date</label>
                       <input 
                         id="opportunityDate"
                         type="date" 
@@ -388,7 +388,7 @@ function Events() {
                       />
                     </div>
                     <div className="form-group">
-                      <label className="form-label">Time</label>
+                      <label className="form-label" htmlFor="opportunityTime">Time</label>
                       <input 
                         id="opportunityTime"
                         type="time" 
@@ -401,7 +401,7 @@ function Events() {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Location</label>
+                    <label className="form-label" htmlFor="opportunityLocation">Location</label>
                     <input 
                       id="opportunityLocation"
                       type="text" 
@@ -414,7 +414,7 @@ function Events() {
                     />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Description</label>
+                    <label className="form-label" htmlFor="opportunityDescription">Description</label>
                     <textarea 
                       id="opportunityDescription"
                       className="form-control" 
@@ -426,7 +426,7 @@ function Events() {
                     ></textarea>
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Tags (comma separated)</label>
+                    <label className="form-label" htmlFor="opportunityTags">Tags (comma separated)</label>
                     <input 
                       id="opportunityTags"
                       type="text" 
@@ -456,7 +456,7 @@ function Events() {
             <h2 className="filters-title">Filter Opportunities</h2>
             <div className="filters-grid">
               <div className="filter-group">
-                <label className="filter-label">Type</label>
+                <label className="filter-label" htmlFor="filterType">Type</label>
                 <select 
                   id="filterType"
                   name="filterType"
@@ -471,7 +471,7 @@ function Events() {
                 </select>
               </div>
               <div className="filter-group">
-                <label className="filter-label">Date</label>
+                <label className="filter-label" htmlFor="filterDate">Date</label>
                 <select 
                   id="filterDate"
                   name="filterDate"
@@ -486,7 +486,7 @@ function Events() {
                 </select>
               </div>
               <div className="filter-group">
-                <label className="filter-label">Location</label>
+                <label className="filter-label" htmlFor="filterLocation">Location</label>
                 <select 
                   id="filterLocation"
                   name="filterLocation"
@@ -502,7 +502,7 @@ function Events() {
                 </select>
               </div>
               <div className="filter-group">
-                <label className="filter-label">Tags</label>
+                <label className="filter-label" htmlFor="filterTags">Tags</label>
                 <select 
                   id="filterTags"
                   name="filterTags"

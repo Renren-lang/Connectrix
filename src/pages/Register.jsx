@@ -675,7 +675,7 @@ function Register() {
                   </div>
                   
                   <div style={{ marginBottom: '20px' }}>
-                    <label style={{
+                    <label htmlFor="role-selection" style={{
                       display: 'block',
                       marginBottom: '12px',
                       fontWeight: '600',

@@ -380,7 +380,7 @@ function Register() {
 
                 {/* Role Selection */}
                 <div className="form-group">
-                  <label className="form-label">I am a:</label>
+                  <label className="form-label" htmlFor="role-selection">I am a:</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button
                       type="button"
