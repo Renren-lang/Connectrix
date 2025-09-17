@@ -232,6 +232,12 @@ export function AuthProvider({ children }) {
   async function signInWithGoogle(additionalData = {}) {
     try {
       const provider = new GoogleAuthProvider();
+      
+      // Add custom parameters to prevent popup blocking
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
+      
       const result = await signInWithPopup(auth, provider);
 
       const userRef = doc(db, 'users', result.user.uid);
@@ -258,6 +264,16 @@ export function AuthProvider({ children }) {
       return { success: true, user: result.user };
     } catch (error) {
       console.error('Google sign-in error:', error);
+      
+      // Handle specific popup blocked error
+      if (error.code === 'auth/popup-blocked') {
+        throw new Error('Popup was blocked by the browser. Please allow popups for this site and try again.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        throw new Error('Sign-in was cancelled. Please try again.');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        throw new Error('Sign-in was cancelled. Please try again.');
+      }
+      
       throw error;
     }
   }
