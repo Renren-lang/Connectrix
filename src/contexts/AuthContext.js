@@ -159,6 +159,9 @@ export function AuthProvider({ children }) {
       localStorage.setItem('userRole', role);
       localStorage.setItem('adminUser', JSON.stringify(result.user));
 
+      // Reset Google auth flag to prevent navigation after registration
+      setIsGoogleAuth(false);
+
       return result;
     } catch (error) {
       console.error('Error in signup:', error);
@@ -427,6 +430,7 @@ export function AuthProvider({ children }) {
   async function signInWithGoogle(additionalData = {}) {
     try {
       console.log('Starting Google authentication with redirect');
+      setIsGoogleAuth(true); // Set flag for Google authentication
       
       const provider = new GoogleAuthProvider();
       await signInWithRedirect(auth, provider);
@@ -435,6 +439,7 @@ export function AuthProvider({ children }) {
       return { success: true, redirecting: true };
     } catch (error) {
       console.error('Google sign-in redirect error:', error);
+      setIsGoogleAuth(false); // Reset flag on error
       throw error;
     }
   }
@@ -445,6 +450,7 @@ export function AuthProvider({ children }) {
       const result = await getRedirectResult(auth);
       if (result && result.user) {
         console.log('Google redirect result received:', result.user.uid);
+        setIsGoogleAuth(true); // Set flag for Google authentication
 
         const userRef = doc(db, 'users', result.user.uid);
         const userSnap = await getDoc(userRef);
@@ -495,9 +501,11 @@ export function AuthProvider({ children }) {
 
         return { success: true, user: result.user };
       }
+      setIsGoogleAuth(false); // Reset flag if no Google user
       return null;
     } catch (error) {
       console.error('Error handling Google redirect result:', error);
+      setIsGoogleAuth(false); // Reset flag on error
       throw error;
     }
   }
@@ -522,10 +530,11 @@ export function AuthProvider({ children }) {
 
   // Navigation callback for Google authentication
   const [navigationCallback, setNavigationCallback] = useState(null);
+  const [isGoogleAuth, setIsGoogleAuth] = useState(false);
 
-  // Navigation effect for Google authentication
+  // Navigation effect for Google authentication only
   useEffect(() => {
-    if (currentUser && userRole && !loading && navigationCallback) {
+    if (currentUser && userRole && !loading && navigationCallback && isGoogleAuth) {
       console.log('User authenticated via Google, executing navigation callback');
       
       // Small delay to ensure state is fully updated
@@ -542,9 +551,10 @@ export function AuthProvider({ children }) {
         
         // Clear the callback after use
         setNavigationCallback(null);
+        setIsGoogleAuth(false);
       }, 1000);
     }
-  }, [currentUser, userRole, loading, navigationCallback]);
+  }, [currentUser, userRole, loading, navigationCallback, isGoogleAuth]);
 
   useEffect(() => {
     let isMounted = true;
@@ -667,6 +677,11 @@ export function AuthProvider({ children }) {
     setNavigationCallback(() => callback);
   };
 
+  // Function to reset Google auth flag
+  const resetGoogleAuthFlag = () => {
+    setIsGoogleAuth(false);
+  };
+
   const value = {
     currentUser,
     userRole,
@@ -681,6 +696,7 @@ export function AuthProvider({ children }) {
     signInWithGoogle,
     handleGoogleRedirectResult,
     setGoogleAuthNavigationCallback,
+    resetGoogleAuthFlag,
     debugAuthState
   };
 
