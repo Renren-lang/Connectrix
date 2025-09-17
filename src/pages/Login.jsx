@@ -13,11 +13,11 @@ function Login() {
   const navigate = useNavigate();
   const { currentUser, userRole, loading, login, getUserRole, refreshUserRole, signInWithGoogle, handleGoogleRedirectResult, setGoogleAuthNavigationCallback } = useAuth();
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: ''
   });
   const [errors, setErrors] = useState({
-    username: '',
+    email: '',
     password: ''
   });
   const [showSuccess, setShowSuccess] = useState(false);
@@ -98,15 +98,9 @@ function Login() {
         return ADMIN_CREDENTIALS.email;
       }
       
-      // Otherwise, treat as username and look up in Firestore
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('username', '==', input));
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const userDoc = querySnapshot.docs[0];
-        return userDoc.data().email;
-      }
+      // For now, we'll require users to enter their email address directly
+      // This avoids the Firestore permission issue during login
+      console.log('Username lookup not supported during login. Please use email address.');
       return null;
     } catch (error) {
       console.error('Error looking up email from username:', error);
@@ -117,12 +111,13 @@ function Login() {
   // Validation functions
   const validateUsername = (input) => {
     const trimmed = input.trim();
-    // Allow emails (contain @) or usernames (at least 3 characters)
+    // Only allow emails (contain @) for login
     if (trimmed.includes('@')) {
       const emailValidation = validateEmail(trimmed);
       return emailValidation.isValid;
     }
-    return trimmed.length >= 3;
+    // Allow admin username as exception
+    return trimmed === ADMIN_CREDENTIALS.username;
   };
 
   const validatePassword = (password) => {
@@ -152,14 +147,14 @@ function Login() {
 
     // Clear previous errors
     setErrors({
-      username: '',
+      email: '',
       password: ''
     });
 
     // Validate inputs
     const newErrors = {};
-    if (!validateUsername(formData.username)) {
-      newErrors.username = 'Please enter a valid username or email';
+    if (!validateUsername(formData.email)) {
+      newErrors.email = 'Please enter a valid email address or admin username';
     }
     if (!validatePassword(formData.password)) {
       newErrors.password = 'Password must be at least 8 characters long';
@@ -173,11 +168,11 @@ function Login() {
 
     try {
       // Debug login attempt
-      const debugInfo = debugLoginAttempt(formData.username, formData.password);
+      const debugInfo = debugLoginAttempt(formData.email, formData.password);
       console.log('Login attempt debug info:', debugInfo);
       
       // Check for admin credentials first
-      if (formData.username === ADMIN_CREDENTIALS.username && 
+      if (formData.email === ADMIN_CREDENTIALS.username && 
           formData.password === ADMIN_CREDENTIALS.password) {
         
         // Handle admin login
@@ -206,10 +201,10 @@ function Login() {
       }
 
       // Look up email from username if needed
-      const email = await lookupEmailFromUsername(formData.username);
+      const email = await lookupEmailFromUsername(formData.email);
       if (!email) {
         setErrors({
-          username: 'Username not found',
+          email: 'Please enter a valid email address or admin username',
           password: ''
         });
         setIsSubmitting(false);
@@ -233,7 +228,7 @@ function Login() {
         }, 1500);
       } else {
         setErrors({
-          username: '',
+          email: '',
           password: result.error || 'Login failed'
         });
       }
@@ -244,47 +239,47 @@ function Login() {
       // Handle specific Firebase Auth errors with user-friendly messages
       if (error.code === 'auth/invalid-credential') {
         setErrors({
-          username: '',
+          email: '',
           password: 'Invalid email or password. Please check your credentials and try again.'
         });
       } else if (error.code === 'auth/user-not-found') {
         setErrors({
-          username: 'No account found with this email address',
+          email: 'No account found with this email address',
           password: ''
         });
       } else if (error.code === 'auth/wrong-password') {
         setErrors({
-          username: '',
+          email: '',
           password: 'Incorrect password. Please try again.'
         });
       } else if (error.code === 'auth/invalid-email') {
         setErrors({
-          username: 'Invalid email address format',
+          email: 'Invalid email address format',
           password: ''
         });
       } else if (error.code === 'auth/user-disabled') {
         setErrors({
-          username: '',
+          email: '',
           password: 'This account has been disabled. Please contact support.'
         });
       } else if (error.code === 'auth/too-many-requests') {
         setErrors({
-          username: '',
+          email: '',
           password: 'Too many failed login attempts. Please try again later.'
         });
       } else if (error.code === 'auth/network-request-failed') {
         setErrors({
-          username: '',
+          email: '',
           password: 'Network error. Please check your internet connection.'
         });
       } else if (error.code === 'auth/operation-not-allowed') {
         setErrors({
-          username: '',
+          email: '',
           password: 'Email/password authentication is not enabled. Please contact support.'
         });
       } else {
         setErrors({
-          username: '',
+          email: '',
           password: error.message || 'An unexpected error occurred during login'
         });
       }
@@ -300,7 +295,7 @@ function Login() {
     } catch (error) {
       console.error('Google login error:', error);
       setErrors({
-        username: '',
+        email: '',
         password: 'Google login failed'
       });
     } finally {
@@ -332,32 +327,32 @@ function Login() {
       // Handle specific Google Auth errors
       if (error.code === 'auth/popup-closed-by-user') {
         setErrors({
-          username: '',
+          email: '',
           password: 'Google sign-in was cancelled. Please try again.'
         });
       } else if (error.code === 'auth/popup-blocked') {
         setErrors({
-          username: '',
+          email: '',
           password: 'Popup was blocked by your browser. Please allow popups and try again.'
         });
       } else if (error.code === 'auth/cancelled-popup-request') {
         setErrors({
-          username: '',
+          email: '',
           password: 'Another sign-in process is already in progress. Please wait.'
         });
       } else if (error.code === 'auth/account-exists-with-different-credential') {
         setErrors({
-          username: '',
+          email: '',
           password: 'An account already exists with this email using a different sign-in method.'
         });
       } else if (error.code === 'auth/operation-not-allowed') {
         setErrors({
-          username: '',
+          email: '',
           password: 'Google sign-in is not enabled. Please contact support.'
         });
       } else {
         setErrors({
-          username: '',
+          email: '',
           password: 'Google authentication failed. Please try again.'
         });
       }
@@ -827,15 +822,15 @@ function Login() {
                           fontWeight: '500',
                           color: '#374151',
                           fontSize: '14px'
-                        }}>Username or Email</label>
+                        }}>Email Address</label>
                         <input
-                          type="text"
-                          id="login-username"
-                          name="username"
+                          type="email"
+                          id="login-email"
+                          name="email"
                           style={{
                             width: '100%',
                             padding: '15px 20px',
-                            border: `1px solid ${errors.username ? '#ef4444' : '#d1d5db'}`,
+                            border: `1px solid ${errors.email ? '#ef4444' : '#d1d5db'}`,
                             borderRadius: '12px',
                             fontSize: '16px',
                             background: 'white',
@@ -844,7 +839,7 @@ function Login() {
                             transition: 'all 0.3s ease',
                             outline: 'none'
                           }}
-                          placeholder="Enter your username or email"
+                          placeholder="Enter your email address"
                           value={formData.username}
                           onChange={handleInputChange}
                           autoComplete="username"
@@ -853,16 +848,16 @@ function Login() {
                             e.target.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.3)';
                           }}
                           onBlur={(e) => {
-                            e.target.style.borderColor = errors.username ? '#ef4444' : '#d1d5db';
+                            e.target.style.borderColor = errors.email ? '#ef4444' : '#d1d5db';
                             e.target.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
                           }}
                         />
-                        {errors.username && (
+                        {errors.email && (
                           <div style={{
                             color: '#ef4444',
                             fontSize: '14px',
                             marginTop: '5px'
-                          }}>{errors.username}</div>
+                          }}>{errors.email}</div>
                         )}
                       </div>
 
