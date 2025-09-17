@@ -26,15 +26,32 @@ export function AuthProvider({ children }) {
   // Fetch user profile data from Firestore
   async function fetchUserProfile(uid) {
     try {
+      // Validate input
+      if (!uid || typeof uid !== 'string' || uid.trim() === '') {
+        console.error('Invalid user ID provided to fetchUserProfile:', uid);
+        return null;
+      }
+
       const userRef = doc(db, 'users', uid);
       const userSnap = await getDoc(userRef);
       
       if (userSnap.exists()) {
-        return userSnap.data();
+        const userData = userSnap.data();
+        // Validate user data structure
+        if (!userData || typeof userData !== 'object') {
+          console.error('Invalid user data structure:', userData);
+          return null;
+        }
+        return userData;
       }
       return null;
     } catch (error) {
       console.error('Error fetching user profile:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        uid: uid
+      });
       // Return null instead of throwing to prevent crashes
       return null;
     }
@@ -43,20 +60,48 @@ export function AuthProvider({ children }) {
   // Update user profile in Firestore
   async function updateUserProfile(uid, profileData) {
     try {
+      // Validate input
+      if (!uid || typeof uid !== 'string' || uid.trim() === '') {
+        throw new Error('Invalid user ID provided to updateUserProfile');
+      }
+      
+      if (!profileData || typeof profileData !== 'object') {
+        throw new Error('Invalid profile data provided to updateUserProfile');
+      }
+
+      // Sanitize profile data to prevent invalid characters
+      const sanitizedData = {};
+      for (const [key, value] of Object.entries(profileData)) {
+        if (value !== null && value !== undefined) {
+          // Basic sanitization for string values
+          if (typeof value === 'string') {
+            sanitizedData[key] = value.trim().substring(0, 1000); // Limit string length
+          } else {
+            sanitizedData[key] = value;
+          }
+        }
+      }
+
       const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, profileData);
+      await updateDoc(userRef, sanitizedData);
       
       // Update local state with new profile data
       if (currentUser && currentUser.uid === uid) {
         setCurrentUser(prev => ({
           ...prev,
-          ...profileData
+          ...sanitizedData
         }));
       }
       
       return true;
     } catch (error) {
       console.error('Error updating user profile:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        uid: uid,
+        profileData: profileData
+      });
       throw error;
     }
   }
@@ -64,6 +109,23 @@ export function AuthProvider({ children }) {
   // Sign up function
   async function signup(email, password, role, userData) {
     try {
+      // Validate inputs
+      if (!email || !password || !role) {
+        throw new Error('Missing required fields: email, password, and role are required');
+      }
+
+      if (!email.includes('@') || email.length < 5) {
+        throw new Error('Invalid email format');
+      }
+
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+
+      if (!['student', 'alumni', 'admin'].includes(role)) {
+        throw new Error('Invalid role. Must be student, alumni, or admin');
+      }
+
       const result = await createUserWithEmailAndPassword(auth, email, password);
       
       // Update user profile with display name
@@ -71,24 +133,27 @@ export function AuthProvider({ children }) {
         displayName: userData.firstName || email.split('@')[0]
       });
 
-      // Store additional user data in Firestore
-      const userRef = doc(db, 'users', result.user.uid);
-      await setDoc(userRef, {
-        email: email,
-        username: userData.username || '',
+      // Sanitize user data to prevent 400 errors
+      const sanitizedUserData = {
+        email: email.trim(),
+        username: (userData.username || '').trim().substring(0, 50),
         role: role,
-        firstName: userData.firstName || '',
-        lastName: userData.lastName || '',
-        schoolId: userData.schoolId || '',
-        batch: userData.batch || '',
-        course: userData.course || '',
-        goals: userData.goals || '',
-        experience: userData.experience || '',
-        skills: userData.skills || '',
-        willingToMentor: userData.willingToMentor || false,
+        firstName: (userData.firstName || '').trim().substring(0, 100),
+        lastName: (userData.lastName || '').trim().substring(0, 100),
+        schoolId: (userData.schoolId || '').trim().substring(0, 50),
+        batch: (userData.batch || '').trim().substring(0, 50),
+        course: (userData.course || '').trim().substring(0, 100),
+        goals: (userData.goals || '').trim().substring(0, 1000),
+        experience: (userData.experience || '').trim().substring(0, 1000),
+        skills: (userData.skills || '').trim().substring(0, 1000),
+        willingToMentor: Boolean(userData.willingToMentor),
         createdAt: new Date(),
         ...userData
-      });
+      };
+
+      // Store additional user data in Firestore
+      const userRef = doc(db, 'users', result.user.uid);
+      await setDoc(userRef, sanitizedUserData);
 
       // Store role and user data in localStorage for persistence
       localStorage.setItem('userRole', role);
@@ -96,6 +161,13 @@ export function AuthProvider({ children }) {
 
       return result;
     } catch (error) {
+      console.error('Error in signup:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        email: email,
+        role: role
+      });
       throw error;
     }
   }

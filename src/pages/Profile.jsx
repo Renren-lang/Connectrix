@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db, auth, storage } from '../firebase';
 import { doc, getDoc, updateDoc, collection, addDoc, query, where, orderBy, limit, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { sanitizeFirestoreData, safeFirestoreOperation, validateUserInput } from '../utils/firestoreHelpers';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import './Profile.css';
 
@@ -209,17 +210,30 @@ const Profile = () => {
     if (!newPost.trim() && !postImage) return;
     
     try {
+      // Validate input
+      const postSchema = {
+        content: { type: 'string', maxLength: 2000, required: true }
+      };
+      
+      const validatedData = validateUserInput({ content: newPost }, postSchema);
+      
       let imageUrl = null;
       
       // Upload image if present
       if (postImage) {
+        // Validate image file
+        if (postImage.size > 5 * 1024 * 1024) { // 5MB limit
+          throw new Error('Image file is too large. Please choose a file smaller than 5MB.');
+        }
+        
         const imageRef = ref(storage, `postImages/${userId}/${Date.now()}_${postImage.name}`);
         await uploadBytes(imageRef, postImage);
         imageUrl = await getDownloadURL(imageRef);
       }
       
-      await addDoc(collection(db, 'posts'), {
-        content: newPost,
+      // Sanitize post data
+      const postData = sanitizeFirestoreData({
+        content: validatedData.content,
         imageUrl: imageUrl,
         userId: userId,
         authorName: userData?.displayName || userData?.name || 'Unknown User',
@@ -232,6 +246,11 @@ const Profile = () => {
         commentsList: []
       });
       
+      await safeFirestoreOperation(
+        () => addDoc(collection(db, 'posts'), postData),
+        'create post'
+      );
+      
       setNewPost('');
       setPostImage(null);
       setPostImagePreview(null);
@@ -239,6 +258,7 @@ const Profile = () => {
       fetchPosts();
     } catch (error) {
       console.error('Error creating post:', error);
+      alert(`Failed to create post: ${error.message}`);
     }
   };
 
