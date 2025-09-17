@@ -15,10 +15,8 @@ const AuthDebugPanel = () => {
     debugAuthState();
   };
 
-  // Only show in development or when there are auth issues
-  if (process.env.NODE_ENV === 'production' && currentUser) {
-    return null;
-  }
+  // Hide debug panel completely
+  return null;
 
   return (
     <div style={{ 

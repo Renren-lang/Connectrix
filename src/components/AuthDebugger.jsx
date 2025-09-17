@@ -22,9 +22,8 @@ const AuthDebugger = () => {
     console.groupEnd();
   };
 
-  if (process.env.NODE_ENV !== 'development') {
-    return null; // Only show in development
-  }
+  // Hide debugger completely
+  return null;
 
   return (
     <div style={{
