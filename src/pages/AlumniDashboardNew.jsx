@@ -751,6 +751,8 @@ function AlumniDashboard() {
                             </div>
                             <div className="flex-1">
                               <textarea
+                                id={`comment-input-${post.id}`}
+                                name={`comment-${post.id}`}
                                 value={commentInputs[post.id] || ''}
                                 onChange={(e) => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
                                 placeholder="Write a comment..."

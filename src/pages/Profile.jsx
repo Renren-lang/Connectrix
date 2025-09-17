@@ -706,6 +706,8 @@ const Profile = () => {
                     {editingAbout ? (
                       <div>
                         <textarea
+                          id="bio-textarea"
+                          name="bio"
                           value={aboutData.bio}
                           onChange={(e) => setAboutData({...aboutData, bio: e.target.value})}
                           className="form-control"
@@ -845,6 +847,8 @@ const Profile = () => {
                         {editingPost === post.id ? (
                           <div className="edit-post-form">
                             <textarea
+                              id={`edit-post-${post.id}`}
+                              name={`editPost-${post.id}`}
                               value={editPostContent}
                               onChange={(e) => setEditPostContent(e.target.value)}
                               className="edit-post-textarea"
@@ -1007,6 +1011,8 @@ const Profile = () => {
                 </div>
               </div>
               <textarea
+                id="new-post-textarea"
+                name="newPost"
                 className="create-post-textarea"
                 placeholder="What's on your mind?"
                 value={newPost}

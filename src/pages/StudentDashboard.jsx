@@ -1461,6 +1461,8 @@ function StudentDashboard() {
                                           {currentUser.displayName ? currentUser.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
                                         </div>
                                         <textarea
+                                          id={`reply-input-${post.id}`}
+                                          name={`reply-${post.id}`}
                                           className="reply-input"
                                           placeholder="Write a reply..."
                                           rows="2"
@@ -1495,6 +1497,8 @@ function StudentDashboard() {
                                 {currentUser.displayName ? currentUser.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
                               </div>
                               <textarea
+                                id={`comment-input-${post.id}`}
+                                name={`comment-${post.id}`}
                                 className="comment-input"
                                 placeholder="Write a comment..."
                                 rows="2"
@@ -1653,6 +1657,8 @@ function StudentDashboard() {
               <form onSubmit={handleCommentSubmit}>
                 <div className="form-group">
                   <textarea
+                    id="comment-text"
+                    name="commentText"
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
                     placeholder="Write your comment..."
@@ -1727,6 +1733,8 @@ function StudentDashboard() {
 
             <div className="create-post-content">
               <textarea
+                id="create-post-content"
+                name="postContent"
                 className="create-post-textarea"
                 placeholder="What's on your mind?"
                 value={createPostData.content}

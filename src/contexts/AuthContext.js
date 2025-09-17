@@ -176,7 +176,7 @@ export function AuthProvider({ children }) {
       if (!email || !password) {
         throw new Error('Email and password are required');
       }
-
+      
       const result = await signInWithEmailAndPassword(auth, email, password);
       return result;
     } catch (error) {
@@ -230,7 +230,7 @@ export function AuthProvider({ children }) {
     return null;
   }
 
-  // Google authentication function with fallback to redirect
+  // Google authentication function with improved COOP handling
   async function signInWithGoogle(additionalData = {}) {
     try {
       const provider = new GoogleAuthProvider();
@@ -240,57 +240,20 @@ export function AuthProvider({ children }) {
         prompt: 'select_account'
       });
       
-      // Try popup first, fallback to redirect if blocked
-      let result;
-      try {
-        result = await signInWithPopup(auth, provider);
-      } catch (popupError) {
-        console.log('Popup blocked, trying redirect method...', popupError.code);
-        
-        // If popup is blocked, use redirect method
-        if (popupError.code === 'auth/popup-blocked' || 
-            popupError.code === 'auth/popup-closed-by-user' ||
-            popupError.code === 'auth/cancelled-popup-request') {
-          
-          // Store additional data for after redirect
-          if (Object.keys(additionalData).length > 0) {
-            localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
-          }
-          
-          // Use redirect method
-          await signInWithRedirect(auth, provider);
-          return { success: true, redirect: true };
-        }
-        throw popupError;
+      // Use redirect method by default to avoid COOP issues
+      // Store additional data for after redirect
+      if (Object.keys(additionalData).length > 0) {
+        localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
       }
-
-      // Handle successful popup authentication
-      const userRef = doc(db, 'users', result.user.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        const newUser = {
-          uid: result.user.uid,
-          email: result.user.email,
-          displayName: result.user.displayName,
-          role: 'student',
-          createdAt: new Date(),
-          profilePictureUrl: result.user.photoURL || '',
-          ...additionalData
-        };
-        await setDoc(userRef, newUser);
-        console.log('Google user created in Firestore');
-      } else {
-        console.log('Google user already exists in Firestore');
-      }
-
-      setCurrentUser(result.user);
-      setUserRole('student'); // default role for Google users
-      return { success: true, user: result.user };
+      
+      // Use redirect method to avoid COOP popup issues
+      await signInWithRedirect(auth, provider);
+      return { success: true, redirect: true };
+      
     } catch (error) {
       console.error('Google sign-in error:', error);
       
-      // Handle specific popup blocked error
+      // Handle specific errors
       if (error.code === 'auth/popup-blocked') {
         throw new Error('Popup was blocked by the browser. Please allow popups for this site and try again.');
       } else if (error.code === 'auth/popup-closed-by-user') {
@@ -413,20 +376,20 @@ export function AuthProvider({ children }) {
             // User is signed out
             console.log('User signed out');
             if (isMounted) {
-              setCurrentUser(null);
+        setCurrentUser(null);
               setUserRole(null);
             }
           }
         } catch (error) {
           console.error('Error in auth state change handler:', error);
-        } finally {
+      } finally {
           if (isMounted) {
-            setLoading(false);
+        setLoading(false);
           }
-        }
-      });
+      }
+    });
 
-      return unsubscribe;
+    return unsubscribe;
     };
 
     initializeAuth().then(unsubscribe => {
