@@ -321,43 +321,17 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    // Check for admin user on initial load
-    const checkAdminUser = () => {
-      const adminUser = localStorage.getItem('adminUser');
-      const storedRole = localStorage.getItem('userRole');
-      
-      if (adminUser && storedRole === 'admin') {
-        try {
-          const adminData = JSON.parse(adminUser);
-          console.log('AuthContext: Admin user detected from localStorage on initial load');
-          setCurrentUser(adminData);
-          setUserRole('admin');
-          setLoading(false);
-          return true;
-        } catch (error) {
-          console.error('Error parsing admin user data:', error);
-          localStorage.removeItem('adminUser');
-          localStorage.removeItem('userRole');
-        }
-      }
-      return false;
-    };
-
-    // Check admin user first
-    if (checkAdminUser()) {
-      return;
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
-        // Always check for admin user first, regardless of Firebase auth state
+        // Check for admin user first, but only if there's no Firebase user
         const adminUser = localStorage.getItem('adminUser');
         const storedRole = localStorage.getItem('userRole');
         
-        if (adminUser && storedRole === 'admin') {
+        // Only treat as admin if there's no Firebase user AND admin data exists
+        if (!user && adminUser && storedRole === 'admin') {
           try {
             const adminData = JSON.parse(adminUser);
-            console.log('AuthContext: Admin user detected from localStorage');
+            console.log('AuthContext: Admin user detected from localStorage (no Firebase user)');
             setCurrentUser(adminData);
             setUserRole('admin');
             setLoading(false);
@@ -372,35 +346,38 @@ export function AuthProvider({ children }) {
         if (user) {
           console.log('Auth state changed - user authenticated:', user.uid);
           
-          // Only proceed with Firebase user if not admin
-          if (storedRole !== 'admin') {
-            // Set current user immediately to prevent timing issues
-            setCurrentUser(user);
-            
-            // Fetch user profile data from Firestore
-            const profileData = await fetchUserProfile(user.uid);
-            
-            // Combine Firebase Auth user with Firestore profile data
-            const userWithProfile = {
-              ...user,
-              ...profileData
-            };
-            
-            setCurrentUser(userWithProfile);
-            
-            // Get user role when auth state changes
-            const role = await getUserRole(user.uid);
-            console.log('AuthContext: Fetched user role:', role, 'for user:', user.uid);
-            
-            // Also check localStorage for role persistence (especially for new users)
-            const storedRole = localStorage.getItem('userRole');
-            console.log('AuthContext: Stored role from localStorage:', storedRole);
-            
-            // Use stored role if available, otherwise use fetched role, default to 'student'
-            const finalRole = storedRole || role || 'student';
-            console.log('AuthContext: Setting final role:', finalRole);
-            setUserRole(finalRole);
+          // Clear admin data if Firebase user is authenticated
+          if (storedRole === 'admin') {
+            localStorage.removeItem('adminUser');
+            localStorage.removeItem('userRole');
           }
+          
+          // Set current user immediately to prevent timing issues
+          setCurrentUser(user);
+          
+          // Fetch user profile data from Firestore
+          const profileData = await fetchUserProfile(user.uid);
+          
+          // Combine Firebase Auth user with Firestore profile data
+          const userWithProfile = {
+            ...user,
+            ...profileData
+          };
+          
+          setCurrentUser(userWithProfile);
+          
+          // Get user role when auth state changes
+          const role = await getUserRole(user.uid);
+          console.log('AuthContext: Fetched user role:', role, 'for user:', user.uid);
+          
+          // Also check localStorage for role persistence (especially for new users)
+          const storedRole = localStorage.getItem('userRole');
+          console.log('AuthContext: Stored role from localStorage:', storedRole);
+          
+          // Use stored role if available, otherwise use fetched role, default to 'student'
+          const finalRole = storedRole || role || 'student';
+          console.log('AuthContext: Setting final role:', finalRole);
+          setUserRole(finalRole);
         } else {
           console.log('Auth state changed - user not authenticated');
           

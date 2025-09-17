@@ -176,6 +176,10 @@ function Login() {
           lastName: 'User'
         };
 
+        // Clear any existing Firebase auth data
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('adminUser');
+        
         // Store admin role and user data in localStorage
         localStorage.setItem('userRole', 'admin');
         localStorage.setItem('adminUser', JSON.stringify(adminUser));
