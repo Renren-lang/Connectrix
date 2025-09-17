@@ -520,6 +520,32 @@ export function AuthProvider({ children }) {
     handleRedirectResult();
   }, []);
 
+  // Navigation callback for Google authentication
+  const [navigationCallback, setNavigationCallback] = useState(null);
+
+  // Navigation effect for Google authentication
+  useEffect(() => {
+    if (currentUser && userRole && !loading && navigationCallback) {
+      console.log('User authenticated via Google, executing navigation callback');
+      
+      // Small delay to ensure state is fully updated
+      setTimeout(() => {
+        if (userRole === 'student') {
+          navigationCallback('/student-dashboard');
+        } else if (userRole === 'alumni') {
+          navigationCallback('/alumni-dashboard');
+        } else if (userRole === 'admin') {
+          navigationCallback('/admin-dashboard');
+        } else {
+          navigationCallback('/student-dashboard'); // Default fallback
+        }
+        
+        // Clear the callback after use
+        setNavigationCallback(null);
+      }, 1000);
+    }
+  }, [currentUser, userRole, loading, navigationCallback]);
+
   useEffect(() => {
     let isMounted = true;
     
@@ -636,6 +662,11 @@ export function AuthProvider({ children }) {
     console.groupEnd();
   };
 
+  // Function to set navigation callback for Google auth
+  const setGoogleAuthNavigationCallback = (callback) => {
+    setNavigationCallback(() => callback);
+  };
+
   const value = {
     currentUser,
     userRole,
@@ -649,6 +680,7 @@ export function AuthProvider({ children }) {
     fetchUserProfile,
     signInWithGoogle,
     handleGoogleRedirectResult,
+    setGoogleAuthNavigationCallback,
     debugAuthState
   };
 

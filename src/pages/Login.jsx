@@ -11,7 +11,7 @@ import logoImage from '../components/Logo2.png';
 
 function Login() {
   const navigate = useNavigate();
-  const { login, getUserRole, refreshUserRole, signInWithGoogle, handleGoogleRedirectResult } = useAuth();
+  const { currentUser, userRole, loading, login, getUserRole, refreshUserRole, signInWithGoogle, handleGoogleRedirectResult, setGoogleAuthNavigationCallback } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -45,6 +45,25 @@ function Login() {
       setSelectedRoleBeforeAuth(storedRole);
     }
   }, []);
+
+  // Set navigation callback for Google authentication
+  useEffect(() => {
+    setGoogleAuthNavigationCallback(navigate);
+  }, [navigate, setGoogleAuthNavigationCallback]);
+
+  // Check if user is already authenticated and redirect
+  useEffect(() => {
+    if (!loading && currentUser && userRole) {
+      console.log('User already authenticated, redirecting from login page');
+      if (userRole === 'student') {
+        navigate('/student-dashboard');
+      } else if (userRole === 'alumni') {
+        navigate('/alumni-dashboard');
+      } else if (userRole === 'admin') {
+        navigate('/admin-dashboard');
+      }
+    }
+  }, [currentUser, userRole, loading, navigate]);
 
   // Handle scroll effect for header
   useEffect(() => {
