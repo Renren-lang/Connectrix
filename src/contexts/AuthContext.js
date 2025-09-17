@@ -127,7 +127,7 @@ export function AuthProvider({ children }) {
       if (userSnap.exists()) {
         const role = userSnap.data().role;
         console.log('User role found:', role);
-        setUserRole(role);
+        setUserRole(role);ly
         // Store role and user data in localStorage for persistence
         localStorage.setItem('userRole', role);
         localStorage.setItem('adminUser', JSON.stringify(result.user));
@@ -432,23 +432,47 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // User is signed in
-        console.log('Auth state changed - user authenticated:', user.uid);
-        const profileData = await fetchUserProfile(user.uid);
-        setCurrentUser({ ...user, ...profileData });
-        setUserRole(profileData?.role || 'student');
-      } else {
-        // User is signed out
-        console.log('Auth state changed - user not authenticated');
-        setCurrentUser(null);
-        setUserRole(null);
+      if (!isMounted) return;
+      
+      try {
+        if (user) {
+          // User is signed in
+          console.log('Auth state changed - user authenticated:', user.uid);
+          const profileData = await fetchUserProfile(user.uid);
+          if (isMounted) {
+            setCurrentUser({ ...user, ...profileData });
+            setUserRole(profileData?.role || 'student');
+          }
+        } else {
+          // User is signed out
+          console.log('Auth state changed - user not authenticated');
+          if (isMounted) {
+            setCurrentUser(null);
+            setUserRole(null);
+          }
+        }
+        if (isMounted) {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error in auth state change handler:', error);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      isMounted = false;
+      try {
+        unsubscribe();
+      } catch (error) {
+        console.error('Error unsubscribing from auth state change:', error);
+      }
+    };
   }, []);
 
   const value = {

@@ -16,9 +16,11 @@ function Header() {
       return;
     }
 
-    console.log('Setting up listeners for user:', currentUser.uid);
+    let isMounted = true;
     let totalUnread = 0;
     let unsubscribeChats, unsubscribeNotifications;
+
+    console.log('Setting up listeners for user:', currentUser.uid);
 
     // Get notification settings from localStorage
     const getNotificationSettings = () => {
@@ -49,6 +51,8 @@ function Header() {
     );
 
     unsubscribeChats = onSnapshot(chatsQuery, async (snapshot) => {
+      if (!isMounted) return;
+      
       try {
         let chatUnread = 0;
         
@@ -96,6 +100,8 @@ function Header() {
     }
 
     unsubscribeNotifications = onSnapshot(notificationsQuery, (snapshot) => {
+      if (!isMounted) return;
+      
       try {
         const notificationSettings = getNotificationSettings();
         
@@ -147,11 +153,14 @@ function Header() {
       console.error('Error listening to notifications:', error);
       console.error('Error details:', error.code, error.message);
       // Still show chat unread count even if notifications fail
-      setUnreadCount(totalUnread);
+      if (isMounted) {
+        setUnreadCount(totalUnread);
+      }
     });
 
     // Cleanup function
     return () => {
+      isMounted = false;
       console.log('Cleaning up listeners...');
       if (unsubscribeChats) {
         try {

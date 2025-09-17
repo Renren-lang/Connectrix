@@ -42,24 +42,50 @@ const Profile = () => {
     fetchUserData();
     fetchPosts();
     
-    // Set up real-time listener for posts
-      const postsQuery = query(
-        collection(db, 'posts'),
-        where('userId', '==', userId),
-        orderBy('createdAt', 'desc')
-      );
-    
-    const unsubscribe = onSnapshot(postsQuery, (querySnapshot) => {
-      const postsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setPosts(postsData);
-    }, (error) => {
-      console.error('Error listening to posts:', error);
-    });
+    let isMounted = true;
+    let unsubscribe = null;
 
-    return () => unsubscribe();
+    const setupPostsListener = () => {
+      try {
+        // Set up real-time listener for posts
+        const postsQuery = query(
+          collection(db, 'posts'),
+          where('userId', '==', userId),
+          orderBy('createdAt', 'desc')
+        );
+      
+        unsubscribe = onSnapshot(postsQuery, (querySnapshot) => {
+          if (!isMounted) return;
+          
+          try {
+            const postsData = querySnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            setPosts(postsData);
+          } catch (error) {
+            console.error('Error processing posts data:', error);
+          }
+        }, (error) => {
+          console.error('Error listening to posts:', error);
+        });
+      } catch (error) {
+        console.error('Error setting up posts listener:', error);
+      }
+    };
+
+    setupPostsListener();
+
+    return () => {
+      isMounted = false;
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error('Error unsubscribing from posts listener:', error);
+        }
+      }
+    };
   }, [userId]);
 
   const fetchUserData = async () => {

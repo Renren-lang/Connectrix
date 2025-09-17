@@ -45,56 +45,112 @@ const DashboardHeader = ({ currentPage = 'Dashboard', toggleSidebar }) => {
   useEffect(() => {
     if (!currentUser) return;
 
-    const notificationsRef = collection(db, 'notifications');
-    const q = query(
-      notificationsRef,
-      where('recipientId', '==', currentUser.uid),
-      orderBy('createdAt', 'desc'),
-      limit(50)
-    );
+    let isMounted = true;
+    let unsubscribe = null;
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notificationsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setNotifications(notificationsData);
-      
-      // Count unread notifications (excluding messages)
-      const unread = notificationsData.filter(notif => !notif.read && notif.type !== 'message').length;
-      setUnreadCount(unread);
-    });
+    const setupNotificationsListener = () => {
+      try {
+        const notificationsRef = collection(db, 'notifications');
+        const q = query(
+          notificationsRef,
+          where('recipientId', '==', currentUser.uid),
+          orderBy('createdAt', 'desc'),
+          limit(50)
+        );
 
-    return () => unsubscribe();
+        unsubscribe = onSnapshot(q, (snapshot) => {
+          if (!isMounted) return;
+          
+          try {
+            const notificationsData = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            setNotifications(notificationsData);
+            
+            // Count unread notifications (excluding messages)
+            const unread = notificationsData.filter(notif => !notif.read && notif.type !== 'message').length;
+            setUnreadCount(unread);
+          } catch (error) {
+            console.error('Error processing notifications data:', error);
+          }
+        }, (error) => {
+          console.error('Error listening to notifications:', error);
+        });
+      } catch (error) {
+        console.error('Error setting up notifications listener:', error);
+      }
+    };
+
+    setupNotificationsListener();
+
+    return () => {
+      isMounted = false;
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error('Error unsubscribing from notifications:', error);
+        }
+      }
+    };
   }, [currentUser]);
 
   // Listen for unread message count
   useEffect(() => {
     if (!currentUser) return;
 
-    const chatsRef = collection(db, 'chats');
-    const q = query(
-      chatsRef,
-      where('participants', 'array-contains', currentUser.uid)
-    );
+    let isMounted = true;
+    let unsubscribe = null;
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let totalUnreadMessages = 0;
-      
-      snapshot.docs.forEach(doc => {
-        const chatData = doc.data();
-        // Check if the last message was sent by someone else and is unread
-        if (chatData.lastMessageSenderId && 
-            chatData.lastMessageSenderId !== currentUser.uid && 
-            !chatData.lastMessageRead) {
-          totalUnreadMessages++;
+    const setupMessagesListener = () => {
+      try {
+        const chatsRef = collection(db, 'chats');
+        const q = query(
+          chatsRef,
+          where('participants', 'array-contains', currentUser.uid)
+        );
+
+        unsubscribe = onSnapshot(q, (snapshot) => {
+          if (!isMounted) return;
+          
+          try {
+            let totalUnreadMessages = 0;
+            
+            snapshot.docs.forEach(doc => {
+              const chatData = doc.data();
+              // Check if the last message was sent by someone else and is unread
+              if (chatData.lastMessageSenderId && 
+                  chatData.lastMessageSenderId !== currentUser.uid && 
+                  !chatData.lastMessageRead) {
+                totalUnreadMessages++;
+              }
+            });
+            
+            setUnreadMessageCount(totalUnreadMessages);
+          } catch (error) {
+            console.error('Error processing messages data:', error);
+          }
+        }, (error) => {
+          console.error('Error listening to messages:', error);
+        });
+      } catch (error) {
+        console.error('Error setting up messages listener:', error);
+      }
+    };
+
+    setupMessagesListener();
+
+    return () => {
+      isMounted = false;
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error('Error unsubscribing from messages:', error);
         }
-      });
-      
-      setUnreadMessageCount(totalUnreadMessages);
-    });
-
-    return () => unsubscribe();
+      }
+    };
   }, [currentUser]);
 
   // Real-time search functionality

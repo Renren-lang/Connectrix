@@ -36,41 +36,64 @@ function Events() {
   useEffect(() => {
     if (!currentUser) return;
 
-    console.log('Setting up events listener for user:', currentUser.uid);
-    
-    const eventsRef = collection(db, 'events');
-    const eventsQuery = query(
-      eventsRef,
-      orderBy('createdAt', 'desc')
-    );
+    let isMounted = true;
+    let unsubscribe = null;
 
-    const unsubscribe = onSnapshot(eventsQuery, (snapshot) => {
+    const setupEventsListener = () => {
       try {
-        const eventsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
-        }));
+        console.log('Setting up events listener for user:', currentUser.uid);
         
-        console.log('Fetched events:', eventsData);
-        setEvents(eventsData);
-        setIsLoading(false);
+        const eventsRef = collection(db, 'events');
+        const eventsQuery = query(
+          eventsRef,
+          orderBy('createdAt', 'desc')
+        );
+
+        unsubscribe = onSnapshot(eventsQuery, (snapshot) => {
+          if (!isMounted) return;
+          
+          try {
+            const eventsData = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data(),
+              createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
+            }));
+            
+            console.log('Fetched events:', eventsData);
+            setEvents(eventsData);
+            setIsLoading(false);
+          } catch (error) {
+            console.error('Error processing events data:', error);
+            if (isMounted) {
+              setIsLoading(false);
+            }
+          }
+        }, (error) => {
+          console.error('Error listening to events:', error);
+          console.error('Error details:', error.code, error.message);
+          if (isMounted) {
+            setIsLoading(false);
+          }
+        });
       } catch (error) {
-        console.error('Error processing events data:', error);
-        setIsLoading(false);
+        console.error('Error setting up events listener:', error);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
-    }, (error) => {
-      console.error('Error listening to events:', error);
-      console.error('Error details:', error.code, error.message);
-      setIsLoading(false);
-    });
+    };
+
+    setupEventsListener();
 
     return () => {
+      isMounted = false;
       console.log('Cleaning up events listener...');
-      try {
-        unsubscribe();
-      } catch (error) {
-        console.error('Error unsubscribing from events:', error);
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error('Error unsubscribing from events:', error);
+        }
       }
     };
   }, [currentUser]);

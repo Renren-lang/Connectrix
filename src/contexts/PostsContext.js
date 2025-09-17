@@ -71,25 +71,61 @@ export const PostsProvider = ({ children }) => {
       return;
     }
 
-    const postsRef = collection(db, 'posts');
-    const q = query(postsRef, orderBy('createdAt', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const postsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      setPosts(postsData);
-      setLoading(false);
-      setError(null);
-    }, (error) => {
-      console.error('Error listening to posts: ', error);
-      setError('Failed to listen to posts');
-      setLoading(false);
-    });
+    let isMounted = true;
+    let unsubscribe = null;
 
-    return () => unsubscribe();
+    const setupListener = () => {
+      try {
+        const postsRef = collection(db, 'posts');
+        const q = query(postsRef, orderBy('createdAt', 'desc'));
+        
+        unsubscribe = onSnapshot(q, (querySnapshot) => {
+          if (!isMounted) return;
+          
+          try {
+            const postsData = querySnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            
+            setPosts(postsData);
+            setLoading(false);
+            setError(null);
+          } catch (error) {
+            console.error('Error processing posts data:', error);
+            if (isMounted) {
+              setError('Failed to process posts data');
+              setLoading(false);
+            }
+          }
+        }, (error) => {
+          console.error('Error listening to posts:', error);
+          if (isMounted) {
+            setError('Failed to listen to posts');
+            setLoading(false);
+          }
+        });
+      } catch (error) {
+        console.error('Error setting up posts listener:', error);
+        if (isMounted) {
+          setError('Failed to set up posts listener');
+          setLoading(false);
+        }
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      isMounted = false;
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error('Error unsubscribing from posts listener:', error);
+        }
+      }
+    };
   }, [currentUser]);
 
   // Like a post
