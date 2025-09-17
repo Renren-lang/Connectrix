@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp, onSnapshot, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import DashboardLayout from '../components/DashboardLayout';
 
 function StudentDashboard() {
   const navigate = useNavigate();
@@ -184,10 +183,7 @@ function StudentDashboard() {
   };
 
   return (
-    <DashboardLayout userRole="student">
-      
-      {/* Main Dashboard Content */}
-      <div className="dashboard-content">
+    <div className="dashboard-content">
         {/* Welcome Section */}
         <div className="welcome-section">
           <h1 className="welcome-title">
@@ -348,7 +344,6 @@ function StudentDashboard() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
   );
 }
 

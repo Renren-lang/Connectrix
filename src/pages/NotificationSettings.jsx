@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
-import { collection, query, where, onSnapshot, orderBy, updateDoc, doc, getDocs, deleteDoc } from 'firebase/firestore';
+import { updateDoc, doc } from 'firebase/firestore';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
-import { createTestNotification, createMultipleTestNotifications } from '../utils/testNotifications';
 import './NotificationSettings.css';
 
 function NotificationSettings() {
@@ -58,9 +57,6 @@ function NotificationSettings() {
   // Form submission state
   const [isSubmitting, setSubmitting] = useState(false);
   
-  // Notifications state
-  const [notifications, setNotifications] = useState([]);
-  const [isLoadingNotifications, setIsLoadingNotifications] = useState(true);
   
   const [snoozeOptions] = useState([
     { value: 1, label: '1 hour' },
@@ -91,95 +87,6 @@ function NotificationSettings() {
     }
   }, []);
 
-  // Fetch real-time notifications
-  useEffect(() => {
-    if (!currentUser) return;
-
-    const notificationsRef = collection(db, 'notifications');
-    
-    // Try the main query first (with orderBy - needs Firebase index)
-    // To fix "The query requires an index" error: The index has been created in firestore.indexes.json
-    // Collection: 'notifications', Fields: 'recipientId' (ASC) + 'createdAt' (DESC)
-    let q;
-    try {
-      q = query(
-        notificationsRef,
-        where('recipientId', '==', currentUser.uid),
-        orderBy('createdAt', 'desc')
-      );
-      console.log('Executing notification query with orderBy...');
-    } catch (queryError) {
-      console.warn('Query construction failed:', queryError);
-      // Fallback: query without orderBy, then sort in JavaScript
-      q = query(
-        notificationsRef,
-        where('recipientId', '==', currentUser.uid)
-      );
-      console.log('Using fallback query without orderBy...');
-    }
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notificationsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      // Filter notifications based on user settings
-      const filteredNotifications = notificationsData.filter(notification => {
-        // If push notifications are disabled, hide all notifications
-        if (!notificationSettings.pushNotifications) {
-          return false;
-        }
-        
-        // Filter by notification type based on settings
-        const notificationType = notification.type || 'general';
-        
-        switch (notificationType) {
-          case 'mentorship_request':
-            return notificationSettings.mentorshipRequests;
-          case 'message':
-            return notificationSettings.messages;
-          case 'like':
-          case 'comment':
-            return notificationSettings.likesAndComments;
-          default:
-            return true; // Show general notifications
-        }
-      });
-      
-      // If we used fallback query (no orderBy), sort in JavaScript
-      if (filteredNotifications.length > 0) {
-        try {
-          filteredNotifications.sort((a, b) => {
-            const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
-            const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
-            return bTime - aTime; // Descending order (newest first)
-          });
-          console.log('Sorted notifications in JavaScript by createdAt');
-        } catch (sortError) {
-          console.warn('JavaScript sorting failed:', sortError);
-          // Continue with unsorted data
-        }
-      }
-      
-      console.log('Fetched notifications:', notificationsData);
-      console.log('Filtered notifications based on settings:', filteredNotifications);
-      setNotifications(filteredNotifications);
-      setIsLoadingNotifications(false);
-    }, (error) => {
-      console.error('Error fetching notifications:', error);
-      
-      // Provide helpful error messages
-      if (error.message.includes('requires an index')) {
-        console.log('💡 Index is being built. This error will resolve automatically once indexing completes.');
-        console.log('💡 You can check index status at: https://console.firebase.google.com/project/cconnect-7f562/firestore/indexes');
-      }
-      
-      setIsLoadingNotifications(false);
-    });
-
-    return () => unsubscribe();
-  }, [currentUser, notificationSettings]);
 
   // Profile form handlers
   const handleProfileInputChange = (e) => {
@@ -541,125 +448,10 @@ function NotificationSettings() {
     return 'U';
   };
 
-  // Mark notification as read
-  const markAsRead = async (notificationId) => {
-    try {
-      const notificationRef = doc(db, 'notifications', notificationId);
-      await updateDoc(notificationRef, {
-        read: true,
-        readAt: new Date()
-      });
-      console.log('Notification marked as read:', notificationId);
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-    }
-  };
 
-  // Mark all notifications as read
-  const markAllAsRead = async () => {
-    try {
-      const unreadNotifications = notifications.filter(n => !n.read);
-      const updatePromises = unreadNotifications.map(notification => {
-        const notificationRef = doc(db, 'notifications', notification.id);
-        return updateDoc(notificationRef, {
-          read: true,
-          readAt: new Date()
-        });
-      });
-      
-      await Promise.all(updatePromises);
-      console.log(`Marked ${unreadNotifications.length} notifications as read`);
-      alert(`Marked ${unreadNotifications.length} notifications as read!`);
-    } catch (error) {
-      console.error('Error marking all notifications as read:', error);
-      alert('Error marking notifications as read. Please try again.');
-    }
-  };
 
-  // Clear all notifications (for debugging)
-  const clearAllNotifications = async () => {
-    if (!currentUser) return;
-    
-    const confirmed = window.confirm('Are you sure you want to delete ALL notifications? This action cannot be undone.');
-    if (!confirmed) return;
-    
-    try {
-      // Get all notifications for current user
-      const notificationsRef = collection(db, 'notifications');
-      const q = query(
-        notificationsRef,
-        where('recipientId', '==', currentUser.uid)
-      );
-      
-      const snapshot = await getDocs(q);
-      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-      
-      await Promise.all(deletePromises);
-      console.log(`Deleted ${snapshot.docs.length} notifications`);
-      alert(`Deleted ${snapshot.docs.length} notifications!`);
-    } catch (error) {
-      console.error('Error clearing notifications:', error);
-      alert('Error clearing notifications. Please try again.');
-    }
-  };
 
-  // Test functions for creating notifications
-  const handleCreateTestNotification = async () => {
-    if (!currentUser) return;
-    
-    try {
-      await createTestNotification(currentUser.uid, 'mentorship_request');
-      alert('Test notification created! Check the bell icon in the header.');
-    } catch (error) {
-      alert('Failed to create test notification: ' + error.message);
-    }
-  };
 
-  const handleCreateMultipleTestNotifications = async () => {
-    if (!currentUser) return;
-    
-    try {
-      const results = await createMultipleTestNotifications(currentUser.uid);
-      const successCount = results.filter(r => r.success).length;
-      alert(`Created ${successCount} test notifications! Check the bell icon in the header.`);
-    } catch (error) {
-      alert('Failed to create test notifications: ' + error.message);
-    }
-  };
-
-  // Get notification icon
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'mentorship_request':
-        return 'fas fa-user-plus';
-      case 'message':
-        return 'fas fa-comment';
-      case 'like':
-        return 'fas fa-heart';
-      case 'comment':
-        return 'fas fa-comment-dots';
-      default:
-        return 'fas fa-bell';
-    }
-  };
-
-  // Format notification time
-  const formatNotificationTime = (timestamp) => {
-    if (!timestamp) return '';
-    
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  };
 
   return (
     <div className="notification-settings">
@@ -829,117 +621,7 @@ function NotificationSettings() {
                 )}
               </div>
 
-                                            {/* Test Notifications Section (for development/testing) */}
-                <div className="setting-section">
-                  <h3>Test Notifications</h3>
-                  <p>Create test notifications to see the bell icon counter in action</p>
-                  <div className="test-buttons">
-                    <button 
-                      className="btn btn-outline"
-                      onClick={handleCreateTestNotification}
-                    >
-                      <i className="fas fa-plus"></i> Create 1 Test Notification
-                    </button>
-                    <button 
-                      className="btn btn-outline"
-                      onClick={handleCreateMultipleTestNotifications}
-                    >
-                      <i className="fas fa-plus"></i> Create 4 Test Notifications
-                    </button>
-                    <button 
-                      className="btn btn-danger"
-                      onClick={clearAllNotifications}
-                      style={{ marginLeft: '10px' }}
-                    >
-                      <i className="fas fa-trash"></i> Clear All Notifications
-                    </button>
-                  </div>
-                </div>
 
-               {/* Recent Notifications */}
-                <div className="setting-section">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                    <h3>Recent Notifications</h3>
-                    {notifications.filter(n => !n.read).length > 0 && (
-                      <button 
-                        className="btn btn-secondary btn-sm"
-                        onClick={markAllAsRead}
-                        style={{ fontSize: '12px', padding: '5px 10px' }}
-                      >
-                        Mark All as Read
-                      </button>
-                    )}
-                  </div>
-                 <div className="notifications-list">
-                   {isLoadingNotifications ? (
-                     <div className="loading-state">
-                       <i className="fas fa-spinner fa-spin"></i>
-                       <p>Loading notifications...</p>
-                     </div>
-                   ) : notifications.filter(n => !n.read).length === 0 ? (
-                     <div className="empty-state">
-                       <i className="fas fa-bell-slash"></i>
-                       <p>No unread notifications</p>
-                       <small>All notifications have been read. New ones will appear here when they arrive.</small>
-                     </div>
-                   ) : (
-                     notifications
-                       .filter(notification => !notification.read) // Only show unread notifications
-                       .slice(0, 10)
-                       .map(notification => (
-                         <div 
-                           key={notification.id} 
-                           className="notification-item unread"
-                           onClick={() => markAsRead(notification.id)}
-                         >
-                           <div className="notification-icon">
-                             <i className={getNotificationIcon(notification.type)}></i>
-                           </div>
-                           <div className="notification-content">
-                             <div className="notification-title">{notification.title}</div>
-                             <div className="notification-message">{notification.message}</div>
-                             <div className="notification-time">
-                               {formatNotificationTime(notification.createdAt)}
-                             </div>
-                           </div>
-                           <div className="unread-dot"></div>
-                         </div>
-                       ))
-                   )}
-                 </div>
-                 
-                 {/* Show read notifications history (collapsed by default) */}
-                 {notifications.filter(n => n.read).length > 0 && (
-                   <details className="read-notifications-history">
-                     <summary className="history-summary">
-                       <i className="fas fa-history"></i>
-                       Show Read Notifications ({notifications.filter(n => n.read).length})
-                     </summary>
-                     <div className="read-notifications-list">
-                       {notifications
-                         .filter(notification => notification.read)
-                         .slice(0, 20) // Show last 20 read notifications
-                         .map(notification => (
-                           <div 
-                             key={notification.id} 
-                             className="notification-item read"
-                           >
-                             <div className="notification-icon">
-                               <i className={getNotificationIcon(notification.type)}></i>
-                             </div>
-                             <div className="notification-content">
-                               <div className="notification-title">{notification.title}</div>
-                               <div className="notification-message">{notification.message}</div>
-                               <div className="notification-time">
-                                 {formatNotificationTime(notification.createdAt)}
-                               </div>
-                             </div>
-                           </div>
-                         ))}
-                     </div>
-                   </details>
-                 )}
-               </div>
 
                              {/* Current Status */}
                <div className="setting-section status-section">
@@ -978,7 +660,7 @@ function NotificationSettings() {
                    <div className="status-item">
                      <span className="status-label">Notifications:</span>
                      <span className="status-value active">
-                       {notifications.filter(n => !n.read).length} unread / {notifications.length} total
+                       Check notification popup for details
                      </span>
                    </div>
                  </div>

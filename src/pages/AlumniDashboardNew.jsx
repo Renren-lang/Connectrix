@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp, onSnapshot, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import DashboardLayout from '../components/DashboardLayout';
 
 function AlumniDashboard() {
   const navigate = useNavigate();
@@ -203,6 +202,8 @@ function AlumniDashboard() {
       
       const notificationData = {
         recipientId,
+        senderId: currentUser.uid,
+        senderName: authorName,
         type: 'comment',
         title: 'New Comment',
         message: `${authorName} commented on your post`,
@@ -262,9 +263,11 @@ function AlumniDashboard() {
       const reactionEmoji = reactionTypes.find(r => r.type === reactionType)?.emoji || '👍';
       const notificationData = {
         recipientId,
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
         type: 'reaction',
         title: 'New Reaction',
-        message: `Someone reacted ${reactionEmoji} to your post`,
+        message: `${currentUser.displayName || 'Someone'} reacted ${reactionEmoji} to your post`,
         postId,
         authorId: currentUser.uid,
         reactionType,
@@ -452,10 +455,7 @@ function AlumniDashboard() {
   };
 
   return (
-    <DashboardLayout userRole="alumni">
-      
-      {/* Main Dashboard Content */}
-      <div className="dashboard-content">
+    <>
         {/* Welcome Section */}
         <div className="welcome-section">
           <h1 className="welcome-title">
@@ -715,7 +715,6 @@ function AlumniDashboard() {
             </div>
           </div>
         </div>
-      </div>
 
       {/* Share Modal */}
       {showShareModal && selectedPostForShare && (
@@ -766,7 +765,7 @@ function AlumniDashboard() {
           </div>
         </div>
       )}
-    </DashboardLayout>
+    </>
   );
 }
 

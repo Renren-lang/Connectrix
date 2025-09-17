@@ -39,6 +39,14 @@ service cloud.firestore {
         request.auth.uid == resource.data.authorId;
     }
     
+    // Forum threads collection (for Forum.jsx)
+    match /forum-threads/{threadId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+        request.auth.uid == resource.data.authorId;
+    }
+    
     match /threads/{threadId}/posts/{postId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
@@ -48,6 +56,14 @@ service cloud.firestore {
     
     // Forum posts collection (for Forum.jsx)
     match /forum-posts/{postId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+        request.auth.uid == resource.data.authorId;
+    }
+    
+    // Posts collection (for Profile.jsx)
+    match /posts/{postId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null && 
@@ -73,6 +89,17 @@ service cloud.firestore {
     
     // Forum post reactions subcollection
     match /forum-posts/{postId}/reactions/{reactionId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.userId;
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // Forum thread reactions subcollection
+    match /forum-threads/{threadId}/reactions/{reactionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null && 
         request.auth.uid == request.resource.data.userId;
@@ -119,6 +146,17 @@ service cloud.firestore {
       allow create: if request.auth != null;
       allow update: if request.auth != null;
       allow delete: if request.auth != null;
+    }
+    
+    // Forum comments collection (for Events.jsx)
+    match /forum-comments/{commentId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.authorId;
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.authorId;
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.authorId;
     }
     
     // Events

@@ -1,0 +1,420 @@
+/* ========================================
+   YOUTUBE-STYLE HEADER
+   ======================================== */
+
+.youtube-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5%;
+  z-index: 1000;
+  box-sizing: border-box;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Header Sections */
+.header-left,
+.header-center,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-left {
+  flex: 0 0 auto;
+  min-width: 169px;
+}
+
+.header-center {
+  flex: 1;
+  max-width: 732px;
+  justify-content: center;
+}
+
+.header-right {
+  flex: 0 0 auto;
+  min-width: 225px;
+  justify-content: flex-end;
+}
+
+/* Header Buttons */
+.header-button {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  position: relative;
+}
+
+.header-button:hover {
+  background-color: #f2f2f2;
+}
+
+.header-button .material-icons {
+  font-size: 24px;
+  color: #2563eb;
+}
+
+/* Menu Button */
+.menu-button {
+  margin-right: 8px;
+}
+
+/* YouTube Logo */
+.youtube-logo {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 8px;
+  margin-left: 8px;
+  gap: 2px;
+}
+
+.logo-icon {
+  width: 90px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+}
+
+.youtube-logo-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.logo-text {
+  display: flex;
+  align-items: baseline;
+  margin-left: 2px;
+}
+
+.youtube-text {
+  font-family: 'Roboto', sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  color: #030303;
+  letter-spacing: -0.5px;
+}
+
+.country-code {
+  font-family: 'Roboto', sans-serif;
+  font-size: 11px;
+  color: #606060;
+  margin-left: 2px;
+  vertical-align: super;
+}
+
+/* Search Container */
+.search-form {
+  display: flex;
+  align-items: center;
+  max-width: 540px;
+  width: 100%;
+}
+
+.search-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 40px;
+  border: 1px solid #cccccc;
+  border-radius: 20px;
+  overflow: hidden;
+  transition: all 0.15s ease;
+}
+
+.search-container.focused {
+  border-color: #1c62b9;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.search-input {
+  flex: 1;
+  height: 100%;
+  border: none;
+  outline: none;
+  padding: 0 16px;
+  font-size: 16px;
+  color: #030303;
+  background: transparent;
+}
+
+.search-input::placeholder {
+  color: #909090;
+}
+
+.search-button {
+  width: 64px;
+  height: 40px;
+  border: none;
+  background-color: #f8f8f8;
+  border-left: 1px solid #cccccc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+}
+
+.search-button:hover {
+  background-color: #f0f0f0;
+}
+
+.search-button .material-icons {
+  font-size: 20px;
+  color: #030303;
+}
+
+/* Voice Search Button */
+.voice-search-button {
+  background-color: #f8f8f8;
+  margin-left: 8px;
+}
+
+.voice-search-button:hover {
+  background-color: #f0f0f0;
+}
+
+/* Create Button */
+.create-button {
+  margin-right: 8px;
+}
+
+/* Notifications Button */
+.notifications-button {
+  margin-right: 8px;
+  position: relative;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background-color: #cc0000;
+  color: white;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 9px;
+  min-width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Profile Button */
+.profile-button {
+  width: 32px;
+  height: 32px;
+}
+
+.profile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-avatar .material-icons {
+  font-size: 32px;
+  color: #606060;
+}
+
+.profile-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .youtube-header {
+    padding: 0 8px;
+  }
+  
+  .header-left {
+    min-width: auto;
+  }
+  
+  .header-right {
+    min-width: auto;
+  }
+  
+  .logo-text {
+    display: none;
+  }
+  
+  .logo-icon {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .search-form {
+    max-width: none;
+  }
+  
+  .voice-search-button {
+    display: none;
+  }
+  
+  .create-button {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-center {
+    display: none;
+  }
+  
+  .header-right {
+    gap: 4px;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .youtube-header {
+    background-color: #212121;
+    border-bottom-color: #303030;
+  }
+  
+  .header-button:hover {
+    background-color: #303030;
+  }
+  
+  .header-button .material-icons {
+    color: #ffffff;
+  }
+  
+  .youtube-text {
+    color: #ffffff;
+  }
+  
+  .country-code {
+    color: #aaaaaa;
+  }
+  
+  .search-container {
+    background-color: #121212;
+    border-color: #303030;
+  }
+  
+  .search-container.focused {
+    border-color: #3ea6ff;
+  }
+  
+  .search-input {
+    color: #ffffff;
+    background-color: #121212;
+  }
+  
+  .search-input::placeholder {
+    color: #888888;
+  }
+  
+  .search-button {
+    background-color: #303030;
+    border-left-color: #303030;
+  }
+  
+  .search-button:hover {
+    background-color: #404040;
+  }
+  
+  .search-button .material-icons {
+    color: #ffffff;
+  }
+  
+  .voice-search-button {
+    background-color: #303030;
+  }
+  
+  .voice-search-button:hover {
+    background-color: #404040;
+  }
+  
+  .profile-avatar .material-icons {
+    color: #aaaaaa;
+  }
+}
+
+/* Focus States for Accessibility */
+.header-button:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
+.search-input:focus-visible {
+  outline: none;
+}
+
+.search-button:focus-visible {
+  outline: 2px solid #4285f4;
+  outline-offset: -2px;
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .header-button:hover {
+    background-color: #f0f0f0;
+  }
+  
+  .header-button:hover .material-icons {
+    color: #2563eb;
+  }
+  
+  .search-container {
+    border-width: 2px;
+  }
+  
+  .search-button {
+    border-left-width: 2px;
+  }
+}
+
+/* Animations */
+.search-container {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.header-button {
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.header-button:active {
+  transform: scale(0.95);
+}
+
+/* Loading state for search */
+.search-loading .search-button .material-icons {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

@@ -1,0 +1,365 @@
+/* White Sidebar with Blue Icons */
+.white-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 72px;
+  background-color: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  z-index: 999;
+  transition: width 0.3s ease;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.white-sidebar:not(.collapsed) {
+  width: 240px;
+}
+
+/* Header Section */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  padding: 16px 12px;
+  gap: 12px;
+  min-height: 56px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.menu-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.menu-toggle:hover {
+  background-color: #f3f4f6;
+}
+
+.menu-toggle .material-icons {
+  color: #2563eb;
+  font-size: 24px;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: white;
+}
+
+.logo-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  letter-spacing: 0.5px;
+}
+
+.white-sidebar.collapsed .logo-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+/* Divider */
+.sidebar-divider {
+  height: 1px;
+  background-color: #e5e7eb;
+  margin: 8px 0;
+}
+
+/* Navigation */
+.sidebar-nav {
+  flex: 1;
+  padding: 8px 0;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 24px;
+  position: relative;
+  color: #6b7280;
+  font-weight: 500;
+  border-radius: 8px;
+  margin: 2px 8px;
+}
+
+.white-sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px;
+  gap: 0;
+}
+
+.nav-item:hover {
+  background-color: #f3f4f6;
+  color: #2563eb;
+}
+
+.nav-item.active {
+  background-color: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #2563eb;
+  border-radius: 0 2px 2px 0;
+}
+
+.nav-icon {
+  font-size: 24px;
+  color: inherit;
+  min-width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-label {
+  font-size: 14px;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.white-sidebar.collapsed .nav-label {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+/* Messages Section */
+.messages-section {
+  padding: 0;
+}
+
+/* Bottom Section */
+.sidebar-bottom {
+  padding: 8px 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Logout Item Styling */
+.logout-item {
+  color: #dc2626 !important;
+}
+
+.logout-item:hover {
+  background-color: #fef2f2 !important;
+  color: #dc2626 !important;
+}
+
+.logout-item .nav-icon {
+  color: #dc2626 !important;
+}
+
+.logout-item:hover .nav-icon {
+  color: #dc2626 !important;
+}
+
+/* User Profile Section */
+.user-profile-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  margin-bottom: 8px;
+}
+
+.white-sidebar.collapsed .user-profile-section {
+  justify-content: center;
+  padding: 12px;
+  gap: 0;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.white-sidebar.collapsed .user-info {
+  display: none;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-role {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logout-btn {
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.white-sidebar.collapsed .logout-btn {
+  display: none;
+}
+
+.logout-btn:hover {
+  background-color: #fef2f2;
+  color: #dc2626;
+}
+
+.logout-btn .material-icons {
+  font-size: 20px;
+}
+
+/* Collapsed State Styles */
+.white-sidebar.collapsed .logo-section {
+  justify-content: center;
+}
+
+.white-sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px;
+}
+
+.white-sidebar.collapsed .user-profile-section {
+  justify-content: center;
+  padding: 12px;
+}
+
+/* Scrollbar Styling */
+.white-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.white-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.white-sidebar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.white-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .white-sidebar {
+    position: fixed;
+    top: 0;
+    left: -240px;
+    width: 240px;
+    height: 100vh;
+    z-index: 1000;
+    transition: left 0.3s ease;
+  }
+
+  .white-sidebar:not(.collapsed) {
+    left: 0;
+  }
+
+  .white-sidebar.collapsed {
+    left: -240px;
+  }
+}
+
+/* Hover Effects */
+.nav-item:hover .nav-icon {
+  transform: scale(1.05);
+}
+
+.nav-item:hover .nav-label {
+  transform: translateX(2px);
+}
+
+/* Active State Enhancements */
+.nav-item.active .nav-icon {
+  transform: scale(1.05);
+}
+
+/* Smooth Transitions */
+* {
+  transition: all 0.2s ease;
+}
+
+/* Focus States for Accessibility */
+.nav-item:focus,
+.menu-toggle:focus,
+.logout-btn:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .white-sidebar {
+    border-right: 2px solid #000000;
+  }
+
+  .nav-item:hover {
+    background-color: #e5e7eb;
+  }
+}

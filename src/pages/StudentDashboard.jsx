@@ -1,13 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { usePosts } from '../contexts/PostsContext';
 import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, orderBy, doc, getDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function StudentDashboard() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { posts, createPost, likePost, addComment } = usePosts();
   const vantaRef = useRef(null);
+
+  // Helper function to calculate real time ago
+  const getTimeAgo = (date) => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return 'Just now';
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes}m ago`;
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours}h ago`;
+    } else if (diffInSeconds < 2592000) {
+      const days = Math.floor(diffInSeconds / 86400);
+      return `${days}d ago`;
+    } else {
+      const months = Math.floor(diffInSeconds / 2592000);
+      return `${months}mo ago`;
+    }
+  };
   const [activeFilter, setActiveFilter] = useState('All');
   const [suggestedMentors, setSuggestedMentors] = useState([]);
   const [isLoadingMentors, setIsLoadingMentors] = useState(true);
@@ -18,11 +42,78 @@ function StudentDashboard() {
   const [selectedPost, setSelectedPost] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [showCommentInput, setShowCommentInput] = useState({});
+  const [unifiedFeed, setUnifiedFeed] = useState([]);
+  const [isLoadingFeed, setIsLoadingFeed] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
+  const [editContent, setEditContent] = useState('');
   const [postComments, setPostComments] = useState({});
   const [showReplyInput, setShowReplyInput] = useState({});
   const [postReactions, setPostReactions] = useState({});
   const [showReactionPicker, setShowReactionPicker] = useState({});
   const [reactionPickerPosition, setReactionPickerPosition] = useState({});
+  const [showCreatePostModal, setShowCreatePostModal] = useState(false);
+  const [createPostData, setCreatePostData] = useState({
+    content: '',
+    category: 'general',
+    privacy: 'public'
+  });
+  const [isPosting, setIsPosting] = useState(false);
+
+  // Post creation functionality
+  const handleCreatePostSubmit = async () => {
+    if (!currentUser) {
+      alert('Please log in to create a post');
+      return;
+    }
+
+    if (!createPostData.content.trim()) {
+      alert('Please enter some content for your post');
+      return;
+    }
+
+    setIsPosting(true);
+    try {
+      const postData = {
+        content: createPostData.content.trim(),
+        category: createPostData.category,
+        userId: currentUser.uid, // Use current user's ID for home page posts
+        authorId: currentUser.uid,
+        authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        authorPhoto: currentUser.photoURL || null,
+        authorRole: 'student',
+        privacy: createPostData.privacy
+      };
+
+      // Use the global posts context
+      await createPost(postData);
+
+      // Reset form
+      setCreatePostData({
+        content: '',
+        category: 'general',
+        privacy: 'public'
+      });
+      setShowCreatePostModal(false);
+      alert('Post created successfully!');
+    } catch (error) {
+      console.error('Error creating post: ', error);
+      alert('Failed to create post. Please try again.');
+    } finally {
+      setIsPosting(false);
+    }
+  };
+
+  // Post categories for students and mentors
+  const postCategories = [
+    { id: 'general', name: 'General', icon: 'fas fa-comments', color: '#6c757d' },
+    { id: 'career', name: 'Career Advice', icon: 'fas fa-briefcase', color: '#007bff' },
+    { id: 'technical', name: 'Technical Help', icon: 'fas fa-code', color: '#28a745' },
+    { id: 'events', name: 'Events & Opportunities', icon: 'fas fa-calendar', color: '#fd7e14' },
+    { id: 'study', name: 'Study Tips', icon: 'fas fa-book', color: '#6f42c1' },
+    { id: 'mentorship', name: 'Mentorship', icon: 'fas fa-user-graduate', color: '#20c997' },
+    { id: 'resources', name: 'Resources & Materials', icon: 'fas fa-file-alt', color: '#17a2b8' },
+    { id: 'concerns', name: 'Student Concerns', icon: 'fas fa-question-circle', color: '#dc3545' }
+  ];
 
   // Facebook-like reaction types
   const reactionTypes = [
@@ -53,89 +144,132 @@ function StudentDashboard() {
         console.log('Current user:', currentUser);
         console.log('Firebase db object:', db);
         
-        // Check if Firebase is properly initialized
-        if (!db) {
-          throw new Error('Firebase database not initialized');
-        }
+        // Get all alumni users
+        const usersRef = collection(db, 'users');
+        const allUsersQuery = query(usersRef, where('role', '==', 'alumni'));
+        const allUsersSnapshot = await getDocs(allUsersQuery);
         
-        // Try to fetch mentors with different approaches
-        let mentorsData = [];
+        const allAlumni = allUsersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
         
-        try {
-          // Approach 1: Try with query
-          console.log('Trying approach 1: Query with filters');
-          const mentorsRef = collection(db, 'users');
-          console.log('Collection reference:', mentorsRef);
+        // Smart suggestions algorithm based on job interests and industries
+        const suggestions = allAlumni.map(user => {
+          let relevanceScore = 0;
+          let reasons = [];
           
-          const q = query(
-            mentorsRef,
-            where('role', '==', 'alumni'),
-            limit(3)
-          );
-          console.log('Query created successfully:', q);
-          
-          const querySnapshot = await getDocs(q);
-          console.log('Query result:', querySnapshot.docs.length, 'documents');
-          
-          mentorsData = querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              avatar: (data.firstName?.charAt(0) || '') + (data.lastName?.charAt(0) || '') || 'U',
-              name: `${data.firstName || ''} ${data.lastName || ''}`.trim() || data.displayName || 'Alumni User',
-              meta: `${data.course || 'General'} • Batch ${data.batch || 'N/A'}`,
-              bio: data.experience || 'Experienced alumni available for mentoring.',
-              tags: data.skills ? data.skills.split(',').map(skill => skill.trim()).slice(0, 3) : ['General Skills'],
-      isConnected: false
-            };
-          });
-          
-        } catch (queryError) {
-          console.warn('Query approach failed, trying fallback:', queryError);
-          
-          // Approach 2: Fallback - get all users and filter in JavaScript
-          try {
-            console.log('Trying approach 2: Get all users and filter');
-            const mentorsRef = collection(db, 'users');
-            const snapshot = await getDocs(mentorsRef);
-            
-            const allUsers = snapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data()
-            }));
-            
-            // Filter for alumni in JavaScript
-            const alumniUsers = allUsers.filter(user => user.role === 'alumni').slice(0, 3);
-            
-            mentorsData = alumniUsers.map(user => ({
-              id: user.id,
-              avatar: (user.firstName?.charAt(0) || '') + (user.lastName?.charAt(0) || '') || 'U',
-              name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.displayName || 'Alumni User',
-              meta: `${user.course || 'General'} • Batch ${user.batch || 'N/A'}`,
-              bio: user.experience || 'Experienced alumni available for mentoring.',
-              tags: user.skills ? user.skills.split(',').map(skill => skill.trim()).slice(0, 3) : ['General Skills'],
-      isConnected: false
-            }));
-            
-            console.log('Fallback approach successful, found', mentorsData.length, 'mentors');
-            
-          } catch (fallbackError) {
-            console.error('Fallback approach also failed:', fallbackError);
-            throw new Error(`Both query approaches failed: ${fallbackError.message}`);
+          // Course match (highest priority)
+          if (currentUser.course && user.course) {
+            if ((user.course || '').toLowerCase() === (currentUser.course || '').toLowerCase()) {
+              relevanceScore += 100;
+              reasons.push('Same course');
+            } else if ((user.course || '').toLowerCase().includes((currentUser.course || '').toLowerCase()) || 
+                       (currentUser.course || '').toLowerCase().includes((user.course || '').toLowerCase())) {
+              relevanceScore += 50;
+              reasons.push('Related field');
+            }
           }
-        }
+          
+          // Job/Industry interest match
+          if (user.industry && currentUser?.interests) {
+            const userIndustry = (user.industry || '').toLowerCase();
+            const userInterests = (currentUser.interests || '').toLowerCase();
+            
+            // Direct industry match
+            if (userIndustry.includes(userInterests) || userInterests.includes(userIndustry)) {
+              relevanceScore += 80;
+              reasons.push('Same industry');
+            }
+            
+            // Related industry keywords
+            const industryKeywords = {
+              'technology': ['software', 'tech', 'it', 'programming', 'development', 'engineering'],
+              'healthcare': ['medical', 'health', 'hospital', 'clinic', 'pharmacy'],
+              'finance': ['banking', 'financial', 'accounting', 'investment', 'business'],
+              'education': ['teaching', 'academic', 'school', 'university', 'training'],
+              'marketing': ['advertising', 'digital', 'social media', 'branding', 'sales'],
+              'engineering': ['mechanical', 'electrical', 'civil', 'chemical', 'industrial']
+            };
+            
+            for (const [industry, keywords] of Object.entries(industryKeywords)) {
+              if (userIndustry.includes(industry) && keywords.some(keyword => userInterests.includes(keyword))) {
+                relevanceScore += 60;
+                reasons.push('Related industry');
+                break;
+              }
+            }
+          }
+          
+          // Current job/position relevance
+          if (user.currentJob && currentUser?.interests) {
+            const jobTitle = (user.currentJob || '').toLowerCase();
+            const userInterests = (currentUser.interests || '').toLowerCase();
+            
+            if (jobTitle.includes(userInterests) || userInterests.includes(jobTitle)) {
+              relevanceScore += 70;
+              reasons.push('Matching job role');
+            }
+          }
+          
+          // Batch proximity (recent graduates are more relevant)
+          if (user.batch && currentUser.batch) {
+            const batchDiff = Math.abs(parseInt(user.batch) - parseInt(currentUser.batch));
+            if (batchDiff <= 2) {
+              relevanceScore += 30;
+              reasons.push('Recent graduate');
+            } else if (batchDiff <= 5) {
+              relevanceScore += 15;
+              reasons.push('Experienced alumni');
+            }
+          }
+          
+          // Experience level (more experienced = higher score)
+          if (user.experience) {
+            const expYears = user.experience.match(/\d+/);
+            if (expYears) {
+              const years = parseInt(expYears[0]);
+              if (years >= 5) {
+                relevanceScore += 20;
+                reasons.push('Senior professional');
+              } else if (years >= 2) {
+                relevanceScore += 10;
+                reasons.push('Experienced');
+              }
+            }
+          }
+          
+          // Random factor for discovery (like Facebook)
+          relevanceScore += Math.random() * 10;
+          
+          return {
+            id: user.id,
+            avatar: (user.firstName?.charAt(0) || '') + (user.lastName?.charAt(0) || '') || 'U',
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.displayName || 'Alumni User',
+            meta: `${user.industry || user.course || 'General'} • ${user.currentJob || 'Professional'}`,
+            bio: user.experience || 'Experienced alumni available for mentoring.',
+            tags: user.industry ? [user.industry] : (user.course ? [user.course] : ['General']),
+            isConnected: false,
+            relevanceScore,
+            reasons: reasons.slice(0, 2), // Show top 2 reasons
+            mutualConnections: Math.floor(Math.random() * 5), // Mock mutual connections
+            isOnline: Math.random() > 0.7, // Random online status
+            industry: user.industry || 'General',
+            currentJob: user.currentJob || 'Professional'
+          };
+        });
         
-        console.log('Final mentors data:', mentorsData);
-        setSuggestedMentors(mentorsData);
+        // Sort by relevance score and limit to 6
+        const sortedSuggestions = suggestions
+          .sort((a, b) => b.relevanceScore - a.relevanceScore)
+          .slice(0, 6);
+        
+        setSuggestedMentors(sortedSuggestions);
+        console.log('Final mentors data:', sortedSuggestions);
         
       } catch (error) {
         console.error('Error fetching suggested mentors:', error);
-        console.error('Error details:', {
-          message: error.message,
-          code: error.code,
-          stack: error.stack
-        });
-        setMentorsError(`Failed to load suggested mentors: ${error.message}`);
+        setMentorsError('Failed to load mentors. Please try again.');
       } finally {
         setIsLoadingMentors(false);
       }
@@ -145,60 +279,115 @@ function StudentDashboard() {
   }, [currentUser]);
 
   // Fetch alumni posts from database
-  useEffect(() => {
-    const fetchAlumniPosts = async () => {
-      if (!currentUser) return;
+  // Unified feed function that merges posts and threads with course-based suggestions
+  const fetchUnifiedFeed = async () => {
+    if (!currentUser) return;
+    
+    try {
+      setIsLoadingFeed(true);
       
-      try {
-        setIsLoadingPosts(true);
-        
-        // Fetch real forum posts from alumni
-        const forumRef = collection(db, 'forum-posts');
-        const q = query(
-          forumRef,
-          where('authorRole', '==', 'alumni'),
-          orderBy('createdAt', 'desc'),
-          limit(5)
-        );
-        
-        const querySnapshot = await getDocs(q);
-        const forumPosts = querySnapshot.docs.map(doc => {
+      // Fetch both forum posts and threads
+      const [postsSnapshot, threadsSnapshot] = await Promise.all([
+        getDocs(query(collection(db, 'forum-posts'), orderBy('createdAt', 'desc'), limit(20))),
+        getDocs(query(collection(db, 'forum-threads'), orderBy('createdAt', 'desc'), limit(20)))
+      ]);
+      
+      // Process posts
+      const posts = postsSnapshot.docs.map(doc => {
+        try {
           const data = doc.data();
           const timeAgo = data.createdAt ? 
-            Math.floor((new Date() - data.createdAt.toDate()) / (1000 * 60 * 60)) : 
-            Math.floor(Math.random() * 24);
+            getTimeAgo(data.createdAt.toDate()) : 
+            'Just now';
           
           return {
             id: doc.id,
+            type: 'post',
             avatar: data.authorName ? data.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A',
-            name: data.authorName || 'Alumni',
-            meta: `${data.category || 'General'} • ${timeAgo} hours ago`,
+          name: data.authorName || 'User',
+          role: data.authorRole || 'student',
+          meta: `${data.category || 'General'} • ${timeAgo}`,
+          roleLabel: data.authorRole === 'alumni' ? 'Mentor' : data.authorRole === 'student' ? 'Student' : 'User',
             content: data.content || 'No content available',
-            type: data.category === 'career' ? 'tip' : 
-                  data.category === 'technical' ? 'tip' : 
-                  data.category === 'general' ? 'job' : 'event',
+            title: data.title || '',
+            category: data.category || 'general',
             likes: data.likes || 0,
             comments: data.replyCount || 0,
             isLiked: false,
-            forumPostId: doc.id,
-            category: data.category,
-            authorId: data.authorId // Add authorId to the post data
+            createdAt: data.createdAt,
+            authorId: data.authorId,
+            isCourseRelevant: data.category && currentUser?.course && 
+              ((data.category || '').toLowerCase().includes(currentUser.course.toLowerCase()) ||
+               (data.content || '').toLowerCase().includes(currentUser.course.toLowerCase()))
           };
-        });
+        } catch (error) {
+          console.error('Error processing post:', error);
+          return null;
+        }
+      }).filter(Boolean);
+      
+      // Process threads
+      const threads = threadsSnapshot.docs.map(doc => {
+        try {
+          const data = doc.data();
+          const timeAgo = data.createdAt ? 
+            getTimeAgo(data.createdAt.toDate()) : 
+            'Just now';
+          
+          return {
+            id: doc.id,
+            type: 'thread',
+            avatar: data.authorName ? data.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A',
+          name: data.authorName || 'User',
+          role: data.authorRole || 'student',
+          meta: `${data.category || 'General'} • ${timeAgo}`,
+          roleLabel: data.authorRole === 'alumni' ? 'Mentor' : data.authorRole === 'student' ? 'Student' : 'User',
+            content: data.content || 'No content available',
+            title: data.title || '',
+            category: data.category || 'general',
+            likes: data.likes || 0,
+            comments: data.replyCount || 0,
+            isLiked: false,
+            createdAt: data.createdAt,
+            authorId: data.authorId,
+            isCourseRelevant: data.category && currentUser?.course && 
+              ((data.category || '').toLowerCase().includes(currentUser.course.toLowerCase()) ||
+               (data.content || '').toLowerCase().includes(currentUser.course.toLowerCase()))
+          };
+        } catch (error) {
+          console.error('Error processing thread:', error);
+          return null;
+        }
+      }).filter(Boolean);
+      
+      // Combine and sort by relevance and recency
+      const allContent = [...posts, ...threads];
+      
+      // Sort: Course-relevant content first, then by recency
+      const sortedFeed = allContent.sort((a, b) => {
+        // Course-relevant content first
+        if (a.isCourseRelevant && !b.isCourseRelevant) return -1;
+        if (!a.isCourseRelevant && b.isCourseRelevant) return 1;
         
-        setFeedPosts(forumPosts);
-        console.log('Fetched alumni forum posts:', forumPosts.length);
-        console.log('Alumni posts data:', forumPosts);
-      } catch (error) {
-        console.error('Error fetching alumni posts:', error);
-        // Fallback to empty array if there's an error
-        setFeedPosts([]);
-      } finally {
-        setIsLoadingPosts(false);
-      }
-    };
+        // Then by recency
+        const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+        const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+        return bTime - aTime;
+      });
+      
+      setUnifiedFeed(sortedFeed);
+      console.log('Fetched unified feed:', sortedFeed.length);
+      
+    } catch (error) {
+      console.error('Error fetching unified feed:', error);
+      setUnifiedFeed([]);
+    } finally {
+      setIsLoadingFeed(false);
+    }
+  };
 
-    fetchAlumniPosts();
+  useEffect(() => {
+    fetchUnifiedFeed();
   }, [currentUser]);
 
   // Load reactions for existing posts when component mounts or posts change
@@ -353,21 +542,22 @@ function StudentDashboard() {
       const reactionEmoji = reactionTypes.find(r => r.type === reactionType)?.emoji || '👍';
       const reactionLabel = reactionTypes.find(r => r.type === reactionType)?.label || 'Like';
       
-      const notification = {
-        recipientId: authorId,
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
-        type: 'forum-reaction',
-        title: `${reactionEmoji} New Reaction`,
-        message: `${currentUser.displayName || 'Someone'} reacted with ${reactionLabel} to your post "${postContent.substring(0, 50)}..."`,
-        data: {
-          postId: postId,
-          reactionType: reactionType,
-          postContent: postContent
-        },
-        read: false,
-        createdAt: serverTimestamp()
-      };
+        const notification = {
+          recipientId: authorId,
+          senderId: currentUser.uid,
+          senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+          type: 'forum-reaction',
+          title: `${reactionEmoji} New Reaction`,
+          message: `${currentUser.displayName || 'Someone'} reacted with ${reactionLabel} to your post "${postContent.substring(0, 50)}..."`,
+          postId: postId, // Add postId directly for easier access
+          data: {
+            postId: postId,
+            reactionType: reactionType,
+            postContent: postContent
+          },
+          read: false,
+          createdAt: serverTimestamp()
+        };
 
       await addDoc(collection(db, 'notifications'), notification);
       console.log('Notification created successfully');
@@ -567,6 +757,7 @@ function StudentDashboard() {
           type: 'forum-comment',
           title: '💬 New Comment',
           message: `${authorName} commented on your post "${post.content.substring(0, 50)}..."`,
+          postId: postId, // Add postId directly for easier access
           data: {
             postId: postId,
             postContent: post.content,
@@ -744,6 +935,47 @@ function StudentDashboard() {
     }
   };
 
+  // Edit post function
+  const handleEditPost = async (postId) => {
+    if (!editContent.trim()) {
+      alert('Please enter some content for your post.');
+      return;
+    }
+
+    try {
+      const postRef = doc(db, 'forum-posts', postId);
+      await updateDoc(postRef, {
+        content: editContent.trim(),
+        updatedAt: serverTimestamp()
+      });
+      
+      setEditingPost(null);
+      setEditContent('');
+      await fetchUnifiedFeed();
+      alert('Post updated successfully!');
+    } catch (error) {
+      console.error('Error updating post:', error);
+      alert('Failed to update post. Please try again.');
+    }
+  };
+
+  // Delete post function
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm('Are you sure you want to delete this post?')) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'forum-posts', postId));
+      await fetchUnifiedFeed();
+      alert('Post deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Failed to delete post. Please try again.');
+    }
+  };
+
+
   const handleViewMentorProfile = (mentorName) => {
     alert(`Viewing profile of ${mentorName}`);
   };
@@ -806,7 +1038,7 @@ function StudentDashboard() {
       
       {/* Main Dashboard Content */}
       <main className="dashboard" style={{ position: 'relative', zIndex: 1 }}>
-        <div className="dashboard-container">
+        <div className="facebook-dashboard-container">
           {/* Welcome Section */}
           <div className="welcome-section">
             <h1 className="welcome-title">
@@ -816,118 +1048,270 @@ function StudentDashboard() {
                              (currentUser?.email ? currentUser.email.split('@')[0] : 'User')}!
             </h1>
             <p className="welcome-subtitle">Here's what's happening with your mentorship network today.</p>
-            
-            {/* Test Navigation Button - Remove in production */}
-            {process.env.NODE_ENV === 'development' && (
-              <button 
-                onClick={() => {
-                  console.log('Test button clicked!');
-                  navigate('/browse-mentor');
-                }}
-                style={{
-                  background: '#007bff',
-                  color: 'white',
-                  border: 'none',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  marginTop: '1rem'
-                }}
-              >
-                Test Navigation to Browse Mentors
-              </button>
-            )}
           </div>
 
-          {/* Quick Access Cards */}
-          <section className="quick-access">
-            <h2 className="section-title">Quick Access</h2>
-            <div className="quick-access-grid">
-              <div className="quick-access-card" onClick={() => {
-                console.log('Find Mentors clicked!');
-                navigate('/browse-mentor');
-              }}>
-                 <div className="card-icon mentors">
-                   <i className="fas fa-user-tie"></i>
-                 </div>
-                 <h3 className="card-title">Find Mentors</h3>
-                 <p className="card-description">Connect with alumni who can guide your career path</p>
-               </div>
-              <div className="quick-access-card" onClick={() => {
-                console.log('Forum clicked!');
-                console.log('Navigating to /forum');
-                navigate('/forum');
-              }}>
-                 <div className="card-icon forum">
-                   <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" title="Forum Discussions">
-                     <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
-                   </svg>
-                 </div>
-                 <h3 className="card-title">Forum Discussions</h3>
-                 <p className="card-description">Join discussions and connect with the community</p>
-               </div>
-              <div className="quick-access-card" onClick={() => {
-                console.log('Messages clicked!');
-                navigate('/messaging');
-              }}>
-                 <div className="card-icon messages">
-                   <i className="fas fa-comments"></i>
-                 </div>
-                 <h3 className="card-title">Messages</h3>
-                 <p className="card-description">Check your conversations with mentors and peers</p>
-               </div>
-              <div className="quick-access-card" onClick={() => {
-                console.log('Events clicked!');
-                navigate('/events');
-              }}>
-                 <div className="card-icon events">
-                   <i className="fas fa-calendar-alt"></i>
-                 </div>
-                 <h3 className="card-title">Events & Opportunities</h3>
-                 <p className="card-description">Find networking events and career opportunities</p>
-               </div>
-            </div>
-          </section>
+          {/* Facebook-style Layout */}
+          <div className="facebook-layout">
+            {/* Main Content - Forum Feed */}
+            <div className="facebook-main-content">
+              {/* What's on your mind? Section */}
+              <div className="whats-on-mind-card">
+                <div className="post-creation-header">
+                  <div className="post-author">
+                    <div className="post-avatar">
+                      {currentUser?.photoURL ? (
+                        <img src={currentUser.photoURL} alt="Profile" />
+                      ) : (
+                        <div className="post-initials">
+                          {currentUser?.displayName ? currentUser.displayName[0] : 'U'}
+                        </div>
+                      )}
+                    </div>
+                    <div className="post-input">
+                      <input 
+                        type="text" 
+                        placeholder="What's on your mind?"
+                        className="post-text-input"
+                        onClick={() => setShowCreatePostModal(true)}
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="post-creation-options">
+                  <button 
+                    className="post-option live-video"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-video"></i>
+                    Live video
+                  </button>
+                  <button 
+                    className="post-option photo-video"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-image"></i>
+                    Photo/video
+                  </button>
+                  <button 
+                    className="post-option feeling"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-smile"></i>
+                    Feeling/activity
+                  </button>
+                </div>
+              </div>
 
-          {/* Activity Feed */}
-          <section className="activity-feed">
-            <h2 className="section-title">Activity Feed</h2>
+              {/* Global Posts Feed */}
+              <div className="posts-feed">
+                <h2 className="section-title">Recent Posts</h2>
+                {posts.length === 0 ? (
+                  <div className="no-posts">
+                    <p>No posts yet. Be the first to share something!</p>
+                  </div>
+                ) : (
+                  <div className="posts-list">
+                    {posts.map((post) => (
+                      <div key={post.id} className="post-card">
+                        <div className="post-header">
+                          <div className="post-author-info">
+                            <div className="post-author-avatar">
+                              {post.authorPhoto ? (
+                                <img src={post.authorPhoto} alt="Profile" />
+                              ) : (
+                                <div className="post-initials">
+                                  {post.authorName ? post.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
+                                </div>
+                              )}
+                            </div>
+                            <div className="post-author-details">
+                              <span className="post-author-name">{post.authorName}</span>
+                              <div className="post-meta">
+                                <span>{post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleDateString() : 'Recently'}</span>
+                                <i className="fas fa-globe"></i>
+                              </div>
+                            </div>
+                          </div>
+                          <button className="post-options-btn">
+                            <i className="fas fa-ellipsis-h"></i>
+                          </button>
+                        </div>
+                        <div className="post-content">
+                          <p>{post.content}</p>
+                        </div>
+                        <div className="post-actions">
+                          <button 
+                            className="post-action"
+                            onClick={() => likePost(post.id, currentUser.uid)}
+                          >
+                            <i className="fas fa-thumbs-up"></i>
+                            Like ({post.likes || 0})
+                          </button>
+                          <button className="post-action">
+                            <i className="fas fa-comment"></i>
+                            Comment ({post.comments || 0})
+                          </button>
+                          <button className="post-action">
+                            <i className="fas fa-share"></i>
+                            Share
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Open Forum Section */}
+              <section className="open-forum">
+            <div className="forum-header">
+              <h2 className="section-title">Open Forum</h2>
+              <button 
+                className="view-all-btn"
+                onClick={() => navigate('/forum')}
+              >
+                View All Posts <i className="fas fa-arrow-right"></i>
+              </button>
+            </div>
             <div className="feed-container">
+              {/* Post Creation Interface */}
+              <div className="post-creation-card">
+                <div className="post-creation-header">
+                  <div className="post-creation-avatar">
+                    {currentUser?.photoURL ? (
+                      <img 
+                        src={currentUser.photoURL} 
+                        alt="Profile" 
+                        className="creation-profile-image"
+                      />
+                    ) : currentUser?.profilePictureBase64 ? (
+                      <img 
+                        src={currentUser.profilePictureBase64} 
+                        alt="Profile" 
+                        className="creation-profile-image"
+                      />
+                    ) : (
+                      <div className="creation-profile-initial">
+                        {currentUser?.displayName?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
+                      </div>
+                    )}
+                  </div>
+                  <div 
+                    className="post-creation-input"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    What's on your mind?
+                  </div>
+                </div>
+                
+                <div className="post-creation-separator"></div>
+                
+                <div className="post-creation-actions">
+                  <button 
+                    className="creation-action-btn"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-video" style={{color: '#1877f2'}}></i>
+                    <span>Live video</span>
+                  </button>
+                  <button 
+                    className="creation-action-btn"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-images" style={{color: '#1877f2'}}></i>
+                    <span>Photo/video</span>
+                  </button>
+                  <button 
+                    className="creation-action-btn"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-smile" style={{color: '#1877f2'}}></i>
+                    <span>Feeling/activity</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="feed-header">
                 <h3>Recent Alumni Posts</h3>
-                <div className="feed-filters">
-                  {['All', 'Jobs', 'Tips', 'Events'].map(filter => (
-                    <button
-                      key={filter}
-                      className={`filter-btn ${activeFilter === filter ? 'active' : ''}`}
-                      onClick={() => handleFilterChange(filter)}
-                    >
-                      {filter}
-                    </button>
-                  ))}
+                <div className="feed-actions">
+                  <button 
+                    className="create-post-btn"
+                    onClick={() => navigate('/forum')}
+                  >
+                    <i className="fas fa-plus"></i>
+                    Create Post
+                  </button>
+                  <div className="feed-filters">
+                    {['All', 'Jobs', 'Tips', 'Events'].map(filter => (
+                      <button
+                        key={filter}
+                        className={`filter-btn ${activeFilter === filter ? 'active' : ''}`}
+                        onClick={() => handleFilterChange(filter)}
+                      >
+                        {filter}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="feed-posts">
-                {isLoadingPosts ? (
+                {isLoadingFeed ? (
                   <div className="loading-state">
                     <div className="loading-spinner"></div>
-                    <p>Loading alumni posts...</p>
+                    <p>Loading feed...</p>
                   </div>
-                ) : feedPosts.length > 0 ? (
-                  feedPosts.map(post => (
-                  <div key={post.id} className="feed-post">
+                ) : unifiedFeed.length > 0 ? (
+                  unifiedFeed.map(post => (
+                  <div key={post.id} className={`feed-post ${post.isCourseRelevant ? 'course-relevant' : ''}`}>
                     <div className="post-header">
                       <div className="post-avatar">{post.avatar}</div>
                       <div className="post-user">
-                        <div className="post-name">{post.name}</div>
-                        <div className="post-meta">{post.meta}</div>
+                        <div className="post-name">
+                          {post.name}
+                          <span className={`role-badge ${post.role}`}>{post.roleLabel}</span>
+                          {post.isCourseRelevant && <span className="course-badge">Relevant to your course</span>}
+                        </div>
+                        <div className="post-meta">
+                          {post.meta}
+                          {post.type === 'thread' && <span className="thread-indicator"> • Thread</span>}
+                        </div>
                       </div>
                       <div className={`post-badge ${getBadgeClass(post.type)}`}>
                         {getBadgeText(post.type)}
                       </div>
                     </div>
                     <div className="post-content">
-                      {post.content}
+                      {editingPost === post.id ? (
+                        <div className="edit-post-form">
+                          <textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="edit-textarea"
+                            rows="3"
+                            placeholder="Edit your post..."
+                          />
+                          <div className="edit-actions">
+                            <button 
+                              className="save-btn"
+                              onClick={() => handleEditPost(post.id)}
+                            >
+                              Save
+                            </button>
+                            <button 
+                              className="cancel-btn"
+                              onClick={() => {
+                                setEditingPost(null);
+                                setEditContent('');
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        post.content
+                      )}
                     </div>
                     <div className="post-actions">
                       <div className="action-buttons">
@@ -1134,59 +1518,106 @@ function StudentDashboard() {
                 )}
               </div>
             </div>
-          </section>
+              </section>
 
-          {/* Suggested Mentors */}
-          <section className="suggested-mentors">
-            <h2 className="section-title">Suggested Mentors</h2>
-            <div className="mentors-container">
-              {isLoadingMentors ? (
-                <p>Loading suggested mentors...</p>
-              ) : mentorsError ? (
-                <p style={{ color: 'red' }}>{mentorsError}</p>
-              ) : suggestedMentors.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '2rem', color: '#6c757d' }}>
-                  <p>No mentors available at the moment.</p>
-                  <p>Check back later or browse all mentors in the Browse Mentors section.</p>
+              {/* Suggested Mentors Section */}
+              <section className="suggested-mentors">
+                <div className="mentors-header">
+                  <h2 className="section-title">
+                    {currentUser?.course ? `Mentors from ${currentUser.course}` : 'Suggested Mentors'}
+                  </h2>
+                  <button 
+                    className="view-all-btn"
+                    onClick={() => navigate('/browse-mentor')}
+                  >
+                    See All <i className="fas fa-arrow-right"></i>
+                  </button>
                 </div>
-              ) : (
-                suggestedMentors.map(mentor => (
-                <div key={mentor.id} className="mentor-card">
-                  <div className="mentor-header">
-                    <div className="mentor-avatar">{mentor.avatar}</div>
-                    <div className="mentor-info">
-                      <h3>{mentor.name}</h3>
-                      <p>{mentor.meta}</p>
+                
+                {/* Search and Filter Bar */}
+                <div className="mentor-search-section">
+                  <div className="search-bar">
+                    <i className="fas fa-search"></i>
+                    <input 
+                      type="text" 
+                      placeholder="Search by industry, job role, or company..."
+                      className="search-input"
+                    />
+                  </div>
+                  <div className="category-filters">
+                    <button className="filter-btn active">All</button>
+                    <button className="filter-btn">Technology</button>
+                    <button className="filter-btn">Healthcare</button>
+                    <button className="filter-btn">Finance</button>
+                    <button className="filter-btn">Education</button>
+                    <button className="filter-btn">Marketing</button>
+                  </div>
+                </div>
+                <div className="mentors-container">
+                  {isLoadingMentors ? (
+                    <p style={{ color: '#000000' }}>Loading suggested mentors...</p>
+                  ) : mentorsError ? (
+                    <p style={{ color: 'red' }}>{mentorsError}</p>
+                  ) : suggestedMentors.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: '#000000' }}>
+                      <p>No mentors available at the moment.</p>
+                      <p>Check back later or browse all mentors.</p>
                     </div>
-                  </div>
-                  <div className="mentor-bio">
-                    {mentor.bio}
-                  </div>
-                  <div className="mentor-tags">
-                    {mentor.tags.map((tag, index) => (
-                      <span key={index} className="mentor-tag">{tag}</span>
-                    ))}
-                  </div>
-                  <div className="mentor-actions">
-                    <button 
-                        className={`btn ${mentor.isConnected ? 'btn-secondary' : 'btn-primary'}`}
-                      onClick={() => handleMentorConnect(mentor.id)}
-                        disabled={mentor.isConnected}
-                    >
-                        {mentor.isConnected ? 'Request Sent' : 'Request Mentorship'}
-                    </button>
-                    <button 
-                      className="btn btn-outline"
-                      onClick={() => handleViewMentorProfile(mentor.name)}
-                    >
-                      View Profile
-                    </button>
-                  </div>
+                  ) : (
+                    suggestedMentors.map(mentor => (
+                    <div key={mentor.id} className="mentor-card">
+                      <div className="mentor-header">
+                        <div className="mentor-avatar">
+                          {mentor.avatar}
+                          {mentor.isOnline && <div className="online-indicator"></div>}
+                        </div>
+                        <div className="mentor-info">
+                          <h3>{mentor.name}</h3>
+                          <p className="mentor-industry">{mentor.industry}</p>
+                          <p className="mentor-job">{mentor.currentJob}</p>
+                          {mentor.reasons && mentor.reasons.length > 0 && (
+                            <p className="suggestion-reason">
+                              <i className="fas fa-lightbulb"></i>
+                              {mentor.reasons.join(', ')}
+                            </p>
+                          )}
+                          {mentor.mutualConnections > 0 && (
+                            <p className="mutual-connections">
+                              <i className="fas fa-users"></i>
+                              {mentor.mutualConnections} mutual connections
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mentor-bio">
+                        {mentor.bio}
+                      </div>
+                      <div className="mentor-tags">
+                        <span className="mentor-tag industry-tag">{mentor.industry}</span>
+                        <span className="mentor-tag job-tag">{mentor.currentJob}</span>
+                      </div>
+                      <div className="mentor-actions">
+                        <button 
+                            className={`btn ${mentor.isConnected ? 'btn-secondary' : 'btn-primary'}`}
+                          onClick={() => handleMentorConnect(mentor.id)}
+                            disabled={mentor.isConnected}
+                        >
+                            {mentor.isConnected ? 'Request Sent' : 'Connect'}
+                        </button>
+                        <button 
+                          className="btn btn-outline"
+                          onClick={() => handleViewMentorProfile(mentor.name)}
+                        >
+                          View Profile
+                        </button>
+                      </div>
+                    </div>
+                    ))
+                  )}
                 </div>
-                ))
-              )}
+              </section>
             </div>
-          </section>
+          </div>
         </div>
       </main>
 
@@ -1243,6 +1674,121 @@ function StudentDashboard() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Post Modal */}
+      {showCreatePostModal && (
+        <div className="modal-overlay" onClick={() => setShowCreatePostModal(false)}>
+          <div className="create-post-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="create-post-header">
+              <h2>Create post</h2>
+              <button className="close-btn" onClick={() => setShowCreatePostModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="create-post-user-info">
+              <div className="create-post-avatar">
+                {currentUser?.photoURL ? (
+                  <img 
+                    src={currentUser.photoURL} 
+                    alt="Profile" 
+                    className="create-post-profile-image"
+                  />
+                ) : currentUser?.profilePictureBase64 ? (
+                  <img 
+                    src={currentUser.profilePictureBase64} 
+                    alt="Profile" 
+                    className="create-post-profile-image"
+                  />
+                ) : (
+                  <div className="create-post-profile-initial">
+                    {currentUser?.displayName?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
+                  </div>
+                )}
+              </div>
+              <div className="create-post-user-details">
+                <div className="create-post-user-name">
+                  {currentUser?.displayName || currentUser?.email?.split('@')[0] || 'User'}
+                </div>
+                <button className="privacy-selector">
+                  <i className="fas fa-globe"></i>
+                  <span>Public</span>
+                  <i className="fas fa-chevron-down"></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="create-post-content">
+              <textarea
+                className="create-post-textarea"
+                placeholder="What's on your mind?"
+                value={createPostData.content}
+                onChange={(e) => setCreatePostData({...createPostData, content: e.target.value})}
+                rows="4"
+              />
+              <div className="text-formatting">
+                <button className="format-btn">
+                  <i className="fas fa-bold">A</i>
+                </button>
+                <button className="format-btn">
+                  <i className="fas fa-smile"></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="add-to-post">
+              <span className="add-to-post-label">Add to your post</span>
+              <div className="add-options">
+                <button className="add-option-btn">
+                  <i className="fas fa-images"></i>
+                </button>
+                <button className="add-option-btn">
+                  <i className="fas fa-user-tag"></i>
+                </button>
+                <button className="add-option-btn">
+                  <i className="fas fa-smile"></i>
+                </button>
+                <button className="add-option-btn">
+                  <i className="fas fa-map-marker-alt"></i>
+                </button>
+                <button className="add-option-btn">
+                  <i className="fas fa-poll"></i>
+                </button>
+                <button className="add-option-btn">
+                  <i className="fas fa-ellipsis-h"></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="post-category-section">
+              <span className="category-label">Choose category:</span>
+              <div className="category-options">
+                {postCategories.map(category => (
+                  <button
+                    key={category.id}
+                    className={`category-option ${createPostData.category === category.id ? 'selected' : ''}`}
+                    onClick={() => setCreatePostData({...createPostData, category: category.id})}
+                    style={{'--category-color': category.color}}
+                  >
+                    <i className={category.icon}></i>
+                    <span>{category.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="create-post-actions">
+              <button 
+                className="post-btn"
+                onClick={handleCreatePostSubmit}
+                disabled={!createPostData.content.trim()}
+              >
+                Post
+              </button>
             </div>
           </div>
         </div>

@@ -1,22 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { collection, addDoc, getDocs, query, where, orderBy, serverTimestamp, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
+import './Forum.css';
 
 function Forum() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useAuth();
   const [activeCategory, setActiveCategory] = useState('career');
   const [activeView, setActiveView] = useState('threads'); // 'threads' or 'detail'
   const [selectedThread, setSelectedThread] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreatePostModal, setShowCreatePostModal] = useState(false);
+  const [showCreateChoiceModal, setShowCreateChoiceModal] = useState(false);
   const [activeSort, setActiveSort] = useState('Latest');
   const [replyContent, setReplyContent] = useState('');
   const [createThreadData, setCreateThreadData] = useState({
     category: '',
     title: '',
     content: ''
+  });
+  const [createPostData, setCreatePostData] = useState({
+    content: '',
+    privacy: 'public'
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -52,86 +60,107 @@ function Forum() {
     setSelectedThread(null);
   }, []);
 
-  // Fetch forum posts from Firestore
+  // Check for createPost URL parameter
   useEffect(() => {
-    const fetchForumPosts = async () => {
-      if (!currentUser) return;
-      
-      try {
-        setIsLoading(true);
-        console.log('Fetching forum posts...');
-        
-        const forumRef = collection(db, 'forum-posts');
-        const q = query(
-          forumRef,
-          where('category', '==', activeCategory),
-          orderBy('createdAt', 'desc')
-        );
-        
-        const querySnapshot = await getDocs(q);
-        const forumPosts = await Promise.all(querySnapshot.docs.map(async (doc) => {
-          const data = doc.data();
-          
-          // Initialize default values
-          let userReaction = null;
-          let reactionCounts = {};
-          let totalReactions = 0;
-          
-          try {
-            // Fetch reactions for this post
-            const reactionsRef = collection(db, 'forum-posts', doc.id, 'reactions');
-            const reactionsSnapshot = await getDocs(reactionsRef);
-            const reactions = {};
-            
-            reactionsSnapshot.docs.forEach(reactionDoc => {
-              const reactionData = reactionDoc.data();
-              reactions[reactionData.userId] = reactionData.type;
-            });
-            
-            // Get user's reaction for this post
-            userReaction = reactions[currentUser.uid] || null;
-            
-            // Count reactions by type
-            Object.values(reactions).forEach(type => {
-              reactionCounts[type] = (reactionCounts[type] || 0) + 1;
-            });
-            
-            totalReactions = Object.values(reactions).length;
-          } catch (error) {
-            console.log('No reactions found for post:', doc.id);
-            // Continue with default values
-          }
-          
-          return {
-            id: doc.id,
-            title: data.title,
-            author: data.authorName || 'Anonymous',
-            time: data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString() : 'Unknown time',
-            replies: data.replyCount || 0,
-            views: data.viewCount || 0,
-            preview: data.content ? data.content.substring(0, 100) + '...' : 'No content',
-            icon: data.category === 'career' ? 'C' : data.category === 'technical' ? 'T' : 'G',
-            content: data.content,
-            authorId: data.authorId,
-            category: data.category,
-            userReaction: userReaction,
-            reactionCounts: reactionCounts,
-            totalReactions: totalReactions
-          };
-        }));
-        
-        setThreads(forumPosts);
-        console.log('Fetched forum posts:', forumPosts.length);
-      } catch (error) {
-        console.error('Error fetching forum posts:', error);
-        setThreads([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    const urlParams = new URLSearchParams(location.search);
+    if (urlParams.get('createPost') === 'true') {
+      setShowCreatePostModal(true);
+      // Clean up the URL parameter
+      navigate('/forum', { replace: true });
+    }
+  }, [location.search, navigate]);
 
-    fetchForumPosts();
-  }, [currentUser, activeCategory]);
+  // Fetch threads when category changes
+  useEffect(() => {
+    if (activeCategory) {
+      fetchThreads();
+    }
+  }, [activeCategory, activeSort]);
+
+  // Fetch comments when thread is selected
+  useEffect(() => {
+    if (selectedThread) {
+      fetchComments(selectedThread.id);
+    }
+  }, [selectedThread]);
+
+  const fetchThreads = async () => {
+    setIsLoading(true);
+    try {
+      const threadsRef = collection(db, 'forum-threads');
+      
+      // Fetch all threads and do client-side filtering and sorting to avoid index requirements
+      const q = query(threadsRef);
+      const querySnapshot = await getDocs(q);
+      
+      let threadsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Filter by category
+      threadsData = threadsData.filter(thread => thread.category === activeCategory);
+
+      // Apply sorting
+      switch (activeSort) {
+        case 'Latest':
+          threadsData.sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+            return dateB - dateA;
+          });
+          break;
+        case 'Popular':
+          threadsData.sort((a, b) => (b.likes || 0) - (a.likes || 0));
+          break;
+        case 'Unanswered':
+          threadsData = threadsData.filter(thread => (thread.replyCount || 0) === 0);
+          threadsData.sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+            return dateB - dateA;
+          });
+          break;
+        default:
+          threadsData.sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+            return dateB - dateA;
+          });
+      }
+
+      setThreads(threadsData);
+    } catch (error) {
+      console.error('Error fetching threads:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchComments = async (threadId) => {
+    try {
+      const commentsRef = collection(db, 'forum-comments');
+      const q = query(commentsRef);
+      const querySnapshot = await getDocs(q);
+      const allComments = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Filter by threadId and sort by createdAt on client side
+      const commentsData = allComments
+        .filter(comment => comment.threadId === threadId)
+        .sort((a, b) => {
+          const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+          const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+          return aTime - bTime;
+        });
+      
+      setComments(commentsData);
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    }
+  };
 
   const handleCategoryChange = (categoryId) => {
     setActiveCategory(categoryId);
@@ -139,31 +168,17 @@ function Forum() {
     setSelectedThread(null);
   };
 
-  const handleThreadClick = async (thread) => {
-    setSelectedThread(thread);
-    setActiveView('detail');
-    // Fetch comments for this thread
-    await fetchComments(thread.id);
-  };
-
-  const handleBackToThreads = () => {
-    setActiveView('threads');
-    setSelectedThread(null);
-  };
-
   const handleSortChange = (sortBy) => {
     setActiveSort(sortBy);
-    // In a real app, this would sort the threads
-    console.log(`Sorting threads by: ${sortBy}`);
+  };
+
+  const handleThreadClick = (thread) => {
+    setSelectedThread(thread);
+    setActiveView('detail');
   };
 
   const handleCreateThread = () => {
     setShowCreateModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowCreateModal(false);
-    setCreateThreadData({ category: '', title: '', content: '' });
   };
 
   const handleCreateThreadInputChange = (e) => {
@@ -176,204 +191,109 @@ function Forum() {
 
   const handleCreateThreadSubmit = async (e) => {
     e.preventDefault();
-    
     if (!currentUser) {
       alert('Please log in to create a thread');
       return;
     }
-    
+
     try {
-      setIsLoading(true);
-      
-      // Get user data for author info
-      const userRef = doc(db, 'users', currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      const userData = userSnap.exists() ? userSnap.data() : {};
-      
-      const authorName = userData.firstName && userData.lastName 
-        ? `${userData.firstName} ${userData.lastName}`
-        : userData.displayName || currentUser.email?.split('@')[0] || 'Anonymous';
-      
-      // Create forum post in Firestore
-      const forumPost = {
-        title: createThreadData.title,
-        content: createThreadData.content,
-        category: createThreadData.category,
+      const threadData = {
+        ...createThreadData,
         authorId: currentUser.uid,
-        authorName: authorName,
-        authorRole: userData.role || 'student',
-        replyCount: 0,
-        viewCount: 0,
+        authorName: currentUser.displayName || `${currentUser.firstName} ${currentUser.lastName}` || 'Anonymous',
+        authorPhoto: currentUser.photoURL || currentUser.profilePictureBase64 || null,
         likes: 0,
+        replyCount: 0,
+        views: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
-      
-      await addDoc(collection(db, 'forum-posts'), forumPost);
-      
-    alert(`Thread "${createThreadData.title}" created successfully in ${createThreadData.category} category!`);
-    
-    // Reset form and close modal
-    setCreateThreadData({ category: '', title: '', content: '' });
-    setShowCreateModal(false);
-      
-      // Refresh the threads list
-      window.location.reload();
-      
+
+      await addDoc(collection(db, 'forum-threads'), threadData);
+      setCreateThreadData({ category: '', title: '', content: '' });
+      setShowCreateModal(false);
+      fetchThreads();
     } catch (error) {
       console.error('Error creating thread:', error);
-      alert('Failed to create thread. Please try again.');
-    } finally {
-      setIsLoading(false);
+      console.error('Error details:', error.message);
+      alert(`Failed to create thread: ${error.message}. Please try again.`);
     }
   };
 
-  const fetchComments = async (postId) => {
+  const handleCreatePostSubmit = async () => {
+    if (!currentUser) {
+      alert('Please log in to create a post');
+      return;
+    }
+
+    if (!createPostData.content.trim()) {
+      alert('Please enter some content for your post');
+      return;
+    }
+
     try {
-      const commentsRef = collection(db, 'comments');
-      const q = query(commentsRef, where('postId', '==', postId), orderBy('createdAt', 'asc'));
-      const querySnapshot = await getDocs(q);
-      
-      const commentsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      setComments(commentsData);
+      const postData = {
+        content: createPostData.content.trim(),
+        authorId: currentUser.uid,
+        authorName: currentUser.displayName || `${currentUser.firstName} ${currentUser.lastName}` || 'Anonymous',
+        authorPhoto: currentUser.photoURL || currentUser.profilePictureBase64 || null,
+        authorRole: currentUser.role || 'student',
+        category: 'general',
+        likes: 0,
+        replyCount: 0,
+        privacy: createPostData.privacy,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'forum-posts'), postData);
+      setCreatePostData({ content: '', privacy: 'public' });
+      setShowCreatePostModal(false);
+      fetchThreads(); // Refresh the forum
+      alert('Post created successfully!');
     } catch (error) {
-      console.error('Error fetching comments:', error);
+      console.error('Error creating post:', error);
+      alert('Failed to create post. Please try again.');
     }
   };
 
   const handleReplySubmit = async (e) => {
     e.preventDefault();
-    
-    if (!replyContent.trim() || !selectedThread) {
-      alert('Please enter a comment');
+    if (!currentUser || !selectedThread) {
+      alert('Please log in to reply');
       return;
     }
 
-    if (!currentUser) {
-      alert('Please log in to post comments');
-      return;
-    }
-
-    try {
-      console.log('Creating comment for post:', selectedThread.id);
-      console.log('Current user:', currentUser.uid);
-      
-      const comment = {
-        postId: selectedThread.id,
-        authorId: currentUser.uid,
-        authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
-        content: replyContent,
-        parentCommentId: null, // Top-level comment
-        createdAt: new Date()
-      };
-
-      console.log('Comment data:', comment);
-      
-      // Try creating in main comments collection first
-      const commentsRef = collection(db, 'comments');
-      console.log('Comments collection reference:', commentsRef);
-      
-      const docRef = await addDoc(commentsRef, comment);
-      console.log('Comment created with ID:', docRef.id);
-
-      // Create notification for post author
-      const notification = {
-        recipientId: selectedThread.authorId,
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
-        type: 'forum-comment',
-        title: '💬 New Comment',
-        message: `${currentUser.displayName || 'Someone'} commented on your post "${selectedThread.title}"`,
-        data: {
-          postId: selectedThread.id,
-          postTitle: selectedThread.title,
-          commentContent: replyContent
-        },
-        read: false,
-        createdAt: serverTimestamp()
-      };
-
-      await addDoc(collection(db, 'notifications'), notification);
-
-      alert('Comment posted successfully!');
-      setReplyContent('');
-      
-      // Refresh comments
-      await fetchComments(selectedThread.id);
-    } catch (error) {
-      console.error('Error posting comment:', error);
-      alert('Failed to post comment. Please try again.');
-    }
-  };
-
-  const handleReplyToComment = async (e) => {
-    e.preventDefault();
-    
-    if (!replyToCommentText.trim() || !showReplyToComment) {
+    if (!replyContent.trim()) {
       alert('Please enter a reply');
       return;
     }
 
-    if (!currentUser) {
-      alert('Please log in to post replies');
-      return;
-    }
-
     try {
-      console.log('Creating reply to comment:', showReplyToComment.id);
-      console.log('Current user:', currentUser.uid);
-      
-      const reply = {
-        postId: selectedThread.id,
+      const replyData = {
+        threadId: selectedThread.id,
+        content: replyContent.trim(),
         authorId: currentUser.uid,
-        authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
-        content: replyToCommentText,
-        parentCommentId: showReplyToComment.id,
-        createdAt: new Date()
-      };
-
-      console.log('Reply data:', reply);
-      
-      // Try creating in main comments collection first
-      const commentsRef = collection(db, 'comments');
-      console.log('Comments collection reference:', commentsRef);
-      
-      const docRef = await addDoc(commentsRef, reply);
-      console.log('Reply created with ID:', docRef.id);
-
-      // Create notification for comment author
-      const notification = {
-        recipientId: showReplyToComment.authorId,
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
-        type: 'comment-reply',
-        title: '💬 Reply to Your Comment',
-        message: `${currentUser.displayName || 'Someone'} replied to your comment`,
-        data: {
-          postId: selectedThread.id,
-          postTitle: selectedThread.title,
-          commentContent: replyToCommentText,
-          originalCommentId: showReplyToComment.id
-        },
-        read: false,
+        authorName: currentUser.displayName || `${currentUser.firstName} ${currentUser.lastName}` || 'Anonymous',
+        authorPhoto: currentUser.photoURL || currentUser.profilePictureBase64 || null,
         createdAt: serverTimestamp()
       };
 
-      await addDoc(collection(db, 'notifications'), notification);
+      await addDoc(collection(db, 'forum-comments'), replyData);
 
-      alert('Reply posted successfully!');
-      setReplyToCommentText('');
-      setShowReplyToComment(null);
-      
-      // Refresh comments
-      await fetchComments(selectedThread.id);
+      // Update thread reply count
+      const threadRef = doc(db, 'forum-threads', selectedThread.id);
+      await updateDoc(threadRef, {
+        replyCount: (selectedThread.replyCount || 0) + 1,
+        updatedAt: serverTimestamp()
+      });
+
+      setReplyContent('');
+      fetchComments(selectedThread.id);
+      fetchThreads(); // Refresh threads to update reply count
     } catch (error) {
-      console.error('Error posting reply:', error);
-      alert('Failed to post reply. Please try again.');
+      console.error('Error submitting reply:', error);
+      alert('Failed to submit reply. Please try again.');
     }
   };
 
@@ -385,15 +305,13 @@ function Forum() {
 
     try {
       const post = threads.find(p => p.id === postId);
-      if (!post) {
-        console.error('Post not found:', postId);
-        return;
-      }
+      if (!post) return;
 
-      console.log('Handling reaction:', { postId, reactionType, userId: currentUser.uid });
-
-      const reactionsRef = collection(db, 'forum-posts', postId, 'reactions');
-      const userReactionQuery = query(reactionsRef, where('userId', '==', currentUser.uid));
+      const reactionsRef = collection(db, `forum-threads/${postId}/reactions`);
+      const userReactionQuery = query(
+        reactionsRef,
+        where('userId', '==', currentUser.uid)
+      );
       const userReactionSnapshot = await getDocs(userReactionQuery);
 
       if (userReactionSnapshot.empty) {
@@ -497,50 +415,46 @@ function Forum() {
       if (!post) return;
 
       // Create a shared post
-      const sharedPost = {
+      const sharedPostData = {
         originalPostId: postId,
         originalAuthorId: post.authorId,
-        originalTitle: post.title,
-        originalContent: post.content,
+        originalAuthorName: post.authorName,
         sharedBy: currentUser.uid,
-        sharedByName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        sharedByName: currentUser.displayName || `${currentUser.firstName} ${currentUser.lastName}` || 'Anonymous',
+        content: `Shared: ${post.title}`,
         category: post.category,
         createdAt: serverTimestamp()
       };
 
-      await addDoc(collection(db, 'forum-posts'), sharedPost);
-
-      // Create notification for original author
-      const notification = {
-        recipientId: post.authorId,
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
-        type: 'forum-share',
-        title: '📤 Post Shared',
-        message: `${currentUser.displayName || 'Someone'} shared your post "${post.title}"`,
-        data: {
-          originalPostId: postId,
-          postTitle: post.title
-        },
-        read: false,
-        createdAt: serverTimestamp()
-      };
-
-      await addDoc(collection(db, 'notifications'), notification);
-
+      await addDoc(collection(db, 'forum-threads'), sharedPostData);
       alert('Post shared successfully!');
+      fetchThreads();
     } catch (error) {
       console.error('Error sharing post:', error);
       alert('Failed to share post. Please try again.');
     }
   };
 
-  const handleNotificationClick = () => {
-    alert('Notifications panel would open here');
-  };
+  const formatTime = (timestamp) => {
+    if (!timestamp) return '';
+    
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const now = new Date();
+      const diffInSeconds = (now - date) / 1000;
 
-  const handleUserProfileClick = () => {
-    alert('User profile menu would open here');
+      if (diffInSeconds < 60) {
+        return 'Just now';
+      } else if (diffInSeconds < 3600) {
+        return `${Math.floor(diffInSeconds / 60)}m`;
+      } else if (diffInSeconds < 86400) {
+        return `${Math.floor(diffInSeconds / 3600)}h`;
+      } else {
+        return `${Math.floor(diffInSeconds / 86400)}d`;
+      }
+    } catch (error) {
+      return '';
+    }
   };
 
   const currentCategory = categories.find(cat => cat.id === activeCategory);
@@ -568,9 +482,11 @@ function Forum() {
                 </div>
               ))}
             </div>
-            <button className="create-thread-btn" onClick={handleCreateThread}>
-              <i className="fas fa-plus"></i> Create New Thread
-            </button>
+            <div className="create-buttons">
+              <button className="create-unified-btn" onClick={() => setShowCreateChoiceModal(true)}>
+                <i className="fas fa-plus"></i> Create New Content
+              </button>
+            </div>
           </div>
 
           {/* Forum Content */}
@@ -600,112 +516,66 @@ function Forum() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Threads List */}
                   <div className="threads-list">
-                    {threads.map(thread => (
-                      <div
-                        key={thread.id}
-                        className="thread-item"
-                        onClick={() => handleThreadClick(thread)}
-                      >
-                        <div className="thread-icon">{thread.icon}</div>
-                        <div className="thread-content">
-                          <div className="thread-title">{thread.title}</div>
-                          <div className="thread-meta">
-                            <div className="thread-author">
-                              <i className="fas fa-user"></i>
-                              <span>{thread.author}</span>
-                            </div>
-                            <div className="thread-time">
-                              <i className="fas fa-clock"></i>
-                              <span>{thread.time}</span>
-                            </div>
-                            <div className="thread-stats">
-                              <div className="stat-item">
-                                <i className="fas fa-comment"></i>
-                                <span>{thread.replies}</span>
-                              </div>
-                              <div className="stat-item">
-                                <i className="fas fa-eye"></i>
-                                <span>{thread.views}</span>
-                              </div>
-                              {thread.totalReactions > 0 && (
-                                <div className="stat-item reactions">
-                                  <span className="reaction-summary">
-                                    {Object.entries(thread.reactionCounts).map(([type, count]) => {
-                                      const reaction = reactionTypes.find(r => r.type === type);
-                                      return reaction ? `${reaction.emoji}${count}` : '';
-                                    }).join(' ')}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="thread-preview">{thread.preview}</div>
-                        </div>
-                        <div className="thread-actions" onClick={(e) => e.stopPropagation()}>
-                          <div className="reaction-buttons">
-                            <button 
-                              className={`reaction-btn ${thread.userReaction === 'like' ? 'active' : ''}`}
-                              onClick={() => handleReaction(thread.id, 'like')}
-                              title="Like"
-                            >
-                              👍
-                            </button>
-                            <button 
-                              className={`reaction-btn ${thread.userReaction === 'love' ? 'active' : ''}`}
-                              onClick={() => handleReaction(thread.id, 'love')}
-                              title="Love"
-                            >
-                              ❤️
-                            </button>
-                            <button 
-                              className={`reaction-btn ${thread.userReaction === 'laugh' ? 'active' : ''}`}
-                              onClick={() => handleReaction(thread.id, 'laugh')}
-                              title="Haha"
-                            >
-                              😂
-                            </button>
-                            <button 
-                              className={`reaction-btn ${thread.userReaction === 'wow' ? 'active' : ''}`}
-                              onClick={() => handleReaction(thread.id, 'wow')}
-                              title="Wow"
-                            >
-                              😮
-                            </button>
-                            <button 
-                              className={`reaction-btn ${thread.userReaction === 'sad' ? 'active' : ''}`}
-                              onClick={() => handleReaction(thread.id, 'sad')}
-                              title="Sad"
-                            >
-                              😢
-                            </button>
-                            <button 
-                              className={`reaction-btn ${thread.userReaction === 'angry' ? 'active' : ''}`}
-                              onClick={() => handleReaction(thread.id, 'angry')}
-                              title="Angry"
-                            >
-                              😡
-                            </button>
-                          </div>
-                          <div className="action-buttons">
-                            <button 
-                              className="action-btn"
-                              onClick={() => handlePostAction(thread.id, 'comment')}
-                            >
-                              <i className="far fa-comment"></i>
-                              Comment
-                            </button>
-                            <button 
-                              className="action-btn"
-                              onClick={() => handlePostAction(thread.id, 'share')}
-                            >
-                              <i className="far fa-share"></i>
-                              Share
-                            </button>
-                          </div>
-                        </div>
+                    {isLoading ? (
+                      <div className="loading">
+                        <div className="spinner"></div>
+                        <p>Loading threads...</p>
                       </div>
-                    ))}
+                    ) : threads.length === 0 ? (
+                      <div className="no-threads">
+                        <i className="fas fa-comments"></i>
+                        <h3>No threads yet</h3>
+                        <p>Be the first to start a discussion in this category!</p>
+                        <button className="btn btn-primary" onClick={handleCreateThread}>
+                          Create First Thread
+                        </button>
+                      </div>
+                    ) : (
+                      threads.map(thread => (
+                        <div key={thread.id} className="thread-item" onClick={() => handleThreadClick(thread)}>
+                          <div className="thread-avatar">
+                            {thread.authorPhoto ? (
+                              <img src={thread.authorPhoto} alt="Profile" />
+                            ) : (
+                              <i className="fas fa-user"></i>
+                            )}
+                          </div>
+                          <div className="thread-content">
+                            <div className="thread-header">
+                              <h3 className="thread-title">{thread.title}</h3>
+                              <span className="thread-time">{formatTime(thread.createdAt)}</span>
+                            </div>
+                            <p className="thread-preview">{thread.content.substring(0, 150)}...</p>
+                            <div className="thread-meta">
+                              <span className="thread-author">by {thread.authorName}</span>
+                              <div className="thread-stats">
+                                <span className="thread-replies">
+                                  <i className="fas fa-comment"></i> {thread.replyCount || 0}
+                                </span>
+                                <span className="thread-views">
+                                  <i className="fas fa-eye"></i> {thread.views || 0}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="thread-actions">
+                            <button 
+                              className="action-btn like-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReaction(thread.id, 'like');
+                              }}
+                            >
+                              <i className="far fa-thumbs-up"></i>
+                              <span>{thread.likes || 0}</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -713,135 +583,98 @@ function Forum() {
 
             {/* Thread Detail View */}
             {activeView === 'detail' && selectedThread && (
-              <div className="thread-detail active">
-                {/* Thread Header */}
-                <div className="thread-header">
-                  <button className="back-btn" onClick={handleBackToThreads}>
+              <div className="thread-detail">
+                <div className="detail-header">
+                  <button className="back-btn" onClick={() => setActiveView('threads')}>
                     <i className="fas fa-arrow-left"></i> Back to Threads
                   </button>
-                  <h1 className="thread-detail-title">{selectedThread.title}</h1>
-                  <div className="thread-detail-meta">
-                    <div className="thread-author">
-                      <i className="fas fa-user"></i>
-                      <span>{selectedThread.author}</span>
-                    </div>
-                    <div className="thread-time">
-                      <i className="fas fa-clock"></i>
-                      <span>Posted {selectedThread.time}</span>
-                    </div>
-                    <div className="thread-stats">
-                      <div className="stat-item">
-                        <i className="fas fa-comment"></i>
-                        <span>{selectedThread.replies} replies</span>
-                      </div>
-                      <div className="stat-item">
-                        <i className="fas fa-eye"></i>
-                        <span>{selectedThread.views} views</span>
-                      </div>
-                    </div>
-                  </div>
+                  <h1 className="detail-title">{selectedThread.title}</h1>
                 </div>
 
-                {/* Comments Container */}
-                <div className="posts-container">
-                  <div className="posts-header">Comments ({comments.length})</div>
-                  <div className="posts-list">
-                    {comments.filter(comment => !comment.parentCommentId).map(comment => (
-                      <div key={comment.id} className="post-item">
-                        <div className="post-header">
-                          <div className="post-avatar">{comment.authorName ? comment.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}</div>
-                          <div className="post-info">
-                            <div className="post-author">{comment.authorName || 'Anonymous'}</div>
-                            <div className="post-time">{comment.createdAt ? new Date(comment.createdAt.toDate()).toLocaleString() : 'Unknown time'}</div>
-                          </div>
-                        </div>
-                        <div className="post-content">
-                          {comment.content}
-                        </div>
-                        <div className="post-actions">
-                          <div 
-                            className="post-action"
-                            onClick={() => setShowReplyToComment(comment)}
-                          >
-                            <i className="far fa-comment"></i>
-                            <span>Reply</span>
-                          </div>
-                        </div>
-                        
-                        {/* Nested Replies */}
-                        {comments.filter(reply => reply.parentCommentId === comment.id).map(reply => (
-                          <div key={reply.id} className="post-item nested-reply">
-                            <div className="post-header">
-                              <div className="post-avatar">{reply.authorName ? reply.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}</div>
-                              <div className="post-info">
-                                <div className="post-author">{reply.authorName || 'Anonymous'}</div>
-                                <div className="post-time">{reply.createdAt ? new Date(reply.createdAt.toDate()).toLocaleString() : 'Unknown time'}</div>
-                              </div>
-                            </div>
-                            <div className="post-content">
-                              {reply.content}
-                            </div>
-                          </div>
-                        ))}
-                        
-                        {/* Reply to Comment Form */}
-                        {showReplyToComment && showReplyToComment.id === comment.id && (
-                          <div className="reply-to-comment-form">
-                            <form onSubmit={handleReplyToComment}>
-                              <div className="form-group">
-                                <textarea
-                                  className="form-control"
-                                  value={replyToCommentText}
-                                  onChange={(e) => setReplyToCommentText(e.target.value)}
-                                  placeholder="Write a reply..."
-                                  rows="3"
-                                  required
-                                />
-                              </div>
-                              <div className="form-actions">
-                                <button type="submit" className="btn btn-primary btn-sm">Post Reply</button>
-                                <button 
-                                  type="button" 
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => {
-                                    setShowReplyToComment(null);
-                                    setReplyToCommentText('');
-                                  }}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </form>
-                          </div>
+                <div className="detail-content">
+                  <div className="thread-post">
+                    <div className="post-header">
+                      <div className="post-avatar">
+                        {selectedThread.authorPhoto ? (
+                          <img src={selectedThread.authorPhoto} alt="Profile" />
+                        ) : (
+                          <i className="fas fa-user"></i>
                         )}
                       </div>
-                    ))}
-                    
-                    {comments.length === 0 && (
-                      <div className="empty-state">
-                        <p>No comments yet. Be the first to comment!</p>
+                      <div className="post-info">
+                        <h3 className="post-author">{selectedThread.authorName}</h3>
+                        <span className="post-time">{formatTime(selectedThread.createdAt)}</span>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Comment Form */}
-                <div className="reply-form">
-                  <h3 className="form-label">Post a Comment</h3>
-                  <form onSubmit={handleReplySubmit}>
-                    <div className="form-group">
-                      <textarea
-                        className="form-control"
-                        id="reply-content"
-                        name="replyContent"
-                        placeholder="Write your reply..."
-                        value={replyContent}
-                        onChange={(e) => setReplyContent(e.target.value)}
-                        required
-                      ></textarea>
                     </div>
-                    <button type="submit" className="btn btn-primary">Post Comment</button>
-                  </form>
+                    <div className="post-content">
+                      <p>{selectedThread.content}</p>
+                    </div>
+                    <div className="post-actions">
+                      <button 
+                        className="action-btn like-btn"
+                        onClick={() => handleReaction(selectedThread.id, 'like')}
+                      >
+                        <i className="far fa-thumbs-up"></i>
+                        <span>{selectedThread.likes || 0}</span>
+                      </button>
+                      <button 
+                        className="action-btn comment-btn"
+                        onClick={() => handlePostAction(selectedThread.id, 'comment')}
+                      >
+                        <i className="far fa-comment"></i>
+                        <span>Comment</span>
+                      </button>
+                      <button 
+                        className="action-btn share-btn"
+                        onClick={() => handlePostAction(selectedThread.id, 'share')}
+                      >
+                        <i className="fas fa-share"></i>
+                        <span>Share</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Comments Section */}
+                  <div className="comments-section">
+                    <h3 className="comments-title">Comments ({selectedThread.replyCount || 0})</h3>
+                    
+                    {/* Comment Form */}
+                    <form className="reply-form" onSubmit={handleReplySubmit}>
+                      <div className="reply-input">
+                        <textarea
+                          id="reply-content"
+                          name="content"
+                          value={replyContent}
+                          onChange={(e) => setReplyContent(e.target.value)}
+                          placeholder="Write a comment..."
+                          required
+                        ></textarea>
+                      </div>
+                      <button type="submit" className="btn btn-primary">Post Comment</button>
+                    </form>
+
+                    {/* Comments List */}
+                    <div className="comments-list">
+                      {comments.map(comment => (
+                        <div key={comment.id} className="comment-item">
+                          <div className="comment-avatar">
+                            {comment.authorPhoto ? (
+                              <img src={comment.authorPhoto} alt="Profile" />
+                            ) : (
+                              <i className="fas fa-user"></i>
+                            )}
+                          </div>
+                          <div className="comment-content">
+                            <div className="comment-header">
+                              <h4 className="comment-author">{comment.authorName}</h4>
+                              <span className="comment-time">{formatTime(comment.createdAt)}</span>
+                            </div>
+                            <p className="comment-text">{comment.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -851,20 +684,19 @@ function Forum() {
 
       {/* Create Thread Modal */}
       {showCreateModal && (
-        <div className="modal show">
-          <div className="modal-content">
+        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Create New Thread</h2>
-              <div className="modal-close" onClick={handleCloseModal}>
+              <h2>Create New Thread</h2>
+              <button className="close-btn" onClick={() => setShowCreateModal(false)}>
                 <i className="fas fa-times"></i>
-              </div>
+              </button>
             </div>
             <form onSubmit={handleCreateThreadSubmit}>
               <div className="form-group">
-                <label className="form-label" htmlFor="thread-category">Category</label>
+                <label htmlFor="category">Category</label>
                 <select
-                  className="form-control"
-                  id="thread-category"
+                  id="category"
                   name="category"
                   value={createThreadData.category}
                   onChange={handleCreateThreadInputChange}
@@ -879,23 +711,21 @@ function Forum() {
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label" htmlFor="thread-title">Title</label>
+                <label htmlFor="title">Title</label>
                 <input
                   type="text"
-                  className="form-control"
-                  id="thread-title"
+                  id="title"
                   name="title"
                   value={createThreadData.title}
                   onChange={handleCreateThreadInputChange}
-                  placeholder="Enter a title for your thread"
+                  placeholder="Enter thread title..."
                   required
                 />
               </div>
               <div className="form-group">
-                <label className="form-label" htmlFor="thread-content">Content</label>
+                <label htmlFor="content">Content</label>
                 <textarea
-                  className="form-control"
-                  id="thread-content"
+                  id="content"
                   name="content"
                   value={createThreadData.content}
                   onChange={handleCreateThreadInputChange}
@@ -905,6 +735,158 @@ function Forum() {
               </div>
               <button type="submit" className="btn btn-primary">Create Thread</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Post Modal */}
+      {showCreatePostModal && (
+        <div className="modal-overlay" onClick={() => setShowCreatePostModal(false)}>
+          <div className="create-post-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="create-post-header">
+              <h2>Create post</h2>
+              <button className="close-btn" onClick={() => setShowCreatePostModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="create-post-user-info">
+              <div className="create-post-avatar">
+                {currentUser?.photoURL ? (
+                  <img 
+                    src={currentUser.photoURL} 
+                    alt="Profile" 
+                    className="create-post-profile-image"
+                  />
+                ) : currentUser?.profilePictureBase64 ? (
+                  <img 
+                    src={currentUser.profilePictureBase64} 
+                    alt="Profile" 
+                    className="create-post-profile-image"
+                  />
+                ) : (
+                  <div className="create-post-profile-initial">
+                    {currentUser?.displayName?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
+                  </div>
+                )}
+              </div>
+              <div className="create-post-user-details">
+                <div className="create-post-user-name">
+                  {currentUser?.displayName || currentUser?.email?.split('@')[0] || 'User'}
+                </div>
+                <button className="privacy-selector">
+                  <i className="fas fa-globe"></i>
+                  <span>Public</span>
+                  <i className="fas fa-chevron-down"></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="create-post-content">
+              <textarea
+                className="create-post-textarea"
+                placeholder="What's on your mind?"
+                value={createPostData.content}
+                onChange={(e) => setCreatePostData({...createPostData, content: e.target.value})}
+                rows="4"
+              />
+              <div className="text-formatting">
+                <button className="format-btn">
+                  <i className="fas fa-bold">A</i>
+                </button>
+                <button className="format-btn">
+                  <i className="fas fa-smile"></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="add-to-post">
+              <span className="add-to-post-label">Add to your post</span>
+              <div className="add-options">
+                <button className="add-option-btn">
+                  <i className="fas fa-images"></i>
+                </button>
+                <button className="add-option-btn">
+                  <i className="fas fa-user-tag"></i>
+                </button>
+                <button className="add-option-btn">
+                  <i className="fas fa-smile"></i>
+                </button>
+                <button className="add-option-btn">
+                  <i className="fas fa-map-marker-alt"></i>
+                </button>
+                <button className="add-option-btn">
+                  <i className="fas fa-poll"></i>
+                </button>
+                <button className="add-option-btn">
+                  <i className="fas fa-ellipsis-h"></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="create-post-actions">
+              <button 
+                className="post-btn"
+                onClick={handleCreatePostSubmit}
+                disabled={!createPostData.content.trim()}
+              >
+                Post
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Choice Modal */}
+      {showCreateChoiceModal && (
+        <div className="modal-overlay" onClick={() => setShowCreateChoiceModal(false)}>
+          <div className="create-choice-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="create-choice-header">
+              <h2>What would you like to create?</h2>
+              <button className="close-btn" onClick={() => setShowCreateChoiceModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            
+            <div className="create-choice-options">
+              <div 
+                className="choice-option"
+                onClick={() => {
+                  setShowCreateChoiceModal(false);
+                  setShowCreateModal(true);
+                }}
+              >
+                <div className="choice-icon">
+                  <i className="fas fa-comments"></i>
+                </div>
+                <div className="choice-content">
+                  <h3>Create Thread</h3>
+                  <p>Start a discussion with a specific topic and category</p>
+                </div>
+                <div className="choice-arrow">
+                  <i className="fas fa-chevron-right"></i>
+                </div>
+              </div>
+              
+              <div 
+                className="choice-option"
+                onClick={() => {
+                  setShowCreateChoiceModal(false);
+                  setShowCreatePostModal(true);
+                }}
+              >
+                <div className="choice-icon">
+                  <i className="fas fa-edit"></i>
+                </div>
+                <div className="choice-content">
+                  <h3>Create Post</h3>
+                  <p>Share a quick update or thought with the community</p>
+                </div>
+                <div className="choice-arrow">
+                  <i className="fas fa-chevron-right"></i>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

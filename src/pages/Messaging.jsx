@@ -1130,7 +1130,7 @@ function Messaging() {
                    placeholder="Search conversations..."
                    value={searchQuery}
                    onChange={(e) => setSearchQuery(e.target.value)}
-                   autocomplete="off"
+                   autoComplete="off"
                    aria-label="Search conversations"
                  />
                </div>
@@ -1436,7 +1436,6 @@ function Messaging() {
                    value={messageInput}
                    onChange={handleInputChange}
                    onKeyDown={handleKeyDown}
-                   autocomplete="off"
                    aria-label="Type your message"
                  />
                                  <button 
@@ -1562,7 +1561,6 @@ function Messaging() {
                  className="file-input"
                  accept="image/*,.pdf,.doc,.docx,.txt,.zip,.rar"
                  onChange={handleFileInputChange}
-                 autoComplete="off"
                  aria-label="Upload files"
                />
              </div>

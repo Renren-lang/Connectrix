@@ -1,531 +1,1121 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-import { useAuth } from '../contexts/AuthContext';
+import { db, auth, storage } from '../firebase';
+import { doc, getDoc, updateDoc, collection, addDoc, query, where, orderBy, limit, getDocs, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import './Profile.css';
 
-function Profile() {
+const Profile = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const { currentUser, userRole } = useAuth();
-  
-  const [activeTab, setActiveTab] = useState('about');
-  const [isConnected, setIsConnected] = useState(false);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isOwnProfile, setIsOwnProfile] = useState(false);
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      date: 'October 15, 2023',
-      type: 'advice',
-      content: 'For students interested in machine learning: Focus on building a strong foundation in mathematics and statistics first. Then, learn Python and libraries like TensorFlow or PyTorch. Most importantly, work on real projects - that\'s where you\'ll truly learn and build a portfolio that stands out.',
-      likes: 42,
-      comments: 8,
-      isLiked: false
-    },
-    {
-      id: 2,
-      date: 'September 28, 2023',
-      type: 'update',
-      content: 'Excited to share that I\'ll be speaking at the upcoming Tech Leaders Conference next month! I\'ll be discussing the future of AI infrastructure and how it\'s shaping the tech industry. Looking forward to connecting with fellow alumni and students there.',
-      likes: 35,
-      comments: 12,
-      isLiked: false
-    },
-    {
-      id: 3,
-      date: 'August 10, 2023',
-      type: 'memory',
-      content: 'Throwback to my college days! Found this photo from the 2015 hackathon where my team built our first AI project. It\'s amazing to see how far we\'ve come. To all current students: cherish these moments, they\'re the foundation of your future career!',
-      likes: 58,
-      comments: 15,
-      isLiked: false
-    }
-  ]);
+  const [posts, setPosts] = useState([]);
+  const [newPost, setNewPost] = useState('');
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [showImageUploadModal, setShowImageUploadModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [imageUploadType, setImageUploadType] = useState('profilePictures');
+  const [editingName, setEditingName] = useState(false);
+  const [displayName, setDisplayName] = useState('');
+  const [activeTab, setActiveTab] = useState('about');
+  const [editingBio, setEditingBio] = useState(false);
+  const [bioText, setBioText] = useState('');
+  const [editingAbout, setEditingAbout] = useState(false);
+  const [aboutData, setAboutData] = useState({
+    jobTitle: '',
+    company: '',
+    location: '',
+    bio: ''
+  });
+  const [editingPost, setEditingPost] = useState(null);
+  const [editPostContent, setEditPostContent] = useState('');
+  const [showComments, setShowComments] = useState({});
+  const [newComment, setNewComment] = useState('');
+  const [commentingPost, setCommentingPost] = useState(null);
+  const [postImage, setPostImage] = useState(null);
+  const [postImagePreview, setPostImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
+  const postImageRef = useRef(null);
 
-  const [gallery] = useState([
-    {
-      id: 1,
-      image: 'https://picsum.photos/seed/tech-conference/400/400.jpg',
-      title: 'Tech Leaders Conference',
-      date: 'October 2023'
-    },
-    {
-      id: 2,
-      image: 'https://picsum.photos/seed/office-team/400/400.jpg',
-      title: 'Google Team Outing',
-      date: 'September 2023'
-    },
-    {
-      id: 3,
-      image: 'https://picsum.photos/seed/university-campus/400/400.jpg',
-      title: 'Alumni Visit',
-      date: 'June 2023'
-    },
-    {
-      id: 4,
-      image: 'https://picsum.photos/seed/mentoring-session/400/400.jpg',
-      title: 'Mentoring Session',
-      date: 'May 2023'
-    },
-    {
-      id: 5,
-      image: 'https://picsum.photos/seed/graduation-ceremony/400/400.jpg',
-      title: 'Graduation Day',
-      date: '2015'
-    },
-    {
-      id: 6,
-      image: 'https://picsum.photos/seed/hackathon-team/400/400.jpg',
-      title: 'Hackathon Winners',
-      date: '2014'
-    }
-  ]);
-
-  // Fetch user data when component mounts or userId changes
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        setLoading(true);
-        
-        // If no userId in URL, show current user's profile
-        const targetUserId = userId || currentUser?.uid;
-        
-        if (!targetUserId) {
-          navigate('/login');
-          return;
-        }
-        
-        // Check if viewing own profile
-        setIsOwnProfile(targetUserId === currentUser?.uid);
-        
-        // Fetch user data from Firestore
-        const userRef = doc(db, 'users', targetUserId);
-        const userSnap = await getDoc(userRef);
-        
-        if (userSnap.exists()) {
-          setUserData(userSnap.data());
+    fetchUserData();
+    fetchPosts();
+    
+    // Set up real-time listener for posts
+      const postsQuery = query(
+        collection(db, 'posts'),
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+    
+    const unsubscribe = onSnapshot(postsQuery, (querySnapshot) => {
+      const postsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setPosts(postsData);
+    }, (error) => {
+      console.error('Error listening to posts:', error);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  const fetchUserData = async () => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setUserData(data);
+        setBioText(data.bio || '');
+        setDisplayName(data.displayName || data.name || '');
+        setAboutData({
+          jobTitle: data.jobTitle || '',
+          company: data.company || '',
+          location: data.location || '',
+          bio: data.bio || ''
+        });
         } else {
-          // User not found, redirect to appropriate dashboard based on user role
-          if (userRole === 'student') {
-            navigate('/student-dashboard');
-          } else {
-            navigate('/alumni-dashboard');
-          }
+        setUserData(null);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
-        // Redirect to appropriate dashboard based on user role
-        if (userRole === 'student') {
-          navigate('/student-dashboard');
-        } else {
-          navigate('/alumni-dashboard');
-        }
+      setUserData(null);
       } finally {
         setLoading(false);
       }
     };
     
-    if (currentUser) {
-      fetchUserData();
+  const fetchPosts = async () => {
+    try {
+      const postsQuery = query(
+        collection(db, 'posts'),
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc')
+      );
+      const querySnapshot = await getDocs(postsQuery);
+      const postsData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setPosts(postsData);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+      setPosts([]);
     }
-  }, [userId, currentUser, navigate]);
+  };
 
-  // Loading and error states
+  const saveAboutInfo = async () => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        jobTitle: aboutData.jobTitle,
+        company: aboutData.company,
+        location: aboutData.location,
+        bio: aboutData.bio
+      });
+      setEditingAbout(false);
+      // Refresh user data
+      fetchUserData();
+    } catch (error) {
+      console.error('Error saving about info:', error);
+    }
+  };
+
+  const saveDisplayName = async () => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        displayName: displayName
+      });
+      setEditingName(false);
+      // Refresh user data
+      fetchUserData();
+    } catch (error) {
+      console.error('Error saving display name:', error);
+    }
+  };
+
+  const handleImageUpload = async (file, type) => {
+    if (!file) return;
+    
+    // Check file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const imageRef = ref(storage, `${type}/${userId}/${Date.now()}_${file.name}`);
+      await uploadBytes(imageRef, file);
+      const downloadURL = await getDownloadURL(imageRef);
+      
+      await updateDoc(doc(db, 'users', userId), {
+        [type === 'profilePictures' ? 'profilePicture' : 'coverPhoto']: downloadURL
+      });
+      
+      setUserData(prev => ({
+        ...prev,
+        [type === 'profilePictures' ? 'profilePicture' : 'coverPhoto']: downloadURL
+      }));
+      
+      setShowImageUploadModal(false);
+      alert('Image uploaded successfully!');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      if (error.code === 'storage/retry-limit-exceeded') {
+        alert('Upload failed. Please try again with a smaller file or check your internet connection.');
+      } else {
+        alert('Error uploading image. Please try again.');
+      }
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleCreatePost = async () => {
+    if (!newPost.trim() && !postImage) return;
+    
+    try {
+      let imageUrl = null;
+      
+      // Upload image if present
+      if (postImage) {
+        const imageRef = ref(storage, `postImages/${userId}/${Date.now()}_${postImage.name}`);
+        await uploadBytes(imageRef, postImage);
+        imageUrl = await getDownloadURL(imageRef);
+      }
+      
+      await addDoc(collection(db, 'posts'), {
+        content: newPost,
+        imageUrl: imageUrl,
+        userId: userId,
+        authorName: userData?.displayName || userData?.name || 'Unknown User',
+        authorEmail: userData?.email || '',
+        createdAt: new Date(),
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        likedBy: [],
+        commentsList: []
+      });
+      
+      setNewPost('');
+      setPostImage(null);
+      setPostImagePreview(null);
+      setShowCreatePost(false);
+      fetchPosts();
+    } catch (error) {
+      console.error('Error creating post:', error);
+    }
+  };
+
+  const handleUpdateBio = async () => {
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        bio: bioText
+      });
+      setUserData(prev => ({ ...prev, bio: bioText }));
+      setEditingBio(false);
+    } catch (error) {
+      console.error('Error updating bio:', error);
+    }
+  };
+
+  const handleDeletePost = async (postId) => {
+    if (window.confirm('Are you sure you want to delete this post?')) {
+      try {
+        await deleteDoc(doc(db, 'posts', postId));
+        fetchPosts();
+      } catch (error) {
+        console.error('Error deleting post:', error);
+      }
+    }
+  };
+
+  const handleEditPost = (post) => {
+    setEditingPost(post.id);
+    setEditPostContent(post.content);
+  };
+
+  const handleUpdatePost = async () => {
+    if (!editPostContent.trim()) return;
+    
+    try {
+      await updateDoc(doc(db, 'posts', editingPost), {
+        content: editPostContent
+      });
+      setEditingPost(null);
+      setEditPostContent('');
+      fetchPosts();
+    } catch (error) {
+      console.error('Error updating post:', error);
+    }
+  };
+
+  const handleLikePost = async (postId, currentLikes, likedBy) => {
+    try {
+      const isLiked = likedBy.includes(userId);
+      const newLikedBy = isLiked 
+        ? likedBy.filter(id => id !== userId)
+        : [...likedBy, userId];
+      
+      await updateDoc(doc(db, 'posts', postId), {
+        likes: isLiked ? currentLikes - 1 : currentLikes + 1,
+        likedBy: newLikedBy
+      });
+      fetchPosts();
+    } catch (error) {
+      console.error('Error liking post:', error);
+    }
+  };
+
+  const handleAddComment = async (postId) => {
+    if (!newComment.trim()) return;
+    
+    try {
+      const postRef = doc(db, 'posts', postId);
+      const postDoc = await getDoc(postRef);
+      const currentComments = postDoc.data().commentsList || [];
+      
+      const newCommentData = {
+        id: Date.now().toString(),
+        content: newComment,
+        authorName: userData?.displayName || userData?.name || 'Unknown User',
+        authorId: userId,
+        createdAt: new Date()
+      };
+      
+      await updateDoc(postRef, {
+        comments: currentComments.length + 1,
+        commentsList: [...currentComments, newCommentData]
+      });
+      
+      setNewComment('');
+      setCommentingPost(null);
+      fetchPosts();
+    } catch (error) {
+      console.error('Error adding comment:', error);
+    }
+  };
+
+  const handleSharePost = async (post) => {
+    try {
+      await addDoc(collection(db, 'posts'), {
+        content: `Shared: ${post.content}`,
+        originalPostId: post.id,
+        imageUrl: post.imageUrl,
+        userId: userId,
+        authorName: userData?.displayName || userData?.name || 'Unknown User',
+        authorEmail: userData?.email || '',
+        createdAt: new Date(),
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        likedBy: [],
+        commentsList: []
+      });
+      
+      // Update original post share count
+      await updateDoc(doc(db, 'posts', post.id), {
+        shares: post.shares + 1
+      });
+      
+      fetchPosts();
+    } catch (error) {
+      console.error('Error sharing post:', error);
+    }
+  };
+
+  const handlePostImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPostImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => setPostImagePreview(e.target.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="profile-page">
-        <div className="loading">Loading profile...</div>
+      <div className="facebook-profile-page">
+        <div style={{ textAlign: 'center', padding: '50px' }}>
+          <div className="spinner"></div>
+          <p>Loading profile...</p>
+        </div>
       </div>
     );
   }
 
   if (!userData) {
     return (
-      <div className="profile-page">
-        <div className="error">
-          <h2>Profile not found</h2>
-          <p>The requested profile could not be loaded. This might be because:</p>
-          <ul>
-            <li>The user doesn't exist in our database</li>
-            <li>There was a connection error</li>
-            <li>The profile is private or restricted</li>
-          </ul>
-          <button onClick={() => navigate(-1)} className="btn btn-primary">
-            Go Back
-          </button>
+      <div className="facebook-profile-page">
+        <div style={{ textAlign: 'center', padding: '50px' }}>
+          <p>User not found</p>
         </div>
       </div>
     );
   }
 
-  const handleTabChange = (tabId) => {
-    setActiveTab(tabId);
-  };
-
-  const handleConnect = () => {
-    if (!isConnected) {
-      setIsConnected(true);
-      alert('Connection request sent!');
-    } else {
-      // Navigate to messaging with user info
-      navigate('/messaging', {
-        state: {
-          startChatWith: {
-            id: userId,
-            name: `${userData.firstName} ${userData.lastName}`,
-            role: userData.role
-          }
-        }
-      });
-    }
-  };
-
-  const handlePostAction = (postId, actionType) => {
-    if (actionType === 'like') {
-      setPosts(prev => prev.map(post => {
-        if (post.id === postId) {
-          return {
-            ...post,
-            isLiked: !post.isLiked,
-            likes: post.isLiked ? post.likes - 1 : post.likes + 1
-          };
-        }
-        return post;
-      }));
-    } else {
-      alert(`${actionType.charAt(0).toUpperCase() + actionType.slice(1)} functionality would be implemented here`);
-    }
-  };
-
-  const handleGalleryClick = (title) => {
-    alert(`Opening full view of: ${title}`);
-  };
-
-  const handleNotificationClick = () => {
-    alert('Notifications panel would open here');
-  };
-
-  const handleUserProfileClick = () => {
-    alert('User profile menu would open here');
-  };
-
-  const getPostTypeClass = (type) => {
-    switch (type) {
-      case 'update':
-        return 'type-update';
-      case 'advice':
-        return 'type-advice';
-      case 'memory':
-        return 'type-memory';
-      default:
-        return '';
-    }
-  };
-
   return (
-    <>
-
-
-      {/* Profile Header */}
-      <div className="profile-header">
-        <div className="dashboard-container">
-          <div className="profile-picture">
-            {userData.profilePictureUrl || userData.profilePictureBase64 ? (
-              <img src={userData.profilePictureUrl || userData.profilePictureBase64} alt="Profile" />
-            ) : (
-              userData.firstName && userData.lastName 
-                ? `${userData.firstName[0]}${userData.lastName[0]}`
-                : 'U'
-            )}
+    <div className="facebook-profile-page">
+      {/* Cover Photo Section */}
+      <div className="cover-photo-section">
+        <div className="cover-photo">
+          {userData.coverPhoto ? (
+            <img src={userData.coverPhoto} alt="Cover" className="cover-photo-image" />
+          ) : (
+            <div className="cover-photo-placeholder">
+              <i className="fas fa-camera"></i>
+              <span>Add Cover Photo</span>
+            </div>
+          )}
+          <button 
+            className="edit-cover-btn"
+            onClick={() => {
+              setShowImageUploadModal(true);
+              setImageUploadType('coverPhotos');
+            }}
+          >
+            <i className="fas fa-camera"></i>
+            Edit cover photo
+          </button>
+        </div>
+      </div>
+        
+      {/* Profile Info Section */}
+      <div className="profile-info-section">
+        <div className="profile-info-container">
+          <div className="profile-picture-container">
+            <div className="profile-picture-large">
+              {userData.profilePicture ? (
+                <img src={userData.profilePicture} alt="Profile" />
+              ) : (
+                <div className="profile-picture-placeholder">
+                  {(userData.displayName || userData.name || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
+              {isUploading && (
+                <div className="uploading-spinner">
+                  <div className="spinner"></div>
+                  <span>Uploading...</span>
+            </div>
+              )}
+            <button 
+              className="edit-profile-picture-btn"
+                onClick={() => {
+                  setShowImageUploadModal(true);
+                  setImageUploadType('profilePictures');
+                }}
+            >
+              <i className="fas fa-camera"></i>
+            </button>
+            </div>
           </div>
-          <h1 className="profile-name">{userData.firstName} {userData.lastName}</h1>
-          <div className="profile-meta">
-            <div className="profile-meta-item">
-              <i className="fas fa-calendar-alt"></i>
-              <span>Batch of {userData.batch || 'N/A'}</span>
-            </div>
-            <div className="profile-meta-item">
-              <i className="fas fa-graduation-cap"></i>
-              <span>{userData.course || 'Course not specified'}</span>
-            </div>
-            <div className="profile-meta-item">
-              <i className="fas fa-briefcase"></i>
-              <span>{userData.role === 'alumni' ? 'Alumni' : 'Student'}</span>
-            </div>
-          </div>
-          <div className="profile-actions">
-            {!isOwnProfile ? (
-              <>
-                <button className="btn btn-primary" onClick={handleConnect}>
-                  {isConnected ? 'Connected' : 'Connect'}
-                </button>
-                {isConnected && (
+          
+          <div className="profile-details">
+            {editingName ? (
+              <div className="name-edit-container">
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="name-input"
+                  placeholder="Enter your name"
+                />
+                <div className="name-edit-buttons">
                   <button 
-                    className="btn btn-outline"
-                    onClick={() => navigate('/messaging', {
-                      state: {
-                        startChatWith: {
-                          id: userId,
-                          name: `${userData.firstName} ${userData.lastName}`,
-                          role: userData.role
-                        }
-                      }
-                    })}
+                    className="btn btn-primary btn-sm"
+                    onClick={saveDisplayName}
                   >
-                    Message
+                    Save
+                  </button>
+                  <button 
+                    className="btn btn-outline btn-sm"
+                    onClick={() => {
+                      setEditingName(false);
+                      setDisplayName(userData.displayName || userData.name || '');
+                    }}
+                  >
+                    Cancel
+                  </button>
+            </div>
+              </div>
+            ) : (
+              <div className="name-display-container">
+                <h1 className="profile-name">{userData.displayName || userData.name || 'Unknown User'}</h1>
+                <button 
+                  className="edit-name-btn"
+                  onClick={() => setEditingName(true)}
+                >
+              <i className="fas fa-edit"></i>
+                </button>
+              </div>
+            )}
+            <p className="profile-subtitle">{userData.role || 'Student'} • {userData.course || 'Information Technology'}</p>
+            
+            <div className="profile-stats">
+              <div className="stat">
+                <div className="stat-number">0</div>
+                <div className="stat-label">connections</div>
+              </div>
+              <div className="stat">
+                <div className="stat-number">{posts.length}</div>
+                <div className="stat-label">posts</div>
+              </div>
+            </div>
+
+            <div className="profile-actions">
+              <button className="btn btn-primary">
+                <i className="fas fa-user-plus"></i>
+              Edit Profile
+            </button>
+              <button className="btn btn-outline">
+                <i className="fas fa-ellipsis-h"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="profile-tabs">
+        <div className="tabs-container">
+          <button 
+            className={`tab ${activeTab === 'posts' ? 'active' : ''}`}
+            onClick={() => setActiveTab('posts')}
+          >
+            Posts
+          </button>
+          <button 
+            className={`tab ${activeTab === 'about' ? 'active' : ''}`}
+            onClick={() => setActiveTab('about')}
+          >
+            About
+          </button>
+          <button 
+            className={`tab ${activeTab === 'skills' ? 'active' : ''}`}
+            onClick={() => setActiveTab('skills')}
+          >
+            Skills
+          </button>
+          <button 
+            className={`tab ${activeTab === 'photos' ? 'active' : ''}`}
+            onClick={() => setActiveTab('photos')}
+          >
+            Photos
+          </button>
+          <button 
+            className={`tab ${activeTab === 'videos' ? 'active' : ''}`}
+            onClick={() => setActiveTab('videos')}
+          >
+            Videos
+          </button>
+          <button className="tab">
+            More <i className="fas fa-chevron-down"></i>
+          </button>
+        </div>
+        <div className="tab-actions">
+          <button className="tab-action-btn">
+            <i className="fas fa-ellipsis-h"></i>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="profile-main-content">
+        <div className="content-container">
+          {/* Left Content - About Section */}
+          <div className="left-content">
+            <div className="about-card">
+              <div className="about-header">
+                <h3 className="about-title">About</h3>
+                {userData?.role === 'Mentor' && (
+                  <button 
+                    className="edit-about-btn"
+                    onClick={() => setEditingAbout(!editingAbout)}
+                  >
+                    <i className="fas fa-edit"></i>
+                    {editingAbout ? 'Cancel' : 'Edit'}
                   </button>
                 )}
-                <button className="btn btn-outline">Share Profile</button>
-              </>
-            ) : (
-              <button 
-                className="btn btn-primary" 
-                onClick={() => navigate('/notification-settings')}
-              >
-                Edit Profile
-              </button>
-            )}
-          </div>
-          
-          
-        </div>
-      </div>
-
-      {/* Profile Content */}
-      <div className="container">
-        <div className="profile-content">
-          {/* Tabs */}
-          <div className="tabs">
-            <div 
-              className={`tab ${activeTab === 'about' ? 'active' : ''}`}
-              onClick={() => handleTabChange('about')}
-            >
-              About
-            </div>
-            <div 
-              className={`tab ${activeTab === 'skills' ? 'active' : ''}`}
-              onClick={() => handleTabChange('skills')}
-            >
-              Skills / Interests
-            </div>
-            <div 
-              className={`tab ${activeTab === 'posts' ? 'active' : ''}`}
-              onClick={() => handleTabChange('posts')}
-            >
-              Posts
-            </div>
-            <div 
-              className={`tab ${activeTab === 'gallery' ? 'active' : ''}`}
-              onClick={() => handleTabChange('gallery')}
-            >
-              Gallery
-            </div>
-          </div>
-
-          {/* About Tab */}
-          {activeTab === 'about' && (
-            <div className="tab-content active" id="about-tab">
-              <div className="section">
-                <h2 className="section-title">
+              </div>
+              <div className="intro-content">
+                {/* Basic Information */}
+                <div className="intro-item">
                   <i className="fas fa-user"></i>
-                  Bio
-                </h2>
-                <p className="bio">
-                  {userData.bio || 'No bio available yet.'}
-                </p>
-              </div>
+                  <div>
+                    <div className="intro-text">Name</div>
+                    <p className="intro-value">{userData?.displayName || userData?.name || 'Not provided'}</p>
+                  </div>
+                </div>
 
-              <div className="section">
-                <h2 className="section-title">
+                <div className="intro-item">
+                  <i className="fas fa-envelope"></i>
+                  <div>
+                    <div className="intro-text">Email</div>
+                    <p className="intro-value">{userData?.email || 'Not provided'}</p>
+                  </div>
+                </div>
+
+                <div className="intro-item">
                   <i className="fas fa-graduation-cap"></i>
-                  Education
-                </h2>
-                <div className="timeline">
-                  <div className="timeline-item">
-                    <div className="timeline-date">2011 - 2015</div>
-                    <div className="timeline-title">Bachelor of Science in Computer Science</div>
-                    <div className="timeline-subtitle">University of Technology</div>
-                    <div className="timeline-description">Graduated with honors, specializing in Artificial Intelligence and Machine Learning</div>
+                  <div>
+                    <div className="intro-text">Role</div>
+                    <p className="intro-value">{userData?.role || 'Not provided'}</p>
                   </div>
-                  <div className="timeline-item">
-                    <div className="timeline-date">2015 - 2017</div>
-                    <div className="timeline-title">Master of Science in Computer Science</div>
-                    <div className="timeline-subtitle">Stanford University</div>
-                    <div className="timeline-description">Focused on distributed systems and cloud computing</div>
+                </div>
+
+                {userData?.course && (
+                  <div className="intro-item">
+                    <i className="fas fa-book"></i>
+                    <div>
+                      <div className="intro-text">Course</div>
+                      <p className="intro-value">{userData.course}</p>
+                    </div>
+                  </div>
+                )}
+
+                {userData?.batch && (
+                  <div className="intro-item">
+                    <i className="fas fa-calendar"></i>
+                    <div>
+                      <div className="intro-text">Batch</div>
+                      <p className="intro-value">{userData.batch}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mentor-specific information */}
+                {userData?.role === 'Mentor' && (
+                  <>
+                    <div className="intro-item">
+                      <i className="fas fa-briefcase"></i>
+                      <div>
+                        <div className="intro-text">Job Title</div>
+                        {editingAbout ? (
+                          <input
+                            type="text"
+                            value={aboutData.jobTitle}
+                            onChange={(e) => setAboutData({...aboutData, jobTitle: e.target.value})}
+                            className="form-control"
+                            placeholder="Enter your job title"
+                          />
+                        ) : (
+                          <p className="intro-value">{aboutData.jobTitle || 'Not provided'}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="intro-item">
+                      <i className="fas fa-building"></i>
+                      <div>
+                        <div className="intro-text">Company</div>
+                        {editingAbout ? (
+                          <input
+                            type="text"
+                            value={aboutData.company}
+                            onChange={(e) => setAboutData({...aboutData, company: e.target.value})}
+                            className="form-control"
+                            placeholder="Enter your company"
+                          />
+                        ) : (
+                          <p className="intro-value">{aboutData.company || 'Not provided'}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="intro-item">
+                      <i className="fas fa-map-marker-alt"></i>
+                      <div>
+                        <div className="intro-text">Location</div>
+                        {editingAbout ? (
+                          <input
+                            type="text"
+                            value={aboutData.location}
+                            onChange={(e) => setAboutData({...aboutData, location: e.target.value})}
+                            className="form-control"
+                            placeholder="Enter your location"
+                          />
+                        ) : (
+                          <p className="intro-value">{aboutData.location || 'Not provided'}</p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Bio section */}
+                <div className="intro-item bio">
+                  <i className="fas fa-info-circle"></i>
+                  <div>
+                    <div className="intro-text">Bio</div>
+                    {editingAbout ? (
+                      <div>
+                        <textarea
+                          value={aboutData.bio}
+                          onChange={(e) => setAboutData({...aboutData, bio: e.target.value})}
+                          className="form-control"
+                          rows="3"
+                          placeholder="Tell us about yourself..."
+                        />
+                      </div>
+                    ) : (
+                      <p className="bio-text">
+                        {aboutData.bio || 'No bio provided'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Save button for mentors */}
+                {editingAbout && userData?.role === 'Mentor' && (
+                  <div className="btn-group">
+                    <button 
+                      className="btn btn-outline"
+                      onClick={() => setEditingAbout(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      className="btn btn-primary"
+                      onClick={saveAboutInfo}
+                    >
+                      Save Changes
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Content - Posts Section */}
+          <div className="right-content">
+            {/* What's on your mind Card */}
+            <div className="whats-on-mind-card">
+              <div className="post-creation-header">
+                <div className="post-author">
+                  <div className="post-avatar">
+                    {userData.profilePicture ? (
+                      <img src={userData.profilePicture} alt="Profile" />
+                    ) : (
+                      <div className="post-initials">
+                        {(userData.displayName || userData.name || 'U').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="post-input">
+                    <input 
+                      type="text" 
+                      className="post-text-input"
+                      placeholder="What's on your mind?"
+                      value={newPost}
+                      onChange={(e) => setNewPost(e.target.value)}
+                      onClick={() => setShowCreatePost(true)}
+                    />
                   </div>
                 </div>
               </div>
-
-              <div className="section">
-                <h2 className="section-title">
-                  <i className="fas fa-briefcase"></i>
-                  Work Experience
-                </h2>
-                <div className="timeline">
-                  <div className="timeline-item">
-                    <div className="timeline-date">2019 - Present</div>
-                    <div className="timeline-title">Senior Software Engineer</div>
-                    <div className="timeline-subtitle">Google</div>
-                    <div className="timeline-description">Leading the development of machine learning infrastructure for Google Cloud Platform</div>
-                  </div>
-                  <div className="timeline-item">
-                    <div className="timeline-date">2017 - 2019</div>
-                    <div className="timeline-title">Software Engineer</div>
-                    <div className="timeline-subtitle">Microsoft</div>
-                    <div className="timeline-description">Worked on Azure AI services, focusing on natural language processing</div>
-                  </div>
-                  <div className="timeline-item">
-                    <div className="timeline-date">2015 - 2017</div>
-                    <div className="timeline-title">Junior Software Developer</div>
-                    <div className="timeline-subtitle">TechStart Inc.</div>
-                    <div className="timeline-description">Developed web applications and contributed to open-source projects</div>
-                  </div>
-                </div>
+              <div className="post-creation-options">
+                <button className="post-option live-video">
+                  <i className="fas fa-video"></i>
+                  Live video
+                </button>
+                <button className="post-option photo-video">
+                  <i className="fas fa-images"></i>
+                  Photo/video
+                </button>
+                <button className="post-option feeling">
+                  <i className="fas fa-smile"></i>
+                  Feeling/activity
+                </button>
               </div>
             </div>
-          )}
 
-          {/* Skills/Interests Tab */}
-          {activeTab === 'skills' && (
-            <div className="tab-content active" id="skills-tab">
-              <div className="section">
-                <h2 className="section-title">
-                  <i className="fas fa-cogs"></i>
-                  Skills
-                </h2>
-                <div className="skills-container">
-                  <div className="skill-tag">Python</div>
-                  <div className="skill-tag">Java</div>
-                  <div className="skill-tag">Machine Learning</div>
-                  <div className="skill-tag">Cloud Computing</div>
-                  <div className="skill-tag">Distributed Systems</div>
-                  <div className="skill-tag">TensorFlow</div>
-                  <div className="skill-tag">Kubernetes</div>
-                  <div className="skill-tag">Data Structures</div>
-                  <div className="skill-tag">Algorithms</div>
-                  <div className="skill-tag">Team Leadership</div>
+            {/* Posts List */}
+            <div className="posts-section">
+              <div className="posts-header">
+                <h3 className="posts-title">Posts</h3>
+                <div className="posts-actions">
+                  <button className="posts-action-btn">
+                    <i className="fas fa-filter"></i>
+                    Manage posts
+                  </button>
                 </div>
               </div>
 
-              <div className="section">
-                <h2 className="section-title">
-                  <i className="fas fa-heart"></i>
-                  Interests
-                </h2>
-                <div className="interests-container">
-                  <div className="interest-card">
-                    <div className="interest-icon">
-                      <i className="fas fa-robot"></i>
-                    </div>
-                    <div className="interest-name">Artificial Intelligence</div>
-                  </div>
-                  <div className="interest-card">
-                    <div className="interest-icon">
-                      <i className="fas fa-cloud"></i>
-                    </div>
-                    <div className="interest-name">Cloud Technologies</div>
-                  </div>
-                  <div className="interest-card">
-                    <div className="interest-icon">
-                      <i className="fas fa-code"></i>
-                    </div>
-                    <div className="interest-name">Open Source</div>
-                  </div>
-                  <div className="interest-card">
-                    <div className="interest-icon">
-                      <i className="fas fa-users"></i>
-                    </div>
-                    <div className="interest-name">Mentorship</div>
-                  </div>
-                  <div className="interest-card">
-                    <div className="interest-icon">
-                      <i className="fas fa-hiking"></i>
-                    </div>
-                    <div className="interest-name">Outdoor Activities</div>
-                  </div>
-                  <div className="interest-card">
-                    <div className="interest-icon">
-                      <i className="fas fa-book"></i>
-                    </div>
-                    <div className="interest-name">Reading</div>
-                  </div>
-                </div>
+              <div className="view-toggles">
+                <button className="view-toggle active">
+                  <i className="fas fa-list"></i>
+                  List view
+                </button>
+                <button className="view-toggle">
+                  <i className="fas fa-th"></i>
+                  Grid view
+                </button>
               </div>
-            </div>
-          )}
 
-          {/* Posts Tab */}
-          {activeTab === 'posts' && (
-            <div className="tab-content active" id="posts-tab">
-              <div className="posts-container">
-                {posts.map(post => (
-                  <div key={post.id} className="post">
-                    <div className="post-header">
-                      <div className="post-date">{post.date}</div>
-                      <div className={`post-type ${getPostTypeClass(post.type)}`}>
-                        {post.type.charAt(0).toUpperCase() + post.type.slice(1)}
-                      </div>
-                    </div>
-                    <div className="post-content">
-                      {post.content}
-                    </div>
-                    <div className="post-actions">
-                      <div 
-                        className="post-action"
-                        onClick={() => handlePostAction(post.id, 'like')}
-                        style={{ color: post.isLiked ? 'var(--danger-color)' : '' }}
-                      >
-                        <i className={post.isLiked ? 'fas fa-heart' : 'far fa-heart'}></i>
-                        <span>{post.likes}</span>
-                      </div>
-                      <div 
-                        className="post-action"
-                        onClick={() => handlePostAction(post.id, 'comment')}
-                      >
-                        <i className="far fa-comment"></i>
-                        <span>{post.comments}</span>
-                      </div>
-                      <div 
-                        className="post-action"
-                        onClick={() => handlePostAction(post.id, 'share')}
-                      >
-                        <i className="far fa-share"></i>
-                        <span>Share</span>
-                      </div>
-                    </div>
+              <div className="posts-list">
+                {posts.length === 0 ? (
+                  <div className="no-posts">
+                    <p>No posts yet</p>
                   </div>
-                ))}
+                ) : (
+                  posts.map(post => (
+                    <div key={post.id} className="post-item">
+                      <div className="post-header">
+                        <div className="post-author-info">
+                          <div className="post-author-avatar">
+                            {userData.profilePicture ? (
+                              <img src={userData.profilePicture} alt="Profile" />
+                            ) : (
+                              <div className="post-author-initials">
+                                {(userData.displayName || userData.name || 'U').charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div className="post-author-details">
+                            <h4 className="post-author-name">
+                              {post.authorName || userData.displayName || userData.name}
+                            </h4>
+                            <div className="post-meta">
+                              <span>{new Date(post.createdAt?.toDate()).toLocaleDateString()}</span>
+                              <i className="fas fa-globe-americas"></i>
+                            </div>
+                          </div>
+                        </div>
+                        <button className="post-options-btn">
+                          <i className="fas fa-ellipsis-h"></i>
+                        </button>
+                      </div>
+                      <div className="post-content">
+                        {editingPost === post.id ? (
+                          <div className="edit-post-form">
+                            <textarea
+                              value={editPostContent}
+                              onChange={(e) => setEditPostContent(e.target.value)}
+                              className="edit-post-textarea"
+                            />
+                            <div className="edit-post-actions">
+                              <button 
+                                className="btn btn-primary btn-sm"
+                                onClick={handleUpdatePost}
+                              >
+                                Save
+                              </button>
+                              <button 
+                                className="btn btn-outline btn-sm"
+                                onClick={() => {
+                                  setEditingPost(null);
+                                  setEditPostContent('');
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p>{post.content}</p>
+                        )}
+                        
+                        {/* Post Image */}
+                        {post.imageUrl && (
+                          <div className="post-image">
+                            <img src={post.imageUrl} alt="Post" />
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Comments Section */}
+                      {showComments[post.id] && (
+                        <div className="comments-section">
+                          <div className="comments-list">
+                            {post.commentsList?.map(comment => (
+                              <div key={comment.id} className="comment-item">
+                                <div className="comment-author">
+                                  <strong>{comment.authorName}</strong>
+                                  <span className="comment-time">
+                                    {new Date(comment.createdAt?.toDate()).toLocaleString()}
+                                  </span>
+                                </div>
+                                <div className="comment-content">
+                                  {comment.content}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {/* Add Comment Form */}
+                          <div className="add-comment-form">
+                            <input
+                              type="text"
+                              placeholder="Write a comment..."
+                              value={commentingPost === post.id ? newComment : ''}
+                              onChange={(e) => setNewComment(e.target.value)}
+                              onFocus={() => setCommentingPost(post.id)}
+                            />
+                            {commentingPost === post.id && (
+                              <button 
+                                className="btn btn-primary btn-sm"
+                                onClick={() => handleAddComment(post.id)}
+                                disabled={!newComment.trim()}
+                              >
+                                Post
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="post-actions">
+                        <button 
+                          className={`post-action ${post.likedBy?.includes(userId) ? 'liked' : ''}`}
+                          onClick={() => handleLikePost(post.id, post.likes, post.likedBy || [])}
+                        >
+                          <i className="fas fa-thumbs-up"></i>
+                          {post.likes || 0} Like{post.likes !== 1 ? 's' : ''}
+                        </button>
+                        <button 
+                          className="post-action"
+                          onClick={() => setShowComments({
+                            ...showComments,
+                            [post.id]: !showComments[post.id]
+                          })}
+                        >
+                          <i className="fas fa-comment"></i>
+                          {post.comments || 0} Comment{post.comments !== 1 ? 's' : ''}
+                        </button>
+                        <button 
+                          className="post-action"
+                          onClick={() => handleSharePost(post)}
+                        >
+                          <i className="fas fa-share"></i>
+                          {post.shares || 0} Share{post.shares !== 1 ? 's' : ''}
+                        </button>
+                        <button 
+                          className="post-action"
+                          onClick={() => handleEditPost(post)}
+                        >
+                          <i className="fas fa-edit"></i>
+                          Edit
+                        </button>
+                        <button 
+                          className="post-action delete"
+                          onClick={() => handleDeletePost(post.id)}
+                        >
+                          <i className="fas fa-trash"></i>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
-          )}
-
-          {/* Gallery Tab */}
-          {activeTab === 'gallery' && (
-            <div className="tab-content active" id="gallery-tab">
-              <div className="gallery-container">
-                {gallery.map(item => (
-                  <div 
-                    key={item.id} 
-                    className="gallery-item"
-                    onClick={() => handleGalleryClick(item.title)}
-                  >
-                    <img src={item.image} alt={item.title} />
-                    <div className="gallery-overlay">
-                      <div className="gallery-title">{item.title}</div>
-                      <div className="gallery-date">{item.date}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
-    </>
+
+      {/* Create Post Modal */}
+      {showCreatePost && (
+        <div className="modal-overlay" onClick={() => setShowCreatePost(false)}>
+          <div className="create-post-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Create Post</h3>
+              <button 
+                className="close-btn"
+                onClick={() => setShowCreatePost(false)}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="modal-content">
+              <div className="post-author">
+                <div className="post-author-avatar">
+                  {userData.profilePicture ? (
+                    <img src={userData.profilePicture} alt="Profile" />
+                  ) : (
+                    <div className="avatar-initials">
+                      {(userData.displayName || userData.name || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="author-info">
+                  <div className="author-name">
+                    {userData.displayName || userData.name || 'Unknown User'}
+                  </div>
+                  <div className="privacy-selector">
+                    <select>
+                      <option>Public</option>
+                      <option>Friends</option>
+                      <option>Only me</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <textarea
+                className="create-post-textarea"
+                placeholder="What's on your mind?"
+                value={newPost}
+                onChange={(e) => setNewPost(e.target.value)}
+              />
+              
+              {/* Image Preview */}
+              {postImagePreview && (
+                <div className="post-image-preview">
+                  <img src={postImagePreview} alt="Preview" />
+                  <button 
+                    className="remove-image-btn"
+                    onClick={() => {
+                      setPostImage(null);
+                      setPostImagePreview(null);
+                    }}
+                  >
+                    <i className="fas fa-times"></i>
+                  </button>
+                </div>
+              )}
+              
+              {/* Image Upload Button */}
+              <div className="post-image-upload">
+                <button 
+                  className="image-upload-btn"
+                  onClick={() => postImageRef.current?.click()}
+                >
+                  <i className="fas fa-image"></i>
+                  Add Photo/Video
+                </button>
+                <input
+                  ref={postImageRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handlePostImageChange}
+                />
+              </div>
+              
+              <div className="category-selection">
+                <h4>Select Category</h4>
+                <div className="category-options">
+                  <div className="category-option" style={{'--category-color': '#1877f2'}}>
+                    <i className="fas fa-graduation-cap"></i>
+                    <span>Academic</span>
+                  </div>
+                  <div className="category-option" style={{'--category-color': '#42b883'}}>
+                    <i className="fas fa-briefcase"></i>
+                    <span>Career</span>
+                  </div>
+                  <div className="category-option" style={{'--category-color': '#f02849'}}>
+                    <i className="fas fa-heart"></i>
+                    <span>Personal</span>
+                  </div>
+                  <div className="category-option" style={{'--category-color': '#ffbb33'}}>
+                    <i className="fas fa-lightbulb"></i>
+                    <span>Ideas</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button 
+                className="cancel-btn"
+                onClick={() => {
+                  setShowCreatePost(false);
+                  setNewPost('');
+                  setPostImage(null);
+                  setPostImagePreview(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                className={`post-btn ${(newPost.trim() || postImage) ? 'active' : 'disabled'}`}
+                onClick={handleCreatePost}
+                disabled={!newPost.trim() && !postImage}
+              >
+                Post
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Upload Modal */}
+      {showImageUploadModal && (
+        <div className="modal-overlay" onClick={() => setShowImageUploadModal(false)}>
+          <div className="image-upload-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Upload {imageUploadType === 'profilePictures' ? 'Profile Picture' : 'Cover Photo'}</h3>
+              <button 
+                className="close-btn"
+                onClick={() => setShowImageUploadModal(false)}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="modal-content">
+              <div className="upload-options-container">
+                <div className="upload-type-selector">
+                  <div 
+                    className={`upload-type-option ${imageUploadType === 'profilePictures' ? 'selected' : ''}`}
+                    onClick={() => setImageUploadType('profilePictures')}
+                  >
+                    <div className="upload-type-icon profile-icon">
+                      <i className="fas fa-user"></i>
+                    </div>
+                    <span>Profile Picture</span>
+                  </div>
+                  <div 
+                    className={`upload-type-option ${imageUploadType === 'coverPhotos' ? 'selected' : ''}`}
+                    onClick={() => setImageUploadType('coverPhotos')}
+                  >
+                    <div className="upload-type-icon cover-icon">
+                      <i className="fas fa-mountain"></i>
+                    </div>
+                    <span>Cover Photo</span>
+                  </div>
+                </div>
+                
+                <div className="upload-section">
+                  <button 
+                    className="upload-btn"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <i className="fas fa-upload"></i>
+                    Select Image
+                  </button>
+                  <div className="upload-info">
+                    <p>Choose a {imageUploadType === 'profilePictures' ? 'profile picture' : 'cover photo'}</p>
+                    <p>JPG, PNG or GIF. Max size 5MB</p>
+                  </div>
+                  
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        handleImageUpload(file, imageUploadType);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
-}
+};
 
 export default Profile;

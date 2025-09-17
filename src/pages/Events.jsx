@@ -273,11 +273,10 @@ function Events() {
 
   return (
     <>
-      
-
       {/* Main Content */}
       <main className="main-content">
-        <div className="dashboard-container">
+        <div className="events-page-container">
+          <div className="events-content-container">
           <div className="page-header">
             <h1 className="page-title">Events & Opportunities</h1>
             <p className="page-subtitle">Discover job postings, seminars, and alumni meetups</p>
@@ -597,6 +596,7 @@ function Events() {
                 <p className="empty-message">Try adjusting your filters to see more results.</p>
               </div>
             )}
+          </div>
           </div>
         </div>
       </main>

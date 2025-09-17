@@ -1,0 +1,107 @@
+/* ========================================
+   YOUTUBE LAYOUT
+   ======================================== */
+
+.youtube-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #f9f9f9;
+}
+
+/* Main Content Area */
+.main-content {
+  margin-top: 80px; /* Header height */
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  min-height: calc(100vh - 80px);
+  background-color: #f9f9f9;
+}
+
+/* Content positioning based on sidebar state */
+.main-content.sidebar-expanded {
+  margin-left: 0; /* Full width - sidebar is overlay */
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: 0; /* Full width - sidebar is overlay */
+}
+
+/* Content Container */
+.content-container {
+  padding: 20px 24px;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .main-content.sidebar-expanded {
+    margin-left: 0;
+  }
+  
+  .main-content.sidebar-collapsed {
+    margin-left: 0;
+  }
+  
+  .content-container {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .content-container {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .content-container {
+    padding: 12px;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .youtube-layout {
+    background-color: #0f0f0f;
+  }
+  
+  .main-content {
+    background-color: #0f0f0f;
+  }
+}
+
+/* Smooth transitions */
+.main-content {
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Ensure content doesn't overflow */
+.main-content {
+  overflow-x: hidden;
+}
+
+/* For accessibility - focus management */
+.main-content:focus {
+  outline: none;
+}
+
+/* Loading state */
+.youtube-layout.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Print styles */
+@media print {
+  .youtube-layout {
+    background-color: white;
+  }
+  
+  .main-content {
+    margin-left: 0 !important;
+    margin-top: 0 !important;
+    background-color: white;
+  }
+}
