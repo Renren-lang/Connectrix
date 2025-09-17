@@ -5,7 +5,8 @@ import {
   signOut, 
   onAuthStateChanged,
   updateProfile,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
@@ -333,44 +334,102 @@ export function AuthProvider({ children }) {
     return null;
   }
 
-  // Google authentication function using popup
+  // Google authentication function using redirect
   async function signInWithGoogle(additionalData = {}) {
     try {
-      console.log('Starting Google authentication');
+      console.log('Starting Google authentication with redirect');
       
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
+      await signInWithRedirect(auth, provider);
       
-      console.log('Google popup result received:', result.user.uid);
-
-      const userRef = doc(db, 'users', result.user.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        const newUser = {
-          uid: result.user.uid,
-          email: result.user.email,
-          displayName: result.user.displayName,
-          role: 'student',
-          createdAt: new Date(),
-          profilePictureUrl: result.user.photoURL || '',
-          ...additionalData
-        };
-        await setDoc(userRef, newUser);
-        console.log('Google user created in Firestore');
-      } else {
-        console.log('Google user already exists in Firestore');
-      }
-
-      setCurrentUser(result.user);
-      setUserRole('student'); // default role for Google users
-      return { success: true, user: result.user };
+      // Note: The actual result handling will be done in useEffect with getRedirectResult
+      return { success: true, redirecting: true };
     } catch (error) {
-      console.error('Google sign-in error:', error);
+      console.error('Google sign-in redirect error:', error);
       throw error;
     }
   }
 
+  // Handle Google redirect result
+  async function handleGoogleRedirectResult() {
+    try {
+      const result = await getRedirectResult(auth);
+      if (result && result.user) {
+        console.log('Google redirect result received:', result.user.uid);
+
+        const userRef = doc(db, 'users', result.user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) {
+          const newUser = {
+            uid: result.user.uid,
+            email: result.user.email,
+            displayName: result.user.displayName,
+            role: 'student',
+            createdAt: new Date(),
+            profilePictureUrl: result.user.photoURL || '',
+            firstName: result.user.displayName?.split(' ')[0] || '',
+            lastName: result.user.displayName?.split(' ')[1] || '',
+            bio: '',
+            skills: [],
+            interests: [],
+            graduationYear: '',
+            major: '',
+            company: '',
+            position: '',
+            experience: '',
+            location: '',
+            phone: '',
+            website: '',
+            linkedin: '',
+            github: '',
+            twitter: '',
+            instagram: '',
+            facebook: '',
+            youtube: '',
+            tiktok: '',
+            snapchat: '',
+            discord: '',
+            telegram: '',
+            whatsapp: '',
+            skype: '',
+            zoom: '',
+            teams: '',
+            slack: '',
+            other: ''
+          };
+          await setDoc(userRef, newUser);
+          console.log('Google user created in Firestore');
+        } else {
+          console.log('Google user already exists in Firestore');
+        }
+
+        return { success: true, user: result.user };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error handling Google redirect result:', error);
+      throw error;
+    }
+  }
+
+
+  // Handle Google redirect result on component mount
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await handleGoogleRedirectResult();
+        if (result && result.success) {
+          console.log('Google authentication completed via redirect:', result);
+          // The onAuthStateChanged will handle the rest
+        }
+      } catch (error) {
+        console.error('Error handling Google redirect result:', error);
+      }
+    };
+
+    handleRedirectResult();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -402,7 +461,8 @@ export function AuthProvider({ children }) {
     refreshUserRole,
     updateUserProfile,
     fetchUserProfile,
-    signInWithGoogle
+    signInWithGoogle,
+    handleGoogleRedirectResult
   };
 
   return (

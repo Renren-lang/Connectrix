@@ -10,7 +10,7 @@ import logoImage from '../components/Logo2.png';
 
 function Login() {
   const navigate = useNavigate();
-  const { login, getUserRole, refreshUserRole, signInWithGoogle } = useAuth();
+  const { login, getUserRole, refreshUserRole, signInWithGoogle, handleGoogleRedirectResult } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -243,14 +243,12 @@ function Login() {
     try {
       setIsSubmitting(true);
       
-      // Use AuthContext Google auth function
+      // Use AuthContext Google auth function (redirect)
       const result = await signInWithGoogle(googleFormData);
       
       if (result && result.success) {
-        console.log('Google authentication successful:', result);
-        
-        // Navigate to student dashboard (Google users default to student)
-        navigate('/student-dashboard');
+        console.log('Google authentication redirect initiated:', result);
+        // The redirect will happen automatically, no need to navigate
       }
     } catch (error) {
       console.error('Google auth error:', error);
@@ -258,7 +256,6 @@ function Login() {
         username: '',
         password: 'Google authentication failed'
       });
-    } finally {
       setIsSubmitting(false);
       setShowAuthConfirmation(false);
       setShowRoleSelection(false);
@@ -671,7 +668,7 @@ function Login() {
                             <p style={{ margin: '0', color: '#666', lineHeight: '1.5' }}>
                               You are about to sign in with Google. 
                               Google users will be registered as <strong>students</strong> by default.
-                              This will open a popup window for secure authentication.
+                              This will redirect you to Google for secure authentication.
                             </p>
                           </div>
                           
