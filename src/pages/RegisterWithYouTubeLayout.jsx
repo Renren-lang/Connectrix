@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { signInWithRedirect, getRedirectResult, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
+import { signInWithRedirect, getRedirectResult, GoogleAuthProvider, OAuthProvider, signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import logoImage from '../components/Logo2.png';
 import YouTubeLayout from '../components/YouTubeLayout';
@@ -104,7 +104,16 @@ function RegisterWithYouTubeLayout() {
     try {
       await signup(formData.email, formData.password, selectedRole, formData);
       setShowSuccess(true);
-      setTimeout(() => {
+      
+      // Sign out the user immediately after registration to prevent auto-login
+      setTimeout(async () => {
+        try {
+          // Sign out the user to prevent automatic navigation to dashboard
+          await auth.signOut();
+        } catch (signOutError) {
+          console.error('Error signing out after registration:', signOutError);
+        }
+        
         setFormData({
           schoolId: '',
           firstName: '',
@@ -123,8 +132,9 @@ function RegisterWithYouTubeLayout() {
         setSelectedRole('');
         setErrors({});
         setShowSuccess(false);
-      // Navigate to login page
-      navigate('/login?from=registration');
+        
+        // Navigate to login page
+        navigate('/login?from=registration');
       }, 2000);
     } catch (error) {
       console.error('Registration failed:', error);
