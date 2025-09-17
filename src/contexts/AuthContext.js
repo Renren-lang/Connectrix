@@ -176,7 +176,7 @@ export function AuthProvider({ children }) {
         }
       }
       
-      return result;
+      return { success: true, user: result.user };
     } catch (error) {
       console.error('Login error:', error);
       console.error('Error code:', error.code);
@@ -380,13 +380,18 @@ export function AuthProvider({ children }) {
           setUserRole(finalRole);
         } else {
           console.log('Auth state changed - user not authenticated');
+          console.log('Current storedRole:', storedRole);
+          console.log('Current adminUser:', adminUser);
           
           // Only clear user if not admin
           if (storedRole !== 'admin') {
+            console.log('Clearing user data - not admin');
             setCurrentUser(null);
             setUserRole(null);
             localStorage.removeItem('userRole');
             localStorage.removeItem('adminUser');
+          } else {
+            console.log('Keeping admin user - not clearing data');
           }
         }
       } catch (error) {

@@ -220,15 +220,5 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow write: if false; // Still deny writes by default
     }
-    
-    // Temporary rule for admin dashboard - allow reading posts and users
-    // This is needed because admin user is not a real Firebase Auth user
-    match /posts/{postId} {
-      allow read: if true; // Allow reading posts for admin dashboard
-    }
-    
-    match /users/{userId} {
-      allow read: if true; // Allow reading users for admin dashboard
-    }
   }
 }
