@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { signInWithPopup, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import SafeLogger from '../utils/logger';
@@ -57,21 +57,66 @@ function Login() {
     };
   }, []);
 
-  // Handle any remaining redirect results (for backward compatibility)
+  // Handle Google authentication redirect results
   useEffect(() => {
     const handleRedirectResult = async () => {
       try {
         const result = await getRedirectResult(auth);
         if (result) {
-          console.log('Redirect result:', result);
+          console.log('Google redirect result:', result);
+          
+          // Get stored role and form data
+          const storedRole = localStorage.getItem('googleSelectedRole');
+          const storedFormData = localStorage.getItem('googleFormData');
+          
+          if (storedRole) {
+            // Store user data and role
+            const userData = {
+              uid: result.user.uid,
+              email: result.user.email,
+              displayName: result.user.displayName,
+              role: storedRole,
+              ...(storedFormData ? JSON.parse(storedFormData) : {})
+            };
+
+            // Save to Firestore
+            try {
+              await fetch(`${API_CONFIG.BASE_URL}/auth/google`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(userData),
+              });
+            } catch (fetchError) {
+              console.error('Error saving user data:', fetchError);
+              // Continue even if save fails
+            }
+
+            // Navigate based on role
+            if (storedRole === 'student') {
+              navigate('/student-dashboard');
+            } else if (storedRole === 'alumni') {
+              navigate('/alumni-dashboard');
+            } else {
+              navigate('/dashboard');
+            }
+            
+            // Clean up stored data
+            localStorage.removeItem('googleSelectedRole');
+            localStorage.removeItem('googleFormData');
+          }
         }
       } catch (error) {
         console.error('Error handling redirect result:', error);
+        // Clean up stored data on error
+        localStorage.removeItem('googleSelectedRole');
+        localStorage.removeItem('googleFormData');
       }
     };
 
     handleRedirectResult();
-  }, []);
+  }, [navigate]);
 
   // Admin credentials (same as AdminLogin.jsx)
   const ADMIN_CREDENTIALS = {
@@ -257,40 +302,20 @@ function Login() {
   const handleConfirmGoogleAuth = async () => {
     try {
       setIsSubmitting(true);
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
       
-      // Store user data and role
-      const userData = {
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName,
-        role: googleSelectedRole,
-        ...googleFormData
-      };
-
-      // Save to Firestore
-      await fetch(`${API_CONFIG.BASE_URL}/auth/google`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      });
-
-      // Navigate based on role
-      if (googleSelectedRole === 'student') {
-        navigate('/student-dashboard');
-      } else {
-        navigate('/alumni-dashboard');
-      }
+      // Store the selected role and form data before redirect
+      localStorage.setItem('googleSelectedRole', googleSelectedRole);
+      localStorage.setItem('googleFormData', JSON.stringify(googleFormData));
+      
+      const provider = new GoogleAuthProvider();
+      // Use redirect instead of popup to avoid COOP issues
+      await signInWithRedirect(auth, provider);
     } catch (error) {
       console.error('Google auth error:', error);
       setErrors({
         username: '',
         password: 'Google authentication failed'
       });
-    } finally {
       setIsSubmitting(false);
       setShowAuthConfirmation(false);
       setShowRoleSelection(false);
@@ -702,7 +727,7 @@ function Login() {
                             <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>Google Authentication</h3>
                             <p style={{ margin: '0', color: '#666', lineHeight: '1.5' }}>
                               You are about to sign in with Google as a <strong>{googleSelectedRole}</strong>. 
-                              This will open a popup window for secure authentication.
+                              This will redirect you to Google for secure authentication.
                             </p>
                           </div>
                           
