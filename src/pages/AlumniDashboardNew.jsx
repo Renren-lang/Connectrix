@@ -455,21 +455,79 @@ function AlumniDashboard() {
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo and Navigation */}
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">C</span>
+                </div>
+                <span className="text-xl font-bold text-blue-600">CONNECTRIX</span>
+              </div>
+              <nav className="hidden md:flex space-x-8">
+                <a href="#" className="text-blue-600 font-medium">Dashboard</a>
+              </nav>
+            </div>
+
+            {/* Search Bar */}
+            <div className="flex-1 max-w-lg mx-8">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search mentors, students, jobs..."
+                  className="w-full pl-4 pr-12 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-600">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* User Actions */}
+            <div className="flex items-center space-x-4">
+              <button className="relative p-2 text-gray-400 hover:text-gray-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4.828 7l2.586 2.586a2 2 0 002.828 0L16 7" />
+                </svg>
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">5</span>
+              </button>
+              <button className="p-2 text-gray-400 hover:text-gray-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </button>
+              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                <span className="text-gray-600 font-medium text-sm">
+                  {currentUser?.displayName?.charAt(0) || 'A'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
-        <div className="welcome-section">
-          <h1 className="welcome-title">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">
             Welcome back, {currentUser?.displayName || 'Alumni'}!
           </h1>
-          <p className="welcome-subtitle">
+          <p className="text-gray-600 mt-2">
             Here's what's happening with your mentorship network today.
           </p>
         </div>
 
         {/* Dashboard Grid */}
-        <div className="dashboard-grid">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Mentorship Requests */}
-          <div className="dashboard-card-container">
+          <div className="lg:col-span-2">
             <div className="dashboard-card">
               <div className="card-header">
                 <h2 className="card-title">Mentorship Requests</h2>
@@ -501,13 +559,13 @@ function AlumniDashboard() {
                         <div className="flex space-x-2 mt-3">
                           <button
                             onClick={() => handleAcceptRequest(request.id)}
-                            className="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors"
+                            className="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 transition-colors"
                           >
                             Accept
                           </button>
                           <button
                             onClick={() => handleDeclineRequest(request.id)}
-                            className="px-3 py-1 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+                            className="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 transition-colors"
                           >
                             Decline
                           </button>
@@ -521,7 +579,7 @@ function AlumniDashboard() {
           </div>
 
           {/* Recent Student Activity */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Recent Student Activity</h2>
               
@@ -540,9 +598,9 @@ function AlumniDashboard() {
                           </span>
                         </div>
                         <div className="flex-1">
-                          <div className="flex items-center space-x-2">
-                            <h3 className="font-semibold text-gray-800">{post.authorName || 'Student'}</h3>
-                            <span className="text-sm text-gray-500">{post.authorRole || 'Student'}</span>
+                          <div className="flex items-baseline space-x-2">
+                            <h3 className="font-semibold text-gray-800 text-base">{post.authorName || 'Student'}</h3>
+                            <span className="text-sm text-gray-500 lowercase">{post.authorRole || 'student'}</span>
                             <span className="text-sm text-gray-400">•</span>
                             <span className="text-sm text-gray-400">{formatTimeAgo(post.createdAt)}</span>
                           </div>
@@ -765,7 +823,8 @@ function AlumniDashboard() {
           </div>
         </div>
       )}
-    </>
+      </div>
+    </div>
   );
 }
 
