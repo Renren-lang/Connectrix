@@ -8,7 +8,8 @@ import {
   sendEmailVerification,
   signInWithRedirect,
   getRedirectResult,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  onIdTokenChanged
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -711,7 +712,8 @@ export function AuthProvider({ children }) {
       console.log('Checking stored auth data:', {
         storedRole,
         storedUser: storedUser ? 'exists' : 'null',
-        isRegistration: isRegistration
+        isRegistration: isRegistration,
+        firebaseAuthUser: auth.currentUser?.uid || 'null'
       });
       
       // Only restore from localStorage if not in registration mode
@@ -733,6 +735,21 @@ export function AuthProvider({ children }) {
     
     // Check stored auth first
     checkStoredAuth();
+    
+    // Monitor token changes for debugging
+    const tokenUnsubscribe = onIdTokenChanged(auth, async (user) => {
+      if (!isMounted) return;
+      
+      console.log('🔄 Token changed:', user ? `User: ${user.uid}` : 'No user');
+      if (user) {
+        console.log('Token details:', {
+          uid: user.uid,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          tokenExpiration: user.accessToken ? 'Valid' : 'Invalid'
+        });
+      }
+    });
     
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!isMounted) return;
@@ -818,6 +835,7 @@ export function AuthProvider({ children }) {
       isMounted = false;
       try {
         unsubscribe();
+        tokenUnsubscribe();
       } catch (error) {
         console.error('Error unsubscribing from auth state change:', error);
       }
@@ -897,6 +915,80 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Function to check if user is actually signed out or if it's a false positive
+  const checkAuthStatus = () => {
+    console.group('🔍 Authentication Status Check');
+    console.log('Firebase Auth Current User:', auth.currentUser);
+    console.log('Local State Current User:', currentUser);
+    console.log('Local State User Role:', userRole);
+    console.log('Loading State:', loading);
+    console.log('Registration Flag:', isRegistration);
+    console.log('Google Auth Flag:', isGoogleAuth);
+    
+    // Check if Firebase thinks user is signed in but local state is null
+    if (auth.currentUser && !currentUser) {
+      console.warn('⚠️ MISMATCH: Firebase has user but local state is null');
+      console.log('Firebase user details:', {
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email,
+        emailVerified: auth.currentUser.emailVerified
+      });
+    }
+    
+    // Check if local state has user but Firebase doesn't
+    if (currentUser && !auth.currentUser) {
+      console.warn('⚠️ MISMATCH: Local state has user but Firebase is null');
+      console.log('Local user details:', {
+        uid: currentUser.uid,
+        email: currentUser.email
+      });
+    }
+    
+    console.groupEnd();
+    
+    return {
+      firebaseUser: auth.currentUser,
+      localUser: currentUser,
+      hasMismatch: (auth.currentUser && !currentUser) || (currentUser && !auth.currentUser)
+    };
+  };
+
+  // Function to force refresh authentication state
+  const forceRefreshAuth = async () => {
+    console.log('🔄 Force refreshing authentication state...');
+    
+    if (auth.currentUser) {
+      try {
+        console.log('Firebase user exists, fetching fresh profile data...');
+        const profileData = await fetchUserProfile(auth.currentUser.uid);
+        console.log('Fresh profile data:', profileData);
+        
+        const userWithProfile = { ...auth.currentUser, ...profileData };
+        setCurrentUser(userWithProfile);
+        
+        const role = profileData?.role || 'student';
+        setUserRole(role);
+        
+        // Update localStorage with fresh data
+        localStorage.setItem('userRole', role);
+        localStorage.setItem('adminUser', JSON.stringify(userWithProfile));
+        
+        console.log('✅ Authentication state refreshed successfully');
+        return { success: true, message: 'Authentication state refreshed' };
+      } catch (error) {
+        console.error('❌ Error refreshing authentication state:', error);
+        return { success: false, message: 'Failed to refresh authentication state' };
+      }
+    } else {
+      console.log('No Firebase user found, clearing local state...');
+      setCurrentUser(null);
+      setUserRole(null);
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('adminUser');
+      return { success: true, message: 'Local state cleared (no Firebase user)' };
+    }
+  };
+
   const value = {
     currentUser,
     userRole,
@@ -915,6 +1007,8 @@ export function AuthProvider({ children }) {
     resetRegistrationFlag,
     sendEmailVerificationToUser,
     restoreAuthState,
+    checkAuthStatus,
+    forceRefreshAuth,
     debugAuthState
   };
 

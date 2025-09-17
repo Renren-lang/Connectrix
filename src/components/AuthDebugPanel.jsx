@@ -8,6 +8,8 @@ const AuthDebugPanel = () => {
     loading, 
     debugAuthState, 
     restoreAuthState,
+    checkAuthStatus,
+    forceRefreshAuth,
     resetRegistrationFlag,
     resetGoogleAuthFlag 
   } = useAuth();
@@ -22,6 +24,18 @@ const AuthDebugPanel = () => {
 
   const handleDebugAuth = () => {
     debugAuthState();
+  };
+
+  const handleCheckAuthStatus = () => {
+    const status = checkAuthStatus();
+    setRestoreResult(`Auth Status: ${status.hasMismatch ? 'MISMATCH DETECTED' : 'OK'}`);
+    setTimeout(() => setRestoreResult(''), 5000);
+  };
+
+  const handleForceRefresh = async () => {
+    const result = await forceRefreshAuth();
+    setRestoreResult(result.message);
+    setTimeout(() => setRestoreResult(''), 5000);
   };
 
   const handleResetFlags = () => {
@@ -87,6 +101,34 @@ const AuthDebugPanel = () => {
               }}
             >
               Debug Auth State
+            </button>
+            
+            <button 
+              onClick={handleCheckAuthStatus}
+              style={{ 
+                background: '#6f42c1', 
+                border: 'none', 
+                color: 'white', 
+                padding: '5px',
+                borderRadius: '3px',
+                cursor: 'pointer'
+              }}
+            >
+              Check Auth Status
+            </button>
+            
+            <button 
+              onClick={handleForceRefresh}
+              style={{ 
+                background: '#17a2b8', 
+                border: 'none', 
+                color: 'white', 
+                padding: '5px',
+                borderRadius: '3px',
+                cursor: 'pointer'
+              }}
+            >
+              Force Refresh
             </button>
             
             <button 
