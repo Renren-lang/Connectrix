@@ -236,6 +236,15 @@ export function AuthProvider({ children }) {
       // Reset Google auth flag to prevent navigation after registration
       setIsGoogleAuth(false);
 
+      // Sign out the user after registration to force them to login
+      await signOut(auth);
+      
+      // Clear localStorage to ensure clean state
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('adminUser');
+      
+      console.log('User signed out after registration to force login');
+
       return result;
     } catch (error) {
       console.error('Error in signup:', error);

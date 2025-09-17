@@ -11,7 +11,7 @@ import logoImage from '../components/Logo2.png';
 
 function Login() {
   const navigate = useNavigate();
-  const { currentUser, userRole, loading, login, getUserRole, refreshUserRole, signInWithGoogle, handleGoogleRedirectResult, setGoogleAuthNavigationCallback } = useAuth();
+  const { currentUser, userRole, loading, login, getUserRole, refreshUserRole, signInWithGoogle, handleGoogleRedirectResult, setGoogleAuthNavigationCallback, resetRegistrationFlag } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -24,6 +24,7 @@ function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
+  const [isRegistrationRedirect, setIsRegistrationRedirect] = useState(false);
   const [googleUser, setGoogleUser] = useState(null);
   const [googleSelectedRole, setGoogleSelectedRole] = useState('');
   const [googleFormData, setGoogleFormData] = useState({
@@ -51,9 +52,20 @@ function Login() {
     setGoogleAuthNavigationCallback(navigate);
   }, [navigate, setGoogleAuthNavigationCallback]);
 
-  // Check if user is already authenticated and redirect
+  // Check if this is a registration redirect
   useEffect(() => {
-    if (!loading && currentUser && userRole) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const fromRegistration = urlParams.get('from') === 'registration';
+    if (fromRegistration) {
+      setIsRegistrationRedirect(true);
+      // Clean up the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  // Check if user is already authenticated and redirect (but not if from registration)
+  useEffect(() => {
+    if (!loading && currentUser && userRole && !isRegistrationRedirect) {
       console.log('User already authenticated, redirecting from login page');
       if (userRole === 'student') {
         navigate('/student-dashboard');
@@ -63,7 +75,7 @@ function Login() {
         navigate('/admin-dashboard');
       }
     }
-  }, [currentUser, userRole, loading, navigate]);
+  }, [currentUser, userRole, loading, navigate, isRegistrationRedirect]);
 
   // Handle scroll effect for header
   useEffect(() => {
