@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { ErrorHandler } from '../utils/errorHandler';
 
 const AuthContext = createContext();
 
@@ -69,21 +70,35 @@ export function AuthProvider({ children }) {
         throw new Error('Invalid profile data provided to updateUserProfile');
       }
 
-      // Sanitize profile data to prevent invalid characters
-      const sanitizedData = {};
-      for (const [key, value] of Object.entries(profileData)) {
-        if (value !== null && value !== undefined) {
-          // Basic sanitization for string values
-          if (typeof value === 'string') {
-            sanitizedData[key] = value.trim().substring(0, 1000); // Limit string length
-          } else {
-            sanitizedData[key] = value;
-          }
-        }
+      // Validate and sanitize profile data using ErrorHandler
+      const sanitizedData = ErrorHandler.validateFirestoreData(profileData, 'user_profile_update');
+      
+      // Check request size
+      const sizeInfo = ErrorHandler.checkRequestSize(sanitizedData);
+      if (sizeInfo.warnings.length > 0) {
+        console.warn('Profile update size warnings:', sizeInfo.warnings);
       }
 
       const userRef = doc(db, 'users', uid);
-      await updateDoc(userRef, sanitizedData);
+      
+      try {
+        console.log('Attempting to update user profile in Firestore:', {
+          uid: uid,
+          dataKeys: Object.keys(sanitizedData),
+          dataSize: JSON.stringify(sanitizedData).length
+        });
+        
+        await updateDoc(userRef, sanitizedData);
+        console.log('User profile updated successfully in Firestore');
+      } catch (firestoreError) {
+        ErrorHandler.logError(firestoreError, 'user_profile_update_firestore', {
+          uid: uid,
+          dataKeys: Object.keys(sanitizedData),
+          dataSize: JSON.stringify(sanitizedData).length,
+          sizeInfo: sizeInfo
+        });
+        throw firestoreError;
+      }
       
       // Update local state with new profile data
       if (currentUser && currentUser.uid === uid) {
@@ -136,27 +151,83 @@ export function AuthProvider({ children }) {
         displayName: userData.firstName || email.split('@')[0]
       });
 
-      // Sanitize user data to prevent 400 errors
-      const sanitizedUserData = {
+      // Prepare user data for validation
+      const userDataToValidate = {
         email: email.trim(),
-        username: (userData.username || '').trim().substring(0, 50),
+        username: userData.username || '',
         role: role,
-        firstName: (userData.firstName || '').trim().substring(0, 100),
-        lastName: (userData.lastName || '').trim().substring(0, 100),
-        schoolId: (userData.schoolId || '').trim().substring(0, 50),
-        batch: (userData.batch || '').trim().substring(0, 50),
-        course: (userData.course || '').trim().substring(0, 100),
-        goals: (userData.goals || '').trim().substring(0, 1000),
-        experience: (userData.experience || '').trim().substring(0, 1000),
-        skills: (userData.skills || '').trim().substring(0, 1000),
+        firstName: userData.firstName || '',
+        lastName: userData.lastName || '',
+        schoolId: userData.schoolId || '',
+        batch: userData.batch || '',
+        course: userData.course || '',
+        goals: userData.goals || '',
+        experience: userData.experience || '',
+        skills: userData.skills || '',
         willingToMentor: Boolean(userData.willingToMentor),
         createdAt: new Date(),
-        ...userData
+        profilePictureUrl: userData.profilePictureUrl || '',
+        profilePictureBase64: userData.profilePictureBase64 || '',
+        bio: userData.bio || '',
+        interests: Array.isArray(userData.interests) ? userData.interests : [],
+        graduationYear: userData.graduationYear || '',
+        major: userData.major || '',
+        company: userData.company || '',
+        position: userData.position || '',
+        location: userData.location || '',
+        phone: userData.phone || '',
+        website: userData.website || '',
+        linkedin: userData.linkedin || '',
+        github: userData.github || '',
+        twitter: userData.twitter || '',
+        instagram: userData.instagram || '',
+        facebook: userData.facebook || '',
+        youtube: userData.youtube || '',
+        tiktok: userData.tiktok || '',
+        snapchat: userData.snapchat || '',
+        discord: userData.discord || '',
+        telegram: userData.telegram || '',
+        whatsapp: userData.whatsapp || '',
+        skype: userData.skype || '',
+        zoom: userData.zoom || '',
+        teams: userData.teams || '',
+        slack: userData.slack || '',
+        other: userData.other || ''
       };
 
-      // Store additional user data in Firestore
+      // Validate and sanitize user data using ErrorHandler
+      const sanitizedUserData = ErrorHandler.validateFirestoreData(userDataToValidate, 'user_signup');
+      
+      // Check request size
+      const sizeInfo = ErrorHandler.checkRequestSize(sanitizedUserData);
+      if (sizeInfo.warnings.length > 0) {
+        console.warn('Request size warnings:', sizeInfo.warnings);
+      }
+
+      // Store additional user data in Firestore with enhanced error handling
       const userRef = doc(db, 'users', result.user.uid);
-      await setDoc(userRef, sanitizedUserData);
+      
+      try {
+        console.log('Attempting to store user data in Firestore:', {
+          uid: result.user.uid,
+          email: sanitizedUserData.email,
+          role: sanitizedUserData.role,
+          dataSize: JSON.stringify(sanitizedUserData).length
+        });
+        
+        await setDoc(userRef, sanitizedUserData);
+        console.log('User data stored successfully in Firestore');
+      } catch (firestoreError) {
+        ErrorHandler.logError(firestoreError, 'user_signup_firestore', {
+          uid: result.user.uid,
+          dataKeys: Object.keys(sanitizedUserData),
+          dataSize: JSON.stringify(sanitizedUserData).length,
+          sizeInfo: sizeInfo
+        });
+        
+        // If Firestore fails, still allow user creation but log the error
+        console.warn('User created in Firebase Auth but Firestore storage failed');
+      }
 
       // Store role and user data in localStorage for persistence
       localStorage.setItem('userRole', role);

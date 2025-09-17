@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { PostsProvider } from './contexts/PostsContext';
@@ -23,11 +23,26 @@ import StudentProfiles from './pages/StudentProfiles.jsx';
 import AdminLogin from './pages/AdminLogin.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import AuthDebugger from './components/AuthDebugger.jsx';
+import { Debug400Errors } from './utils/debug400Errors';
 
 
 
 function AppContent() {
   const location = useLocation();
+
+  // Start 400 error monitoring in development
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      Debug400Errors.startMonitoring();
+      console.log('🔍 400 Error monitoring enabled in development mode');
+    }
+    
+    return () => {
+      if (process.env.NODE_ENV === 'development') {
+        Debug400Errors.stopMonitoring();
+      }
+    };
+  }, []);
   const isLandingPage = location.pathname === '/';
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
 
