@@ -478,45 +478,50 @@ export function AuthProvider({ children }) {
           console.log('Current storedRole:', storedRole);
           console.log('Current adminUser:', adminUser);
           
-          // Fallback to stored values instead of clearing immediately
-          if (storedRole) {
-            console.log('No Firebase user, but using stored role:', storedRole);
-            setUserRole(storedRole);
-            if (adminUser && storedRole === 'admin') {
-              try {
-                const adminData = JSON.parse(adminUser);
-                setCurrentUser(adminData);
-                console.log('Restored admin user from localStorage');
-              } catch (error) {
-                console.error('Error parsing admin user data:', error);
-                localStorage.removeItem('adminUser');
-                localStorage.removeItem('userRole');
-                setCurrentUser(null);
-                setUserRole('student'); // Default role
-              }
-            } else if (adminUser && storedRole !== 'admin') {
-              try {
-                const userData = JSON.parse(adminUser);
-                setCurrentUser(userData);
-                console.log('Restored user from localStorage');
-              } catch (error) {
-                console.error('Error parsing user data:', error);
-                localStorage.removeItem('adminUser');
-                localStorage.removeItem('userRole');
-                setCurrentUser(null);
-                setUserRole('student'); // Default role
-              }
-            } else {
-              // No stored user data, but we have a role
-              setCurrentUser(null);
-              console.log('Using stored role without user data');
-            }
-          } else {
-            console.log('Clearing user data - no stored role');
+          // Only clear if we're sure no Firebase user is logged in AND there's no role at all
+          if (!storedRole && !adminUser) {
+            console.log('Clearing user data - no user and no stored role/admin');
             setCurrentUser(null);
             setUserRole('student'); // Default to student instead of null
             localStorage.removeItem('userRole');
             localStorage.removeItem('adminUser');
+          } else {
+            console.log('Keeping local role/admin, waiting for login to complete');
+            
+            // Fallback to stored values instead of clearing immediately
+            if (storedRole) {
+              console.log('No Firebase user, but using stored role:', storedRole);
+              setUserRole(storedRole);
+              if (adminUser && storedRole === 'admin') {
+                try {
+                  const adminData = JSON.parse(adminUser);
+                  setCurrentUser(adminData);
+                  console.log('Restored admin user from localStorage');
+                } catch (error) {
+                  console.error('Error parsing admin user data:', error);
+                  localStorage.removeItem('adminUser');
+                  localStorage.removeItem('userRole');
+                  setCurrentUser(null);
+                  setUserRole('student'); // Default role
+                }
+              } else if (adminUser && storedRole !== 'admin') {
+                try {
+                  const userData = JSON.parse(adminUser);
+                  setCurrentUser(userData);
+                  console.log('Restored user from localStorage');
+                } catch (error) {
+                  console.error('Error parsing user data:', error);
+                  localStorage.removeItem('adminUser');
+                  localStorage.removeItem('userRole');
+                  setCurrentUser(null);
+                  setUserRole('student'); // Default role
+                }
+              } else {
+                // No stored user data, but we have a role
+                setCurrentUser(null);
+                console.log('Using stored role without user data');
+              }
+            }
           }
         }
       } catch (error) {
