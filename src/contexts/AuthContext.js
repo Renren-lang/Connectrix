@@ -5,8 +5,7 @@ import {
   signOut, 
   onAuthStateChanged,
   updateProfile,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   GoogleAuthProvider
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
@@ -334,166 +333,74 @@ export function AuthProvider({ children }) {
     return null;
   }
 
-  // Google authentication function
+  // Google authentication function using popup
   async function signInWithGoogle(role = 'student', additionalData = {}) {
     try {
       console.log('Starting Google authentication with role:', role);
       
-      // Store role and additional data before redirect
-      localStorage.setItem('googleSelectedRole', role);
-      localStorage.setItem('googleFormData', JSON.stringify(additionalData));
-      
       const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      
+      console.log('Google popup result received:', result.user.uid);
+      
+      // Create user data
+      const userData = {
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        role: role,
+        ...additionalData
+      };
+
+      // Save to Firestore
+      const userRef = doc(db, 'users', result.user.uid);
+      await setDoc(userRef, {
+        ...userData,
+        createdAt: new Date(),
+        profilePictureUrl: result.user.photoURL || '',
+        profilePictureBase64: '',
+        bio: '',
+        skills: [],
+        interests: [],
+        graduationYear: '',
+        major: '',
+        company: '',
+        position: '',
+        experience: '',
+        location: '',
+        phone: '',
+        website: '',
+        linkedin: '',
+        github: '',
+        twitter: '',
+        instagram: '',
+        facebook: '',
+        youtube: '',
+        tiktok: '',
+        snapchat: '',
+        discord: '',
+        telegram: '',
+        whatsapp: '',
+        skype: '',
+        zoom: '',
+        teams: '',
+        slack: '',
+        other: ''
+      });
+      
+      // Save to localStorage for persistence
+      localStorage.setItem('userRole', role);
+      localStorage.setItem('adminUser', JSON.stringify(result.user));
+      
+      console.log('Google user data saved successfully');
+      
+      return { success: true, user: result.user, role: role };
     } catch (error) {
       console.error('Google authentication error:', error);
       throw error;
     }
   }
 
-  // Handle Google redirect result
-  async function handleGoogleRedirectResult() {
-    try {
-      const result = await getRedirectResult(auth);
-      if (result) {
-        console.log('Google redirect result received:', result.user.uid);
-        
-        // Get stored role and form data
-        const storedRole = localStorage.getItem('googleSelectedRole');
-        const storedFormData = localStorage.getItem('googleFormData');
-        
-        if (storedRole) {
-          // Create user data
-          const userData = {
-            uid: result.user.uid,
-            email: result.user.email,
-            displayName: result.user.displayName,
-            role: storedRole,
-            ...(storedFormData ? JSON.parse(storedFormData) : {})
-          };
-
-          // Save to Firestore
-          const userRef = doc(db, 'users', result.user.uid);
-          await setDoc(userRef, {
-            ...userData,
-            createdAt: new Date(),
-            profilePictureUrl: result.user.photoURL || '',
-            profilePictureBase64: '',
-            bio: '',
-            skills: [],
-            interests: [],
-            graduationYear: '',
-            major: '',
-            company: '',
-            position: '',
-            experience: '',
-            location: '',
-            phone: '',
-            website: '',
-            linkedin: '',
-            github: '',
-            twitter: '',
-            instagram: '',
-            facebook: '',
-            youtube: '',
-            tiktok: '',
-            snapchat: '',
-            discord: '',
-            telegram: '',
-            whatsapp: '',
-            skype: '',
-            zoom: '',
-            teams: '',
-            slack: '',
-            other: ''
-          });
-          
-          // Save to localStorage for persistence
-          localStorage.setItem('userRole', storedRole);
-          localStorage.setItem('adminUser', JSON.stringify(result.user));
-          
-          console.log('Google user data saved successfully');
-          
-          // Clean up stored data
-          localStorage.removeItem('googleSelectedRole');
-          localStorage.removeItem('googleFormData');
-          
-          return { success: true, user: result.user, role: storedRole };
-        } else {
-          // No stored role, create default user
-          console.log('No stored role, creating default user');
-          
-          const userRef = doc(db, 'users', result.user.uid);
-          await setDoc(userRef, {
-            firstName: result.user.displayName?.split(' ')[0] || '',
-            lastName: result.user.displayName?.split(' ')[1] || '',
-            email: result.user.email,
-            role: 'student',
-            createdAt: new Date(),
-            profilePictureUrl: result.user.photoURL || '',
-            profilePictureBase64: '',
-            bio: '',
-            skills: [],
-            interests: [],
-            graduationYear: '',
-            major: '',
-            company: '',
-            position: '',
-            experience: '',
-            location: '',
-            phone: '',
-            website: '',
-            linkedin: '',
-            github: '',
-            twitter: '',
-            instagram: '',
-            facebook: '',
-            youtube: '',
-            tiktok: '',
-            snapchat: '',
-            discord: '',
-            telegram: '',
-            whatsapp: '',
-            skype: '',
-            zoom: '',
-            teams: '',
-            slack: '',
-            other: ''
-          });
-          
-          // Save to localStorage
-          localStorage.setItem('userRole', 'student');
-          localStorage.setItem('adminUser', JSON.stringify(result.user));
-          
-          return { success: true, user: result.user, role: 'student' };
-        }
-      }
-      return null;
-    } catch (error) {
-      console.error('Error handling Google redirect result:', error);
-      // Clean up on error
-      localStorage.removeItem('googleSelectedRole');
-      localStorage.removeItem('googleFormData');
-      throw error;
-    }
-  }
-
-  // Handle Google redirect result on component mount
-  useEffect(() => {
-    const handleGoogleRedirect = async () => {
-      try {
-        const result = await handleGoogleRedirectResult();
-        if (result) {
-          console.log('Google authentication completed:', result);
-          // The onAuthStateChanged will handle the rest
-        }
-      } catch (error) {
-        console.error('Error in Google redirect handling:', error);
-      }
-    };
-
-    handleGoogleRedirect();
-  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -637,8 +544,7 @@ export function AuthProvider({ children }) {
     refreshUserRole,
     updateUserProfile,
     fetchUserProfile,
-    signInWithGoogle,
-    handleGoogleRedirectResult
+    signInWithGoogle
   };
 
   return (

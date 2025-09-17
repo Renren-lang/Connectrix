@@ -10,7 +10,7 @@ import logoImage from '../components/Logo2.png';
 
 function Login() {
   const navigate = useNavigate();
-  const { login, getUserRole, refreshUserRole, signInWithGoogle, handleGoogleRedirectResult } = useAuth();
+  const { login, getUserRole, refreshUserRole, signInWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -57,30 +57,6 @@ function Login() {
     };
   }, []);
 
-  // Handle Google authentication redirect results
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      try {
-        const result = await handleGoogleRedirectResult();
-        if (result && result.success) {
-          console.log('Google authentication successful:', result);
-          
-          // Navigate based on role
-          if (result.role === 'student') {
-            navigate('/student-dashboard');
-          } else if (result.role === 'alumni') {
-            navigate('/alumni-dashboard');
-          } else {
-            navigate('/dashboard');
-          }
-        }
-      } catch (error) {
-        console.error('Error handling Google redirect result:', error);
-      }
-    };
-
-    handleRedirectResult();
-  }, [navigate, handleGoogleRedirectResult]);
 
   // Admin credentials (same as AdminLogin.jsx)
   const ADMIN_CREDENTIALS = {
@@ -268,13 +244,27 @@ function Login() {
       setIsSubmitting(true);
       
       // Use AuthContext Google auth function
-      await signInWithGoogle(googleSelectedRole, googleFormData);
+      const result = await signInWithGoogle(googleSelectedRole, googleFormData);
+      
+      if (result && result.success) {
+        console.log('Google authentication successful:', result);
+        
+        // Navigate based on role
+        if (result.role === 'student') {
+          navigate('/student-dashboard');
+        } else if (result.role === 'alumni') {
+          navigate('/alumni-dashboard');
+        } else {
+          navigate('/dashboard');
+        }
+      }
     } catch (error) {
       console.error('Google auth error:', error);
       setErrors({
         username: '',
         password: 'Google authentication failed'
       });
+    } finally {
       setIsSubmitting(false);
       setShowAuthConfirmation(false);
       setShowRoleSelection(false);
@@ -686,7 +676,7 @@ function Login() {
                             <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>Google Authentication</h3>
                             <p style={{ margin: '0', color: '#666', lineHeight: '1.5' }}>
                               You are about to sign in with Google as a <strong>{googleSelectedRole}</strong>. 
-                              This will redirect you to Google for secure authentication.
+                              This will open a popup window for secure authentication.
                             </p>
                           </div>
                           
