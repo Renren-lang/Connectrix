@@ -371,11 +371,11 @@ export function AuthProvider({ children }) {
           console.log('AuthContext: Fetched user role:', role, 'for user:', user.uid);
           
           // Also check localStorage for role persistence (especially for new users)
-          const storedRole = localStorage.getItem('userRole');
-          console.log('AuthContext: Stored role from localStorage:', storedRole);
+          const currentStoredRole = localStorage.getItem('userRole');
+          console.log('AuthContext: Stored role from localStorage:', currentStoredRole);
           
           // Use stored role if available, otherwise use fetched role, default to 'student'
-          const finalRole = storedRole || role || 'student';
+          const finalRole = currentStoredRole || role || 'student';
           console.log('AuthContext: Setting final role:', finalRole);
           setUserRole(finalRole);
         } else {
