@@ -1,7 +1,8 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+// firebase.js
+import { initializeApp } from "firebase/app";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -11,24 +12,24 @@ const firebaseConfig = {
   storageBucket: "cconnect-7f562.appspot.com",
   messagingSenderId: "628107878370",
   appId: "1:628107878370:web:85e027be6291d83a1fa3bb",
-  measurementId: "G-XXXXXXXXXX"
+  measurementId: "G-VBD31ZVWJY" // replace with actual if needed
 };
 
-// Initialize Firebase
+// Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Authentication and get a reference to the service
+// Initialize services
 export const auth = getAuth(app);
-
-// Set persistence to keep user logged in across browser sessions
-setPersistence(auth, browserLocalPersistence).catch((error) => {
-  console.error('Error setting auth persistence:', error);
-});
-
-// Initialize Cloud Firestore and get a reference to the service
 export const db = getFirestore(app);
-
-// Initialize Firebase Storage and get a reference to the service
 export const storage = getStorage(app);
+
+// Set persistence for Auth
+setPersistence(auth, browserLocalPersistence)
+  .then(() => {
+    console.log("Firebase Auth persistence set to local (browserLocalPersistence).");
+  })
+  .catch((error) => {
+    console.error("Error setting Firebase Auth persistence:", error);
+  });
 
 export default app;

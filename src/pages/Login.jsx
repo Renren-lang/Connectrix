@@ -244,19 +244,13 @@ function Login() {
       setIsSubmitting(true);
       
       // Use AuthContext Google auth function
-      const result = await signInWithGoogle(googleSelectedRole, googleFormData);
+      const result = await signInWithGoogle(googleFormData);
       
       if (result && result.success) {
         console.log('Google authentication successful:', result);
         
-        // Navigate based on role
-        if (result.role === 'student') {
-          navigate('/student-dashboard');
-        } else if (result.role === 'alumni') {
-          navigate('/alumni-dashboard');
-        } else {
-          navigate('/dashboard');
-        }
+        // Navigate to student dashboard (Google users default to student)
+        navigate('/student-dashboard');
       }
     } catch (error) {
       console.error('Google auth error:', error);
@@ -675,7 +669,8 @@ function Login() {
                             </div>
                             <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>Google Authentication</h3>
                             <p style={{ margin: '0', color: '#666', lineHeight: '1.5' }}>
-                              You are about to sign in with Google as a <strong>{googleSelectedRole}</strong>. 
+                              You are about to sign in with Google. 
+                              Google users will be registered as <strong>students</strong> by default.
                               This will open a popup window for secure authentication.
                             </p>
                           </div>

@@ -334,69 +334,39 @@ export function AuthProvider({ children }) {
   }
 
   // Google authentication function using popup
-  async function signInWithGoogle(role = 'student', additionalData = {}) {
+  async function signInWithGoogle(additionalData = {}) {
     try {
-      console.log('Starting Google authentication with role:', role);
+      console.log('Starting Google authentication');
       
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       
       console.log('Google popup result received:', result.user.uid);
-      
-      // Create user data
-      const userData = {
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName,
-        role: role,
-        ...additionalData
-      };
 
-      // Save to Firestore
       const userRef = doc(db, 'users', result.user.uid);
-      await setDoc(userRef, {
-        ...userData,
-        createdAt: new Date(),
-        profilePictureUrl: result.user.photoURL || '',
-        profilePictureBase64: '',
-        bio: '',
-        skills: [],
-        interests: [],
-        graduationYear: '',
-        major: '',
-        company: '',
-        position: '',
-        experience: '',
-        location: '',
-        phone: '',
-        website: '',
-        linkedin: '',
-        github: '',
-        twitter: '',
-        instagram: '',
-        facebook: '',
-        youtube: '',
-        tiktok: '',
-        snapchat: '',
-        discord: '',
-        telegram: '',
-        whatsapp: '',
-        skype: '',
-        zoom: '',
-        teams: '',
-        slack: '',
-        other: ''
-      });
-      
-      // Save to localStorage for persistence
-      localStorage.setItem('userRole', role);
-      localStorage.setItem('adminUser', JSON.stringify(result.user));
-      
-      console.log('Google user data saved successfully');
-      
-      return { success: true, user: result.user, role: role };
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        const newUser = {
+          uid: result.user.uid,
+          email: result.user.email,
+          displayName: result.user.displayName,
+          role: 'student',
+          createdAt: new Date(),
+          profilePictureUrl: result.user.photoURL || '',
+          ...additionalData
+        };
+        await setDoc(userRef, newUser);
+        console.log('Google user created in Firestore');
+      } else {
+        console.log('Google user already exists in Firestore');
+      }
+
+      setCurrentUser(result.user);
+      setUserRole('student'); // default role for Google users
+      return { success: true, user: result.user };
     } catch (error) {
-      console.error('Google authentication error:', error);
+      console.error('Google sign-in error:', error);
       throw error;
     }
   }
@@ -404,136 +374,19 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      try {
-        // Check for admin user first, but only if there's no Firebase user
-        const adminUser = localStorage.getItem('adminUser');
-        const storedRole = localStorage.getItem('userRole');
-        
-        // Only treat as admin if there's no Firebase user AND admin data exists
-        if (!user && adminUser && storedRole === 'admin') {
-          try {
-            const adminData = JSON.parse(adminUser);
-            console.log('AuthContext: Admin user detected from localStorage (no Firebase user)');
-            setCurrentUser(adminData);
-            setUserRole('admin');
-            setLoading(false);
-            return;
-          } catch (error) {
-            console.error('Error parsing admin user data:', error);
-            localStorage.removeItem('adminUser');
-            localStorage.removeItem('userRole');
-          }
-        }
-
-        if (user) {
-          console.log('Auth state changed - user authenticated:', user.uid);
-          console.log('User email:', user.email);
-          console.log('User displayName:', user.displayName);
-          
-          // Clear admin data if Firebase user is authenticated
-          if (storedRole === 'admin') {
-            console.log('Clearing admin data - Firebase user authenticated');
-            localStorage.removeItem('adminUser');
-            localStorage.removeItem('userRole');
-          }
-          
-          // Set current user immediately to prevent timing issues
-          setCurrentUser(user);
-          
-          // Fetch user profile data from Firestore
-          console.log('Fetching user profile from Firestore...');
-          const profileData = await fetchUserProfile(user.uid);
-          console.log('Profile data fetched:', profileData);
-          
-          // Combine Firebase Auth user with Firestore profile data
-          const userWithProfile = {
-            ...user,
-            ...profileData
-          };
-          
-          setCurrentUser(userWithProfile);
-          
-          // Get user role when auth state changes
-          console.log('Getting user role from Firestore...');
-          const role = await getUserRole(user.uid);
-          console.log('AuthContext: Fetched user role:', role, 'for user:', user.uid);
-          
-          // Also check localStorage for role persistence (especially for new users)
-          const currentStoredRole = localStorage.getItem('userRole');
-          console.log('AuthContext: Stored role from localStorage:', currentStoredRole);
-          
-          // Use stored role if available, otherwise use fetched role, default to 'student'
-          const finalRole = currentStoredRole || role || 'student';
-          console.log('AuthContext: Setting final role:', finalRole);
-          setUserRole(finalRole);
-          
-          // Store role in localStorage for persistence
-          localStorage.setItem('userRole', finalRole);
-          console.log('Role stored in localStorage:', finalRole);
-          
-          // Ensure user stays authenticated
-          console.log('User authentication completed successfully');
-        } else {
-          console.log('Auth state changed - user not authenticated');
-          console.log('Current storedRole:', storedRole);
-          console.log('Current adminUser:', adminUser);
-          
-          // Only clear if we're sure no Firebase user is logged in AND there's no role at all
-          if (!storedRole && !adminUser) {
-            console.log('Clearing user data - no user and no stored role/admin');
-            setCurrentUser(null);
-            setUserRole('student'); // Default to student instead of null
-            localStorage.removeItem('userRole');
-            localStorage.removeItem('adminUser');
-          } else {
-            console.log('Keeping local role/admin, waiting for login to complete');
-            
-            // Fallback to stored values instead of clearing immediately
-            if (storedRole) {
-              console.log('No Firebase user, but using stored role:', storedRole);
-              setUserRole(storedRole);
-              if (adminUser && storedRole === 'admin') {
-                try {
-                  const adminData = JSON.parse(adminUser);
-                  setCurrentUser(adminData);
-                  console.log('Restored admin user from localStorage');
-                } catch (error) {
-                  console.error('Error parsing admin user data:', error);
-                  localStorage.removeItem('adminUser');
-                  localStorage.removeItem('userRole');
-                  setCurrentUser(null);
-                  setUserRole('student'); // Default role
-                }
-              } else if (adminUser && storedRole !== 'admin') {
-                try {
-                  const userData = JSON.parse(adminUser);
-                  setCurrentUser(userData);
-                  console.log('Restored user from localStorage');
-                } catch (error) {
-                  console.error('Error parsing user data:', error);
-                  localStorage.removeItem('adminUser');
-                  localStorage.removeItem('userRole');
-                  setCurrentUser(null);
-                  setUserRole('student'); // Default role
-                }
-              } else {
-                // No stored user data, but we have a role
-                setCurrentUser(null);
-                console.log('Using stored role without user data');
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error in auth state change:', error);
-        // Handle error gracefully - set user to null but don't crash
+      if (user) {
+        // User is signed in
+        console.log('Auth state changed - user authenticated:', user.uid);
+        const profileData = await fetchUserProfile(user.uid);
+        setCurrentUser({ ...user, ...profileData });
+        setUserRole(profileData?.role || 'student');
+      } else {
+        // User is signed out
+        console.log('Auth state changed - user not authenticated');
         setCurrentUser(null);
-        setUserRole('student'); // Default to student role instead of null
-        // Don't clear localStorage on error - keep stored data for recovery
-        console.log('Error occurred, keeping stored data for recovery');
-      } finally {
-        setLoading(false);
+        setUserRole(null);
       }
+      setLoading(false);
     });
 
     return unsubscribe;
