@@ -66,9 +66,9 @@ function Login() {
     }
   }, []);
 
-  // Check if user is already authenticated and redirect
+  // Check if user is already authenticated and redirect (only if not showing success message)
   useEffect(() => {
-    if (!loading && currentUser && userRole) {
+    if (!loading && currentUser && userRole && !showSuccess) {
       console.log('User already authenticated, redirecting from login page');
       if (userRole === 'student') {
         navigate('/student-dashboard');
@@ -78,7 +78,7 @@ function Login() {
         navigate('/admin-dashboard');
       }
     }
-  }, [currentUser, userRole, loading, navigate]);
+  }, [currentUser, userRole, loading, navigate, showSuccess]);
 
   // Handle scroll effect for header
   useEffect(() => {
@@ -229,24 +229,13 @@ function Login() {
       // Attempt to login with the found email
       const result = await login(email, formData.password);
       
-      if (result.success) {
-        setShowSuccess(true);
-        setTimeout(() => {
-          const userRole = result.userRole || 'student';
-          if (userRole === 'student') {
-            navigate('/student-dashboard');
-          } else if (userRole === 'alumni') {
-            navigate('/alumni-dashboard');
-          } else {
-            navigate('/dashboard');
-          }
-        }, 1500);
-      } else {
-        setErrors({
-          email: '',
-          password: result.error || 'Login failed'
-        });
-      }
+      // If we get here, login was successful
+      setShowSuccess(true);
+      setTimeout(() => {
+        // The user will be automatically redirected by the useEffect
+        // that checks currentUser and userRole
+        console.log('Login successful, user will be redirected automatically');
+      }, 1500);
     } catch (error) {
       // Debug the authentication error
       debugAuthError(error, 'Login');
@@ -899,7 +888,7 @@ function Login() {
                             outline: 'none'
                           }}
                           placeholder="Enter your email address"
-                          value={formData.username}
+                          value={formData.email}
                           onChange={handleInputChange}
                           autoComplete="username"
                           onFocus={(e) => {
