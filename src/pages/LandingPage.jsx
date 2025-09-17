@@ -166,33 +166,6 @@ const LandingPage = () => {
                 e.target.style.boxShadow = '0 4px 15px rgba(37, 99, 235, 0.3)';
               }}
             >Register</button>
-            <button 
-              onClick={() => navigate('/admin-login')} 
-              style={{
-                background: '#dc2626',
-                border: 'none',
-                color: 'white',
-                padding: '12px 24px',
-                borderRadius: '50px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                fontSize: '14px',
-                letterSpacing: '0.5px',
-                textTransform: 'uppercase',
-                boxShadow: '0 4px 15px rgba(220, 38, 38, 0.3)'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = '#b91c1c';
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 8px 25px rgba(220, 38, 38, 0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = '#dc2626';
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 4px 15px rgba(220, 38, 38, 0.3)';
-              }}
-            >Admin</button>
         </div>
         </header>
 

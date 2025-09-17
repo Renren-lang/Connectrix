@@ -73,12 +73,24 @@ function Login() {
     handleRedirectResult();
   }, []);
 
+  // Admin credentials (same as AdminLogin.jsx)
+  const ADMIN_CREDENTIALS = {
+    username: 'admin',
+    password: 'admin123',
+    email: 'admin@connectrix.com'
+  };
+
   // Helper function to look up email from username
   const lookupEmailFromUsername = async (input) => {
     try {
       // Check if input is an email (contains @)
       if (input.includes('@')) {
         return input; // Return as-is if it's an email
+      }
+      
+      // Check for admin credentials first
+      if (input === ADMIN_CREDENTIALS.username) {
+        return ADMIN_CREDENTIALS.email;
       }
       
       // Otherwise, treat as username and look up in Firestore
@@ -150,6 +162,31 @@ function Login() {
     }
 
     try {
+      // Check for admin credentials first
+      if (formData.username === ADMIN_CREDENTIALS.username && 
+          formData.password === ADMIN_CREDENTIALS.password) {
+        
+        // Handle admin login
+        const adminUser = {
+          uid: 'admin-uid-' + Date.now(),
+          email: ADMIN_CREDENTIALS.email,
+          displayName: 'Admin',
+          role: 'admin',
+          firstName: 'Admin',
+          lastName: 'User'
+        };
+
+        // Store admin role and user data in localStorage
+        localStorage.setItem('userRole', 'admin');
+        localStorage.setItem('adminUser', JSON.stringify(adminUser));
+        
+        setShowSuccess(true);
+        setTimeout(() => {
+          navigate('/admin-dashboard');
+        }, 1500);
+        return;
+      }
+
       // Look up email from username if needed
       const email = await lookupEmailFromUsername(formData.username);
       if (!email) {
@@ -954,6 +991,22 @@ function Login() {
                       >
                         Register
                       </button>
+                    </div>
+
+                    <div style={{
+                      textAlign: 'center',
+                      marginTop: '20px',
+                      padding: '15px',
+                      background: 'rgba(220, 38, 38, 0.05)',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(220, 38, 38, 0.1)'
+                    }}>
+                      <div style={{ color: '#dc2626', fontSize: '12px', fontWeight: '600', marginBottom: '8px' }}>
+                        Admin Access
+                      </div>
+                      <div style={{ color: '#6b7280', fontSize: '11px', fontFamily: 'monospace' }}>
+                        Username: admin | Password: admin123
+                      </div>
                     </div>
                   </>
                 )}
