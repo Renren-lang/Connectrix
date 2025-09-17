@@ -47,10 +47,7 @@ function Login() {
     }
   }, []);
 
-  // Set navigation callback for Google authentication
-  useEffect(() => {
-    setGoogleAuthNavigationCallback(navigate);
-  }, [navigate, setGoogleAuthNavigationCallback]);
+  // Google authentication is now handled directly in AuthContext
 
   // Check if this is a registration redirect
   useEffect(() => {
