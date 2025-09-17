@@ -80,6 +80,8 @@ const YouTubeHeader = ({ onSidebarToggle, sidebarCollapsed }) => {
         <form className="search-form" onSubmit={handleSearch}>
           <div className={`search-container ${isSearchFocused ? 'focused' : ''}`}>
             <input
+              id="youtube-search"
+              name="youtubeSearch"
               type="text"
               className="search-input"
               placeholder="Search"

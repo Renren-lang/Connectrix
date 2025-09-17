@@ -1071,11 +1071,13 @@ function StudentDashboard() {
                       )}
                     </div>
                     <div className="post-input">
-                      <input 
-                        type="text" 
-                        placeholder="What's on your mind?"
-                        className="post-text-input"
-                        onClick={() => setShowCreatePostModal(true)}
+                    <input 
+                      id="create-post-trigger"
+                      name="createPostTrigger"
+                      type="text" 
+                      placeholder="What's on your mind?"
+                      className="post-text-input"
+                      onClick={() => setShowCreatePostModal(true)}
                         readOnly
                       />
                     </div>
@@ -1546,6 +1548,8 @@ function StudentDashboard() {
                   <div className="search-bar">
                     <i className="fas fa-search"></i>
                     <input 
+                      id="job-search"
+                      name="jobSearch"
                       type="text" 
                       placeholder="Search by industry, job role, or company..."
                       className="search-input"

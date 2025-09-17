@@ -470,6 +470,8 @@ const Profile = () => {
             {editingName ? (
               <div className="name-edit-container">
                 <input
+                  id="display-name"
+                  name="displayName"
                   type="text"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
@@ -648,6 +650,8 @@ const Profile = () => {
                         <div className="intro-text">Job Title</div>
                         {editingAbout ? (
                           <input
+                            id="job-title"
+                            name="jobTitle"
                             type="text"
                             value={aboutData.jobTitle}
                             onChange={(e) => setAboutData({...aboutData, jobTitle: e.target.value})}
@@ -666,6 +670,8 @@ const Profile = () => {
                         <div className="intro-text">Company</div>
                         {editingAbout ? (
                           <input
+                            id="company"
+                            name="company"
                             type="text"
                             value={aboutData.company}
                             onChange={(e) => setAboutData({...aboutData, company: e.target.value})}
@@ -684,6 +690,8 @@ const Profile = () => {
                         <div className="intro-text">Location</div>
                         {editingAbout ? (
                           <input
+                            id="location"
+                            name="location"
                             type="text"
                             value={aboutData.location}
                             onChange={(e) => setAboutData({...aboutData, location: e.target.value})}
@@ -761,6 +769,8 @@ const Profile = () => {
                   </div>
                   <div className="post-input">
                     <input 
+                      id="new-post-input"
+                      name="newPost"
                       type="text" 
                       className="post-text-input"
                       placeholder="What's on your mind?"
@@ -905,6 +915,8 @@ const Profile = () => {
                           {/* Add Comment Form */}
                           <div className="add-comment-form">
                             <input
+                              id={`comment-input-${post.id}`}
+                              name={`comment-${post.id}`}
                               type="text"
                               placeholder="Write a comment..."
                               value={commentingPost === post.id ? newComment : ''}

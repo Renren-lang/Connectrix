@@ -404,6 +404,8 @@ const DashboardHeader = ({ currentPage = 'Dashboard', toggleSidebar }) => {
           <form onSubmit={handleSearch} className="search-form">
             <div className="search-container">
               <input
+                id="dashboard-search"
+                name="dashboardSearch"
                 type="text"
                 placeholder="Search mentors, students, jobs..."
                 value={searchQuery}
