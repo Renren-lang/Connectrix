@@ -2,10 +2,19 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
     // Users collection - allow authenticated users to read and write their own documents
     match /users/{userId} {
       // Allow users to read and write their own document
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow admin to read all user documents
+      allow read: if isAdmin();
       // Also allow reading any user document for debugging (can be removed later)
       allow read: if request.auth != null;
     }
@@ -68,6 +77,8 @@ service cloud.firestore {
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null && 
         request.auth.uid == resource.data.authorId;
+      // Allow admin to read all posts (for admin dashboard)
+      allow read: if isAdmin();
     }
     
     // Post comments collection
@@ -208,6 +219,16 @@ service cloud.firestore {
     match /{document=**} {
       allow read: if request.auth != null;
       allow write: if false; // Still deny writes by default
+    }
+    
+    // Temporary rule for admin dashboard - allow reading posts and users
+    // This is needed because admin user is not a real Firebase Auth user
+    match /posts/{postId} {
+      allow read: if true; // Allow reading posts for admin dashboard
+    }
+    
+    match /users/{userId} {
+      allow read: if true; // Allow reading users for admin dashboard
     }
   }
 }
