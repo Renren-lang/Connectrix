@@ -199,7 +199,7 @@ export function AuthProvider({ children }) {
       if (userSnap.exists()) {
         const role = userSnap.data().role;
         console.log('User role found:', role);
-        setUserRole(role);ly
+        setUserRole(role);
         // Store role and user data in localStorage for persistence
         localStorage.setItem('userRole', role);
         localStorage.setItem('adminUser', JSON.stringify(result.user));
@@ -264,21 +264,38 @@ export function AuthProvider({ children }) {
       console.error('Login error:', error);
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
+      console.error('Full error object:', error);
       
-      // Handle specific Firebase Auth errors
-      if (error.code === 'auth/user-not-found') {
+      // Handle specific Firebase Auth errors with detailed logging
+      if (error.code === 'auth/invalid-credential') {
+        console.error('Invalid credential error - email or password is incorrect');
+        throw new Error('Invalid email or password. Please check your credentials and try again.');
+      } else if (error.code === 'auth/user-not-found') {
+        console.error('User not found error - no account exists with this email');
         throw new Error('No account found with this email address.');
       } else if (error.code === 'auth/wrong-password') {
+        console.error('Wrong password error - password is incorrect');
         throw new Error('Incorrect password. Please try again.');
       } else if (error.code === 'auth/invalid-email') {
+        console.error('Invalid email error - email format is invalid');
         throw new Error('Invalid email address format.');
       } else if (error.code === 'auth/user-disabled') {
+        console.error('User disabled error - account has been disabled');
         throw new Error('This account has been disabled. Please contact support.');
       } else if (error.code === 'auth/too-many-requests') {
+        console.error('Too many requests error - rate limit exceeded');
         throw new Error('Too many failed login attempts. Please try again later.');
       } else if (error.code === 'auth/network-request-failed') {
+        console.error('Network request failed - connection issue');
         throw new Error('Network error. Please check your internet connection.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        console.error('Operation not allowed - email/password auth not enabled');
+        throw new Error('Email/password authentication is not enabled. Please contact support.');
+      } else if (error.code === 'auth/weak-password') {
+        console.error('Weak password error - password is too weak');
+        throw new Error('Password is too weak. Please choose a stronger password.');
       } else {
+        console.error('Unknown authentication error:', error);
         throw new Error(`Login failed: ${error.message}`);
       }
     }

@@ -6,6 +6,7 @@ import { auth, db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import SafeLogger from '../utils/logger';
 import API_CONFIG from '../config/api';
+import { debugAuthError, debugLoginAttempt, validateEmail, validatePassword as validatePasswordUtil } from '../utils/authDebugger';
 import logoImage from '../components/Logo2.png';
 
 function Login() {
@@ -98,11 +99,16 @@ function Login() {
   const validateUsername = (input) => {
     const trimmed = input.trim();
     // Allow emails (contain @) or usernames (at least 3 characters)
-    return trimmed.includes('@') || trimmed.length >= 3;
+    if (trimmed.includes('@')) {
+      const emailValidation = validateEmail(trimmed);
+      return emailValidation.isValid;
+    }
+    return trimmed.length >= 3;
   };
 
   const validatePassword = (password) => {
-    return password.length >= 8;
+    const passwordValidation = validatePasswordUtil(password);
+    return passwordValidation.isValid;
   };
 
   const handleInputChange = (e) => {
@@ -147,6 +153,10 @@ function Login() {
     }
 
     try {
+      // Debug login attempt
+      const debugInfo = debugLoginAttempt(formData.username, formData.password);
+      console.log('Login attempt debug info:', debugInfo);
+      
       // Check for admin credentials first
       if (formData.username === ADMIN_CREDENTIALS.username && 
           formData.password === ADMIN_CREDENTIALS.password) {
@@ -209,11 +219,56 @@ function Login() {
         });
       }
     } catch (error) {
-      console.error('Login error:', error);
-      setErrors({
-        username: '',
-        password: 'An error occurred during login'
-      });
+      // Debug the authentication error
+      debugAuthError(error, 'Login');
+      
+      // Handle specific Firebase Auth errors with user-friendly messages
+      if (error.code === 'auth/invalid-credential') {
+        setErrors({
+          username: '',
+          password: 'Invalid email or password. Please check your credentials and try again.'
+        });
+      } else if (error.code === 'auth/user-not-found') {
+        setErrors({
+          username: 'No account found with this email address',
+          password: ''
+        });
+      } else if (error.code === 'auth/wrong-password') {
+        setErrors({
+          username: '',
+          password: 'Incorrect password. Please try again.'
+        });
+      } else if (error.code === 'auth/invalid-email') {
+        setErrors({
+          username: 'Invalid email address format',
+          password: ''
+        });
+      } else if (error.code === 'auth/user-disabled') {
+        setErrors({
+          username: '',
+          password: 'This account has been disabled. Please contact support.'
+        });
+      } else if (error.code === 'auth/too-many-requests') {
+        setErrors({
+          username: '',
+          password: 'Too many failed login attempts. Please try again later.'
+        });
+      } else if (error.code === 'auth/network-request-failed') {
+        setErrors({
+          username: '',
+          password: 'Network error. Please check your internet connection.'
+        });
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setErrors({
+          username: '',
+          password: 'Email/password authentication is not enabled. Please contact support.'
+        });
+      } else {
+        setErrors({
+          username: '',
+          password: error.message || 'An unexpected error occurred during login'
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -252,10 +307,42 @@ function Login() {
       }
     } catch (error) {
       console.error('Google auth error:', error);
-      setErrors({
-        username: '',
-        password: 'Google authentication failed'
-      });
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
+      // Handle specific Google Auth errors
+      if (error.code === 'auth/popup-closed-by-user') {
+        setErrors({
+          username: '',
+          password: 'Google sign-in was cancelled. Please try again.'
+        });
+      } else if (error.code === 'auth/popup-blocked') {
+        setErrors({
+          username: '',
+          password: 'Popup was blocked by your browser. Please allow popups and try again.'
+        });
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        setErrors({
+          username: '',
+          password: 'Another sign-in process is already in progress. Please wait.'
+        });
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        setErrors({
+          username: '',
+          password: 'An account already exists with this email using a different sign-in method.'
+        });
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setErrors({
+          username: '',
+          password: 'Google sign-in is not enabled. Please contact support.'
+        });
+      } else {
+        setErrors({
+          username: '',
+          password: 'Google authentication failed. Please try again.'
+        });
+      }
+      
       setIsSubmitting(false);
       setShowAuthConfirmation(false);
       setShowRoleSelection(false);
