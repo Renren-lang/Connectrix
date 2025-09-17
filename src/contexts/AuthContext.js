@@ -297,7 +297,9 @@ export function AuthProvider({ children }) {
           return 'student';
         } catch (createError) {
           console.error('Error creating user document:', createError);
-          return null;
+          console.error('Create error details:', createError.code, createError.message);
+          // Return 'student' as default even if creation fails
+          return 'student';
         }
       }
     } catch (error) {
@@ -306,6 +308,7 @@ export function AuthProvider({ children }) {
       console.error('Full error object:', error);
       
       // Return a default role instead of null to prevent crashes
+      console.log('Returning default student role due to error');
       return 'student';
     }
   }
@@ -345,9 +348,12 @@ export function AuthProvider({ children }) {
 
         if (user) {
           console.log('Auth state changed - user authenticated:', user.uid);
+          console.log('User email:', user.email);
+          console.log('User displayName:', user.displayName);
           
           // Clear admin data if Firebase user is authenticated
           if (storedRole === 'admin') {
+            console.log('Clearing admin data - Firebase user authenticated');
             localStorage.removeItem('adminUser');
             localStorage.removeItem('userRole');
           }
@@ -356,7 +362,9 @@ export function AuthProvider({ children }) {
           setCurrentUser(user);
           
           // Fetch user profile data from Firestore
+          console.log('Fetching user profile from Firestore...');
           const profileData = await fetchUserProfile(user.uid);
+          console.log('Profile data fetched:', profileData);
           
           // Combine Firebase Auth user with Firestore profile data
           const userWithProfile = {
@@ -367,6 +375,7 @@ export function AuthProvider({ children }) {
           setCurrentUser(userWithProfile);
           
           // Get user role when auth state changes
+          console.log('Getting user role from Firestore...');
           const role = await getUserRole(user.uid);
           console.log('AuthContext: Fetched user role:', role, 'for user:', user.uid);
           
@@ -378,6 +387,13 @@ export function AuthProvider({ children }) {
           const finalRole = currentStoredRole || role || 'student';
           console.log('AuthContext: Setting final role:', finalRole);
           setUserRole(finalRole);
+          
+          // Store role in localStorage for persistence
+          localStorage.setItem('userRole', finalRole);
+          console.log('Role stored in localStorage:', finalRole);
+          
+          // Ensure user stays authenticated
+          console.log('User authentication completed successfully');
         } else {
           console.log('Auth state changed - user not authenticated');
           console.log('Current storedRole:', storedRole);
