@@ -109,6 +109,9 @@ export function AuthProvider({ children }) {
   // Sign up function
   async function signup(email, password, role, userData) {
     try {
+      // Set registration flag to prevent navigation
+      setIsRegistration(true);
+      
       // Validate inputs
       if (!email || !password || !role) {
         throw new Error('Missing required fields: email, password, and role are required');
@@ -171,6 +174,8 @@ export function AuthProvider({ children }) {
         email: email,
         role: role
       });
+      // Reset registration flag on error
+      setIsRegistration(false);
       throw error;
     }
   }
@@ -531,10 +536,11 @@ export function AuthProvider({ children }) {
   // Navigation callback for Google authentication
   const [navigationCallback, setNavigationCallback] = useState(null);
   const [isGoogleAuth, setIsGoogleAuth] = useState(false);
+  const [isRegistration, setIsRegistration] = useState(false);
 
-  // Navigation effect for Google authentication only
+  // Navigation effect for Google authentication only (not registration)
   useEffect(() => {
-    if (currentUser && userRole && !loading && navigationCallback && isGoogleAuth) {
+    if (currentUser && userRole && !loading && navigationCallback && isGoogleAuth && !isRegistration) {
       console.log('User authenticated via Google, executing navigation callback');
       
       // Small delay to ensure state is fully updated
@@ -554,7 +560,7 @@ export function AuthProvider({ children }) {
         setIsGoogleAuth(false);
       }, 1000);
     }
-  }, [currentUser, userRole, loading, navigationCallback, isGoogleAuth]);
+  }, [currentUser, userRole, loading, navigationCallback, isGoogleAuth, isRegistration]);
 
   useEffect(() => {
     let isMounted = true;
@@ -682,6 +688,11 @@ export function AuthProvider({ children }) {
     setIsGoogleAuth(false);
   };
 
+  // Function to reset registration flag
+  const resetRegistrationFlag = () => {
+    setIsRegistration(false);
+  };
+
   const value = {
     currentUser,
     userRole,
@@ -697,6 +708,7 @@ export function AuthProvider({ children }) {
     handleGoogleRedirectResult,
     setGoogleAuthNavigationCallback,
     resetGoogleAuthFlag,
+    resetRegistrationFlag,
     debugAuthState
   };
 
