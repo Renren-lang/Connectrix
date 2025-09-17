@@ -14,11 +14,11 @@ function Login() {
   const navigate = useNavigate();
   const { currentUser, userRole, loading, login, signInWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
     password: ''
   });
   const [errors, setErrors] = useState({
-    email: '',
+    username: '',
     password: ''
   });
   const [showSuccess, setShowSuccess] = useState(false);
@@ -168,8 +168,8 @@ function Login() {
 
     // Validate inputs
     const newErrors = {};
-    if (!validateUsername(formData.email)) {
-      newErrors.email = 'Please enter a valid email address or admin username';
+    if (!validateUsername(formData.username)) {
+      newErrors.username = 'Please enter a valid username or admin username';
     }
     if (!validatePassword(formData.password)) {
       newErrors.password = 'Password must be at least 8 characters long';
@@ -183,11 +183,11 @@ function Login() {
 
     try {
       // Debug login attempt
-      const debugInfo = debugLoginAttempt(formData.email, formData.password);
+      const debugInfo = debugLoginAttempt(formData.username, formData.password);
       console.log('Login attempt debug info:', debugInfo);
       
       // Check for admin credentials first
-      if (formData.email === ADMIN_CREDENTIALS.username && 
+      if (formData.username === ADMIN_CREDENTIALS.username && 
           formData.password === ADMIN_CREDENTIALS.password) {
         
         // Handle admin login
@@ -216,10 +216,10 @@ function Login() {
       }
 
       // Look up email from username if needed
-      const email = await lookupEmailFromUsername(formData.email);
+      const email = await lookupEmailFromUsername(formData.username);
       if (!email) {
         setErrors({
-          email: 'Please enter a valid email address or admin username',
+          username: 'Please enter a valid username or admin username',
           password: ''
         });
         setIsSubmitting(false);
@@ -243,47 +243,47 @@ function Login() {
       // Handle specific Firebase Auth errors with user-friendly messages
       if (error.code === 'auth/invalid-credential') {
         setErrors({
-          email: '',
-          password: 'Invalid email or password. Please check your credentials and try again.'
+          username: '',
+          password: 'Invalid username or password. Please check your credentials and try again.'
         });
       } else if (error.code === 'auth/user-not-found') {
         setErrors({
-          email: 'No account found with this email address',
+          username: 'No account found with this username',
           password: ''
         });
       } else if (error.code === 'auth/wrong-password') {
         setErrors({
-          email: '',
+          username: '',
           password: 'Incorrect password. Please try again.'
         });
       } else if (error.code === 'auth/invalid-email') {
         setErrors({
-          email: 'Invalid email address format',
+          username: 'Invalid username format',
           password: ''
         });
       } else if (error.code === 'auth/user-disabled') {
         setErrors({
-          email: '',
+          username: '',
           password: 'This account has been disabled. Please contact support.'
         });
       } else if (error.code === 'auth/too-many-requests') {
         setErrors({
-          email: '',
+          username: '',
           password: 'Too many failed login attempts. Please try again later.'
         });
       } else if (error.code === 'auth/network-request-failed') {
         setErrors({
-          email: '',
+          username: '',
           password: 'Network error. Please check your internet connection.'
         });
       } else if (error.code === 'auth/operation-not-allowed') {
         setErrors({
-          email: '',
-          password: 'Email/password authentication is not enabled. Please contact support.'
+          username: '',
+          password: 'Username/password authentication is not enabled. Please contact support.'
         });
       } else {
         setErrors({
-          email: '',
+          username: '',
           password: error.message || 'An unexpected error occurred during login'
         });
       }
@@ -864,21 +864,21 @@ function Login() {
                     
                     <form onSubmit={handleSubmit}>
                       <div style={{ marginBottom: '20px' }}>
-                        <label htmlFor="login-email" style={{
+                        <label htmlFor="login-username" style={{
                           display: 'block',
                           marginBottom: '8px',
                           fontWeight: '500',
                           color: '#374151',
                           fontSize: '14px'
-                        }}>Email Address</label>
+                        }}>Username</label>
                         <input
-                          type="email"
-                          id="login-email"
-                          name="email"
+                          type="text"
+                          id="login-username"
+                          name="username"
                           style={{
                             width: '100%',
                             padding: '15px 20px',
-                            border: `1px solid ${errors.email ? '#ef4444' : '#d1d5db'}`,
+                            border: `1px solid ${errors.username ? '#ef4444' : '#d1d5db'}`,
                             borderRadius: '12px',
                             fontSize: '16px',
                             background: 'white',
@@ -887,8 +887,8 @@ function Login() {
                             transition: 'all 0.3s ease',
                             outline: 'none'
                           }}
-                          placeholder="Enter your email address"
-                          value={formData.email}
+                          placeholder="Enter your username"
+                          value={formData.username}
                           onChange={handleInputChange}
                           autoComplete="username"
                           onFocus={(e) => {
@@ -896,16 +896,16 @@ function Login() {
                             e.target.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.3)';
                           }}
                           onBlur={(e) => {
-                            e.target.style.borderColor = errors.email ? '#ef4444' : '#d1d5db';
+                            e.target.style.borderColor = errors.username ? '#ef4444' : '#d1d5db';
                             e.target.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
                           }}
                         />
-                        {errors.email && (
+                        {errors.username && (
                           <div style={{
                             color: '#ef4444',
                             fontSize: '14px',
                             marginTop: '5px'
-                          }}>{errors.email}</div>
+                          }}>{errors.username}</div>
                         )}
                       </div>
 
