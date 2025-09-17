@@ -20,6 +20,8 @@ import Messaging from './pages/Messaging.jsx';
 import Profile from './pages/Profile.jsx';
 import BrowseMentor from './pages/BrowseMentor.jsx';
 import StudentProfiles from './pages/StudentProfiles.jsx';
+import AdminLogin from './pages/AdminLogin.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
 
 
 
@@ -45,6 +47,7 @@ function AppContent() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/admin-login" element={<AdminLogin />} />
 
         {/* Protected Routes */}
         <Route path="/notification-settings" element={
@@ -128,6 +131,13 @@ function AppContent() {
             <YouTubeStyleLayout currentPage={getCurrentPage()}>
               <Profile />
             </YouTubeStyleLayout>
+          </ProtectedRoute>
+        } />
+        
+        {/* Admin Routes */}
+        <Route path="/admin-dashboard" element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminDashboard />
           </ProtectedRoute>
         } />
       </Routes>

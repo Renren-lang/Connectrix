@@ -325,6 +325,17 @@ export function AuthProvider({ children }) {
         if (user) {
           console.log('Auth state changed - user authenticated:', user.uid);
           
+          // Check if this is an admin user from localStorage
+          const adminUser = localStorage.getItem('adminUser');
+          if (adminUser) {
+            const adminData = JSON.parse(adminUser);
+            console.log('AuthContext: Admin user detected from localStorage');
+            setCurrentUser(adminData);
+            setUserRole('admin');
+            setLoading(false);
+            return;
+          }
+          
           // Set current user immediately to prevent timing issues
           setCurrentUser(user);
           
@@ -356,6 +367,7 @@ export function AuthProvider({ children }) {
           setCurrentUser(null);
           setUserRole(null);
           localStorage.removeItem('userRole');
+          localStorage.removeItem('adminUser');
         }
       } catch (error) {
         console.error('Error in auth state change:', error);
@@ -363,6 +375,7 @@ export function AuthProvider({ children }) {
         setCurrentUser(null);
         setUserRole('student'); // Default to student role instead of null
         localStorage.removeItem('userRole');
+        localStorage.removeItem('adminUser');
       } finally {
         setLoading(false);
       }
