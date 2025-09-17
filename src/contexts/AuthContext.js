@@ -229,21 +229,12 @@ export function AuthProvider({ children }) {
         console.warn('User created in Firebase Auth but Firestore storage failed');
       }
 
-      // Store role and user data in localStorage for persistence
-      localStorage.setItem('userRole', role);
-      localStorage.setItem('adminUser', JSON.stringify(result.user));
+      // Don't store user data in localStorage during registration
+      // This prevents automatic login after registration
+      console.log('Registration completed, user will be redirected to login page');
 
       // Reset Google auth flag to prevent navigation after registration
       setIsGoogleAuth(false);
-
-      // Sign out the user after registration to force them to login
-      await signOut(auth);
-      
-      // Clear localStorage to ensure clean state
-      localStorage.removeItem('userRole');
-      localStorage.removeItem('adminUser');
-      
-      console.log('User signed out after registration to force login');
 
       return result;
     } catch (error) {
@@ -679,6 +670,15 @@ export function AuthProvider({ children }) {
       
       try {
         if (user) {
+          // Check if this is during registration - if so, don't set user state
+          if (isRegistration) {
+            console.log('User authenticated during registration - not setting state, will redirect to login');
+            if (isMounted) {
+              setLoading(false);
+            }
+            return;
+          }
+          
           // User is signed in
           console.log('Auth state changed - user authenticated:', user.uid);
           console.log('User email:', user.email);
@@ -744,7 +744,7 @@ export function AuthProvider({ children }) {
         console.error('Error unsubscribing from auth state change:', error);
       }
     };
-  }, []);
+  }, [isRegistration]);
 
   // Debug function to check authentication state
   const debugAuthState = () => {

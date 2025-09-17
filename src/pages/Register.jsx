@@ -135,9 +135,12 @@ function Register() {
         setSelectedRole('');
         setErrors({});
         setShowSuccess(false);
-        // Reset registration flag before navigating
-        resetRegistrationFlag();
+        // Navigate to login page first
         navigate('/login?from=registration');
+        // Reset registration flag after navigation
+        setTimeout(() => {
+          resetRegistrationFlag();
+        }, 100);
       }, 2000);
     } catch (error) {
       console.error('Registration failed:', error);
