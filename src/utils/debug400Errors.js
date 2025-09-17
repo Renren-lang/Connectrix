@@ -15,9 +15,11 @@ export class Debug400Errors {
         const response = await originalFetch(...args);
         
         if (response.status === 400) {
-          console.group('🚨 400 Bad Request Detected');
+          console.group('🚨 400 Bad Request Detected (Fetch)');
           console.error('URL:', args[0]);
-          console.error('Options:', args[1]);
+          console.error('Method:', args[1]?.method || 'GET');
+          console.error('Headers:', args[1]?.headers || {});
+          console.error('Body:', args[1]?.body || 'No body');
           console.error('Status:', response.status);
           console.error('Status Text:', response.statusText);
           
@@ -26,9 +28,22 @@ export class Debug400Errors {
             const responseClone = response.clone();
             const responseText = await responseClone.text();
             console.error('Response Body:', responseText);
+            
+            // Try to parse as JSON for better error details
+            try {
+              const responseJson = JSON.parse(responseText);
+              console.error('Response JSON:', responseJson);
+            } catch (parseError) {
+              console.error('Response is not JSON');
+            }
           } catch (e) {
             console.error('Could not read response body:', e);
           }
+          
+          // Log additional debugging info
+          console.error('Timestamp:', new Date().toISOString());
+          console.error('User Agent:', navigator.userAgent);
+          console.error('Current URL:', window.location.href);
           
           console.groupEnd();
         }
@@ -60,12 +75,51 @@ export class Debug400Errors {
           console.error('Status Text:', this.statusText);
           console.error('Request Data:', data);
           console.error('Response:', this.responseText);
+          
+          // Try to parse response as JSON
+          try {
+            const responseJson = JSON.parse(this.responseText);
+            console.error('Response JSON:', responseJson);
+          } catch (parseError) {
+            console.error('Response is not JSON');
+          }
+          
+          // Log additional debugging info
+          console.error('Timestamp:', new Date().toISOString());
+          console.error('User Agent:', navigator.userAgent);
+          console.error('Current URL:', window.location.href);
+          
           console.groupEnd();
         }
       });
       
       return originalXHRSend.call(this, data);
     };
+
+    // Add global error handler for unhandled errors
+    window.addEventListener('error', (event) => {
+      if (event.error && event.error.message && event.error.message.includes('400')) {
+        console.group('🚨 400 Error Detected (Global)');
+        console.error('Error:', event.error);
+        console.error('Message:', event.message);
+        console.error('Filename:', event.filename);
+        console.error('Line:', event.lineno);
+        console.error('Column:', event.colno);
+        console.error('Timestamp:', new Date().toISOString());
+        console.groupEnd();
+      }
+    });
+
+    // Add unhandled promise rejection handler
+    window.addEventListener('unhandledrejection', (event) => {
+      if (event.reason && event.reason.message && event.reason.message.includes('400')) {
+        console.group('🚨 400 Error Detected (Promise Rejection)');
+        console.error('Reason:', event.reason);
+        console.error('Promise:', event.promise);
+        console.error('Timestamp:', new Date().toISOString());
+        console.groupEnd();
+      }
+    });
 
     console.log('🔍 400 Error monitoring started');
   }

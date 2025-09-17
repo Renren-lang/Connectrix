@@ -98,6 +98,32 @@ export function AuthProvider({ children }) {
           dataSize: JSON.stringify(sanitizedData).length,
           sizeInfo: sizeInfo
         });
+        
+        // Check if it's a 400 error and provide specific handling
+        if (firestoreError.code === 'invalid-argument' || firestoreError.message?.includes('400')) {
+          console.error('🚨 400 Error in Firestore during profile update:', {
+            error: firestoreError,
+            data: sanitizedData,
+            uid: uid
+          });
+          
+          // Try to update with minimal data
+          try {
+            const minimalData = {
+              firstName: sanitizedData.firstName || '',
+              lastName: sanitizedData.lastName || '',
+              email: sanitizedData.email || '',
+              role: sanitizedData.role || 'student'
+            };
+            
+            await updateDoc(userRef, minimalData);
+            console.log('Minimal profile update successful');
+            return true;
+          } catch (minimalError) {
+            console.error('Failed to update with minimal data:', minimalError);
+          }
+        }
+        
         throw firestoreError;
       }
       
@@ -234,6 +260,31 @@ export function AuthProvider({ children }) {
           dataSize: JSON.stringify(sanitizedUserData).length,
           sizeInfo: sizeInfo
         });
+        
+        // Check if it's a 400 error and provide specific handling
+        if (firestoreError.code === 'invalid-argument' || firestoreError.message?.includes('400')) {
+          console.error('🚨 400 Error in Firestore during user creation:', {
+            error: firestoreError,
+            data: sanitizedUserData,
+            uid: result.user.uid
+          });
+          
+          // Try to create a minimal user document
+          try {
+            const minimalUserData = {
+              email: email.trim(),
+              role: role,
+              firstName: (userData.firstName || '').trim().substring(0, 100),
+              lastName: (userData.lastName || '').trim().substring(0, 100),
+              createdAt: new Date()
+            };
+            
+            await setDoc(userRef, minimalUserData);
+            console.log('Minimal user document created successfully');
+          } catch (minimalError) {
+            console.error('Failed to create minimal user document:', minimalError);
+          }
+        }
         
         // If Firestore fails, still allow user creation but log the error
         console.warn('User created in Firebase Auth but Firestore storage failed');

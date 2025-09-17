@@ -30,17 +30,13 @@ import { Debug400Errors } from './utils/debug400Errors';
 function AppContent() {
   const location = useLocation();
 
-  // Start 400 error monitoring in development
+  // Start 400 error monitoring in both development and production
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      Debug400Errors.startMonitoring();
-      console.log('🔍 400 Error monitoring enabled in development mode');
-    }
+    Debug400Errors.startMonitoring();
+    console.log('🔍 400 Error monitoring enabled');
     
     return () => {
-      if (process.env.NODE_ENV === 'development') {
-        Debug400Errors.stopMonitoring();
-      }
+      Debug400Errors.stopMonitoring();
     };
   }, []);
   const isLandingPage = location.pathname === '/';
