@@ -282,36 +282,56 @@ export function AuthProvider({ children }) {
 
   // Simplified onAuthStateChanged
   useEffect(() => {
+    let isMounted = true;
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!isMounted) return;
+      
       console.log('Firebase auth state changed:', user ? `User: ${user.uid}` : 'No user');
       
-      if (user) {
-        // User is signed in
-        try {
-          const profileData = await fetchUserProfile(user.uid);
-          const userWithProfile = { ...user, ...profileData };
-          setCurrentUser(userWithProfile);
-          setUserRole(profileData?.role || 'student');
-          console.log('User authenticated:', {
-            uid: userWithProfile.uid,
-            email: userWithProfile.email,
-            role: profileData?.role || 'student'
-          });
-        } catch (error) {
-          console.error('Error fetching user profile:', error);
-          setCurrentUser(user);
-          setUserRole('student');
+      try {
+        if (user) {
+          // User is signed in
+          try {
+            const profileData = await fetchUserProfile(user.uid);
+            if (isMounted) {
+              const userWithProfile = { ...user, ...profileData };
+              setCurrentUser(userWithProfile);
+              setUserRole(profileData?.role || 'student');
+              console.log('User authenticated:', {
+                uid: userWithProfile.uid,
+                email: userWithProfile.email,
+                role: profileData?.role || 'student'
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching user profile:', error);
+            if (isMounted) {
+              setCurrentUser(user);
+              setUserRole('student');
+            }
+          }
+        } else {
+          // User is signed out
+          console.log('User signed out');
+          if (isMounted) {
+            setCurrentUser(null);
+            setUserRole(null);
+          }
         }
-      } else {
-        // User is signed out
-        console.log('User signed out');
-        setCurrentUser(null);
-        setUserRole(null);
+      } catch (error) {
+        console.error('Error in auth state change handler:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   // Debug function to check authentication state

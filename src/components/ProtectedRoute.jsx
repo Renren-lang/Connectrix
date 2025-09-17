@@ -13,7 +13,7 @@ function ProtectedRoute({ children, allowedRoles = ['student', 'alumni', 'admin'
   SafeLogger.log('ProtectedRoute: currentUser:', currentUser?.uid, 'userRole:', userRole, 'allowedRoles:', allowedRoles);
   SafeLogger.log('ProtectedRoute: localStorage userRole:', localStorage.getItem('userRole'));
 
-  // Check if we need to fetch user role
+  // Simplified role checking
   useEffect(() => {
     const checkUserRole = async () => {
       if (currentUser && !userRole && !hasCheckedRole && !roleLoading) {
@@ -24,17 +24,6 @@ function ProtectedRoute({ children, allowedRoles = ['student', 'alumni', 'admin'
           SafeLogger.log('ProtectedRoute: Fetching user role for:', currentUser.uid);
           const fetchedRole = await getUserRole(currentUser.uid);
           SafeLogger.log('ProtectedRoute: Fetched role:', fetchedRole);
-          
-          // If we still don't have a role after fetching, wait a bit more
-          if (!fetchedRole) {
-            SafeLogger.log('ProtectedRoute: No role found, waiting for user data to be created...');
-            // Wait 2 seconds and try again
-            setTimeout(() => {
-              setHasCheckedRole(false);
-              setRoleLoading(false);
-            }, 2000);
-            return;
-          }
         } catch (error) {
           SafeLogger.error('ProtectedRoute: Error fetching user role:', error);
         } finally {
