@@ -79,19 +79,56 @@ function Login() {
               ...(storedFormData ? JSON.parse(storedFormData) : {})
             };
 
-            // Save to Firestore
+            // Save to Firestore directly
             try {
-              await fetch(`${API_CONFIG.BASE_URL}/auth/google`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(userData),
+              const { doc, setDoc } = await import('firebase/firestore');
+              const { db } = await import('../firebase');
+              
+              const userRef = doc(db, 'users', result.user.uid);
+              await setDoc(userRef, {
+                ...userData,
+                createdAt: new Date(),
+                profilePictureUrl: result.user.photoURL || '',
+                profilePictureBase64: '',
+                bio: '',
+                skills: [],
+                interests: [],
+                graduationYear: '',
+                major: '',
+                company: '',
+                position: '',
+                experience: '',
+                location: '',
+                phone: '',
+                website: '',
+                linkedin: '',
+                github: '',
+                twitter: '',
+                instagram: '',
+                facebook: '',
+                youtube: '',
+                tiktok: '',
+                snapchat: '',
+                discord: '',
+                telegram: '',
+                whatsapp: '',
+                skype: '',
+                zoom: '',
+                teams: '',
+                slack: '',
+                other: ''
               });
-            } catch (fetchError) {
-              console.error('Error saving user data:', fetchError);
+              
+              console.log('Google user data saved to Firestore successfully');
+            } catch (firestoreError) {
+              console.error('Error saving user data to Firestore:', firestoreError);
               // Continue even if save fails
             }
+
+            // Save role and user data to localStorage for persistence
+            localStorage.setItem('userRole', storedRole);
+            localStorage.setItem('adminUser', JSON.stringify(result.user));
+            console.log('Google auth: Role and user data saved to localStorage');
 
             // Navigate based on role
             if (storedRole === 'student') {
@@ -105,6 +142,66 @@ function Login() {
             // Clean up stored data
             localStorage.removeItem('googleSelectedRole');
             localStorage.removeItem('googleFormData');
+          } else {
+            // No stored role, create default user document and use student role
+            console.log('No stored role for Google user, creating default...');
+            
+            try {
+              const { doc, setDoc } = await import('firebase/firestore');
+              const { db } = await import('../firebase');
+              
+              const userRef = doc(db, 'users', result.user.uid);
+              await setDoc(userRef, {
+                firstName: result.user.displayName?.split(' ')[0] || '',
+                lastName: result.user.displayName?.split(' ')[1] || '',
+                email: result.user.email,
+                role: 'student', // Default role
+                createdAt: new Date(),
+                profilePictureUrl: result.user.photoURL || '',
+                profilePictureBase64: '',
+                bio: '',
+                skills: [],
+                interests: [],
+                graduationYear: '',
+                major: '',
+                company: '',
+                position: '',
+                experience: '',
+                location: '',
+                phone: '',
+                website: '',
+                linkedin: '',
+                github: '',
+                twitter: '',
+                instagram: '',
+                facebook: '',
+                youtube: '',
+                tiktok: '',
+                snapchat: '',
+                discord: '',
+                telegram: '',
+                whatsapp: '',
+                skype: '',
+                zoom: '',
+                teams: '',
+                slack: '',
+                other: ''
+              });
+              
+              // Save role and user data to localStorage
+              localStorage.setItem('userRole', 'student');
+              localStorage.setItem('adminUser', JSON.stringify(result.user));
+              console.log('Google auth: Default user created and saved to localStorage');
+              
+              // Navigate to student dashboard
+              navigate('/student-dashboard');
+            } catch (error) {
+              console.error('Error creating default Google user:', error);
+              // Still save to localStorage and navigate
+              localStorage.setItem('userRole', 'student');
+              localStorage.setItem('adminUser', JSON.stringify(result.user));
+              navigate('/student-dashboard');
+            }
           }
         }
       } catch (error) {
