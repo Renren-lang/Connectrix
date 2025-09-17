@@ -22,6 +22,7 @@ import BrowseMentor from './pages/BrowseMentor.jsx';
 import StudentProfiles from './pages/StudentProfiles.jsx';
 import AdminLogin from './pages/AdminLogin.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
+import AuthDebugger from './components/AuthDebugger.jsx';
 
 
 
@@ -43,6 +44,7 @@ function AppContent() {
 
   return (
     <div className="App">
+      <AuthDebugger />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />

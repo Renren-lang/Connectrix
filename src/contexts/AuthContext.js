@@ -523,31 +523,91 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let isMounted = true;
     
+    // Check for stored authentication data on mount
+    const checkStoredAuth = () => {
+      const storedRole = localStorage.getItem('userRole');
+      const storedUser = localStorage.getItem('adminUser');
+      
+      console.log('Checking stored auth data:', {
+        storedRole,
+        storedUser: storedUser ? 'exists' : 'null'
+      });
+      
+      if (storedUser && storedRole) {
+        try {
+          const userData = JSON.parse(storedUser);
+          console.log('Restoring user from localStorage:', userData.uid);
+          setCurrentUser(userData);
+          setUserRole(storedRole);
+        } catch (error) {
+          console.error('Error parsing stored user data:', error);
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('adminUser');
+        }
+      }
+    };
+    
+    // Check stored auth first
+    checkStoredAuth();
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!isMounted) return;
+      
+      console.log('Firebase auth state changed:', user ? `User: ${user.uid}` : 'No user');
       
       try {
         if (user) {
           // User is signed in
           console.log('Auth state changed - user authenticated:', user.uid);
+          console.log('User email:', user.email);
+          console.log('User email verified:', user.emailVerified);
+          
           const profileData = await fetchUserProfile(user.uid);
+          console.log('Fetched profile data:', profileData);
+          
           if (isMounted) {
-            setCurrentUser({ ...user, ...profileData });
-            setUserRole(profileData?.role || 'student');
+            const userWithProfile = { ...user, ...profileData };
+            setCurrentUser(userWithProfile);
+            
+            const role = profileData?.role || 'student';
+            setUserRole(role);
+            
+            // Update localStorage with fresh data
+            localStorage.setItem('userRole', role);
+            localStorage.setItem('adminUser', JSON.stringify(userWithProfile));
+            
+            console.log('User state updated:', {
+              uid: userWithProfile.uid,
+              email: userWithProfile.email,
+              role: role
+            });
           }
         } else {
           // User is signed out
           console.log('Auth state changed - user not authenticated');
+          console.log('Clearing user state and localStorage');
+          
           if (isMounted) {
             setCurrentUser(null);
             setUserRole(null);
           }
+          
+          // Clear localStorage
+          localStorage.removeItem('userRole');
+          localStorage.removeItem('adminUser');
         }
+        
         if (isMounted) {
           setLoading(false);
         }
       } catch (error) {
         console.error('Error in auth state change handler:', error);
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          stack: error.stack
+        });
+        
         if (isMounted) {
           setLoading(false);
         }
@@ -564,9 +624,22 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  // Debug function to check authentication state
+  const debugAuthState = () => {
+    console.group('🔍 Current Authentication State');
+    console.log('Current User:', currentUser);
+    console.log('User Role:', userRole);
+    console.log('Loading:', loading);
+    console.log('Firebase Auth Current User:', auth.currentUser);
+    console.log('LocalStorage userRole:', localStorage.getItem('userRole'));
+    console.log('LocalStorage adminUser:', localStorage.getItem('adminUser'));
+    console.groupEnd();
+  };
+
   const value = {
     currentUser,
     userRole,
+    loading,
     signup,
     login,
     logout,
@@ -575,7 +648,8 @@ export function AuthProvider({ children }) {
     updateUserProfile,
     fetchUserProfile,
     signInWithGoogle,
-    handleGoogleRedirectResult
+    handleGoogleRedirectResult,
+    debugAuthState
   };
 
   return (
