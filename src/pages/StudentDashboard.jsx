@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePosts } from '../contexts/PostsContext';
 import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, orderBy, doc, getDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
+import EmailVerificationBanner from '../components/EmailVerificationBanner';
 
 function StudentDashboard() {
   const navigate = useNavigate();
@@ -1039,6 +1040,8 @@ function StudentDashboard() {
       {/* Main Dashboard Content */}
       <main className="dashboard" style={{ position: 'relative', zIndex: 1 }}>
         <div className="facebook-dashboard-container">
+          {/* Email Verification Banner */}
+          <EmailVerificationBanner />
           {/* Welcome Section */}
           <div className="welcome-section">
             <h1 className="welcome-title">

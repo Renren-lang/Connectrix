@@ -5,6 +5,7 @@ import {
   signOut, 
   onAuthStateChanged,
   updateProfile,
+  sendEmailVerification,
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider
@@ -150,6 +151,15 @@ export function AuthProvider({ children }) {
       await updateProfile(result.user, {
         displayName: userData.firstName || email.split('@')[0]
       });
+
+      // Send email verification
+      try {
+        await sendEmailVerification(result.user);
+        console.log('Email verification sent to:', result.user.email);
+      } catch (verificationError) {
+        console.error('Error sending email verification:', verificationError);
+        // Don't throw error - registration should still succeed
+      }
 
       // Prepare user data for validation
       const userDataToValidate = {
@@ -773,6 +783,24 @@ export function AuthProvider({ children }) {
     setIsRegistration(false);
   };
 
+  // Function to send email verification
+  const sendEmailVerificationToUser = async () => {
+    try {
+      if (currentUser && !currentUser.emailVerified) {
+        await sendEmailVerification(currentUser);
+        console.log('Email verification sent to:', currentUser.email);
+        return { success: true, message: 'Verification email sent successfully' };
+      } else if (currentUser && currentUser.emailVerified) {
+        return { success: false, message: 'Email is already verified' };
+      } else {
+        return { success: false, message: 'No user logged in' };
+      }
+    } catch (error) {
+      console.error('Error sending email verification:', error);
+      return { success: false, message: 'Failed to send verification email' };
+    }
+  };
+
   const value = {
     currentUser,
     userRole,
@@ -789,6 +817,7 @@ export function AuthProvider({ children }) {
     setGoogleAuthNavigationCallback,
     resetGoogleAuthFlag,
     resetRegistrationFlag,
+    sendEmailVerificationToUser,
     debugAuthState
   };
 
