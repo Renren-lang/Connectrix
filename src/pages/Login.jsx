@@ -10,7 +10,7 @@ import logoImage from '../components/Logo2.png';
 
 function Login() {
   const navigate = useNavigate();
-  const { login, getUserRole, refreshUserRole } = useAuth();
+  const { login, getUserRole, refreshUserRole, signInWithGoogle, handleGoogleRedirectResult } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -61,159 +61,26 @@ function Login() {
   useEffect(() => {
     const handleRedirectResult = async () => {
       try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          console.log('Google redirect result:', result);
+        const result = await handleGoogleRedirectResult();
+        if (result && result.success) {
+          console.log('Google authentication successful:', result);
           
-          // Get stored role and form data
-          const storedRole = localStorage.getItem('googleSelectedRole');
-          const storedFormData = localStorage.getItem('googleFormData');
-          
-          if (storedRole) {
-            // Store user data and role
-            const userData = {
-              uid: result.user.uid,
-              email: result.user.email,
-              displayName: result.user.displayName,
-              role: storedRole,
-              ...(storedFormData ? JSON.parse(storedFormData) : {})
-            };
-
-            // Save to Firestore directly
-            try {
-              const { doc, setDoc } = await import('firebase/firestore');
-              const { db } = await import('../firebase');
-              
-              const userRef = doc(db, 'users', result.user.uid);
-              await setDoc(userRef, {
-                ...userData,
-                createdAt: new Date(),
-                profilePictureUrl: result.user.photoURL || '',
-                profilePictureBase64: '',
-                bio: '',
-                skills: [],
-                interests: [],
-                graduationYear: '',
-                major: '',
-                company: '',
-                position: '',
-                experience: '',
-                location: '',
-                phone: '',
-                website: '',
-                linkedin: '',
-                github: '',
-                twitter: '',
-                instagram: '',
-                facebook: '',
-                youtube: '',
-                tiktok: '',
-                snapchat: '',
-                discord: '',
-                telegram: '',
-                whatsapp: '',
-                skype: '',
-                zoom: '',
-                teams: '',
-                slack: '',
-                other: ''
-              });
-              
-              console.log('Google user data saved to Firestore successfully');
-            } catch (firestoreError) {
-              console.error('Error saving user data to Firestore:', firestoreError);
-              // Continue even if save fails
-            }
-
-            // Save role and user data to localStorage for persistence
-            localStorage.setItem('userRole', storedRole);
-            localStorage.setItem('adminUser', JSON.stringify(result.user));
-            console.log('Google auth: Role and user data saved to localStorage');
-
-            // Navigate based on role
-            if (storedRole === 'student') {
-              navigate('/student-dashboard');
-            } else if (storedRole === 'alumni') {
-              navigate('/alumni-dashboard');
-            } else {
-              navigate('/dashboard');
-            }
-            
-            // Clean up stored data
-            localStorage.removeItem('googleSelectedRole');
-            localStorage.removeItem('googleFormData');
+          // Navigate based on role
+          if (result.role === 'student') {
+            navigate('/student-dashboard');
+          } else if (result.role === 'alumni') {
+            navigate('/alumni-dashboard');
           } else {
-            // No stored role, create default user document and use student role
-            console.log('No stored role for Google user, creating default...');
-            
-            try {
-              const { doc, setDoc } = await import('firebase/firestore');
-              const { db } = await import('../firebase');
-              
-              const userRef = doc(db, 'users', result.user.uid);
-              await setDoc(userRef, {
-                firstName: result.user.displayName?.split(' ')[0] || '',
-                lastName: result.user.displayName?.split(' ')[1] || '',
-                email: result.user.email,
-                role: 'student', // Default role
-                createdAt: new Date(),
-                profilePictureUrl: result.user.photoURL || '',
-                profilePictureBase64: '',
-                bio: '',
-                skills: [],
-                interests: [],
-                graduationYear: '',
-                major: '',
-                company: '',
-                position: '',
-                experience: '',
-                location: '',
-                phone: '',
-                website: '',
-                linkedin: '',
-                github: '',
-                twitter: '',
-                instagram: '',
-                facebook: '',
-                youtube: '',
-                tiktok: '',
-                snapchat: '',
-                discord: '',
-                telegram: '',
-                whatsapp: '',
-                skype: '',
-                zoom: '',
-                teams: '',
-                slack: '',
-                other: ''
-              });
-              
-              // Save role and user data to localStorage
-              localStorage.setItem('userRole', 'student');
-              localStorage.setItem('adminUser', JSON.stringify(result.user));
-              console.log('Google auth: Default user created and saved to localStorage');
-              
-              // Navigate to student dashboard
-              navigate('/student-dashboard');
-            } catch (error) {
-              console.error('Error creating default Google user:', error);
-              // Still save to localStorage and navigate
-              localStorage.setItem('userRole', 'student');
-              localStorage.setItem('adminUser', JSON.stringify(result.user));
-              navigate('/student-dashboard');
-            }
+            navigate('/dashboard');
           }
         }
       } catch (error) {
-        console.error('Error handling redirect result:', error);
-        // Clean up stored data on error
-        localStorage.removeItem('googleSelectedRole');
-        localStorage.removeItem('googleFormData');
+        console.error('Error handling Google redirect result:', error);
       }
     };
 
     handleRedirectResult();
-  }, [navigate]);
+  }, [navigate, handleGoogleRedirectResult]);
 
   // Admin credentials (same as AdminLogin.jsx)
   const ADMIN_CREDENTIALS = {
@@ -400,13 +267,8 @@ function Login() {
     try {
       setIsSubmitting(true);
       
-      // Store the selected role and form data before redirect
-      localStorage.setItem('googleSelectedRole', googleSelectedRole);
-      localStorage.setItem('googleFormData', JSON.stringify(googleFormData));
-      
-      const provider = new GoogleAuthProvider();
-      // Use redirect instead of popup to avoid COOP issues
-      await signInWithRedirect(auth, provider);
+      // Use AuthContext Google auth function
+      await signInWithGoogle(googleSelectedRole, googleFormData);
     } catch (error) {
       console.error('Google auth error:', error);
       setErrors({
