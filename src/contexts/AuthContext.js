@@ -5,7 +5,6 @@ import {
   signOut, 
   onAuthStateChanged,
   updateProfile,
-  sendEmailVerification,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
@@ -310,23 +309,6 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Send email verification
-  const sendEmailVerificationToUser = async () => {
-    try {
-      if (currentUser && !currentUser.emailVerified) {
-        await sendEmailVerification(currentUser);
-        console.log('Email verification sent to:', currentUser.email);
-        return { success: true, message: 'Verification email sent successfully' };
-      } else if (currentUser && currentUser.emailVerified) {
-        return { success: false, message: 'Email is already verified' };
-      } else {
-        return { success: false, message: 'No user logged in' };
-      }
-    } catch (error) {
-      console.error('Error sending email verification:', error);
-      return { success: false, message: 'Failed to send verification email' };
-    }
-  };
 
   // Simplified onAuthStateChanged with redirect handling
   useEffect(() => {
@@ -423,7 +405,6 @@ export function AuthProvider({ children }) {
     fetchUserProfile,
     signInWithGoogle,
     handleGoogleRedirect,
-    sendEmailVerificationToUser,
     debugAuthState
   };
 

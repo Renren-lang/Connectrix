@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { GoogleAuthProvider } from 'firebase/auth';
+import { GoogleAuthProvider, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import SafeLogger from '../utils/logger';
@@ -29,6 +29,10 @@ function Login() {
   const [googleUser, setGoogleUser] = useState(null);
   const [googleSelectedRole, setGoogleSelectedRole] = useState('');
   const [showPopupInstructions, setShowPopupInstructions] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState('');
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [googleFormData, setGoogleFormData] = useState({
     batch: '',
     course: '',
@@ -317,6 +321,39 @@ function Login() {
   const handleGoogleRoleSelect = (role) => {
     setGoogleSelectedRole(role);
     setShowAuthConfirmation(true);
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    if (!forgotPasswordEmail.trim()) {
+      setForgotPasswordMessage('Please enter your email address');
+      return;
+    }
+
+    if (!validateEmail(forgotPasswordEmail)) {
+      setForgotPasswordMessage('Please enter a valid email address');
+      return;
+    }
+
+    setForgotPasswordLoading(true);
+    setForgotPasswordMessage('');
+
+    try {
+      await sendPasswordResetEmail(auth, forgotPasswordEmail);
+      setForgotPasswordMessage('Password reset email sent! Check your inbox.');
+      setForgotPasswordEmail('');
+    } catch (error) {
+      console.error('Password reset error:', error);
+      if (error.code === 'auth/user-not-found') {
+        setForgotPasswordMessage('No account found with this email address');
+      } else if (error.code === 'auth/invalid-email') {
+        setForgotPasswordMessage('Invalid email address');
+      } else {
+        setForgotPasswordMessage('Failed to send reset email. Please try again.');
+      }
+    } finally {
+      setForgotPasswordLoading(false);
+    }
   };
 
   const handleConfirmGoogleAuth = async () => {
@@ -991,6 +1028,24 @@ function Login() {
                       </button>
                     </form>
 
+                    {/* Forgot Password Link */}
+                    <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setShowForgotPassword(true)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#2563eb',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
+
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1114,6 +1169,104 @@ function Login() {
         <PopupInstructions 
           onClose={() => setShowPopupInstructions(false)} 
         />
+      )}
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '10px',
+            maxWidth: '400px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>Reset Password</h3>
+            <p style={{ margin: '0 0 20px 0', color: '#666', lineHeight: '1.5' }}>
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+            
+            <form onSubmit={handleForgotPassword}>
+              <input
+                type="email"
+                value={forgotPasswordEmail}
+                onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                placeholder="Enter your email address"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  marginBottom: '15px',
+                  boxSizing: 'border-box'
+                }}
+                required
+              />
+              
+              {forgotPasswordMessage && (
+                <div style={{
+                  marginBottom: '15px',
+                  padding: '10px',
+                  borderRadius: '6px',
+                  backgroundColor: forgotPasswordMessage.includes('sent') ? '#d1fae5' : '#fee2e2',
+                  color: forgotPasswordMessage.includes('sent') ? '#065f46' : '#dc2626',
+                  fontSize: '14px'
+                }}>
+                  {forgotPasswordMessage}
+                </div>
+              )}
+              
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotPassword(false);
+                    setForgotPasswordEmail('');
+                    setForgotPasswordMessage('');
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    background: 'white',
+                    color: '#374151',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotPasswordLoading}
+                  style={{
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    background: forgotPasswordLoading ? '#9ca3af' : '#2563eb',
+                    color: 'white',
+                    cursor: forgotPasswordLoading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {forgotPasswordLoading ? 'Sending...' : 'Send Reset Email'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
