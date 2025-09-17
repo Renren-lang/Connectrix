@@ -20,8 +20,6 @@ import Messaging from './pages/Messaging.jsx';
 import Profile from './pages/Profile.jsx';
 import BrowseMentor from './pages/BrowseMentor.jsx';
 import StudentProfiles from './pages/StudentProfiles.jsx';
-import AdminLogin from './pages/AdminLogin.jsx';
-import AdminDashboard from './pages/AdminDashboard.jsx';
 import AuthDebugger from './components/AuthDebugger.jsx';
 import AuthDebugPanel from './components/AuthDebugPanel.jsx';
 import { Debug400Errors } from './utils/debug400Errors';
@@ -62,7 +60,6 @@ function AppContent() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/admin-login" element={<AdminLogin />} />
 
         {/* Protected Routes */}
         <Route path="/notification-settings" element={
@@ -149,12 +146,6 @@ function AppContent() {
           </ProtectedRoute>
         } />
         
-        {/* Admin Routes */}
-        <Route path="/admin-dashboard" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AdminDashboard />
-          </ProtectedRoute>
-        } />
       </Routes>
     </div>
   );

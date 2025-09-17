@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from './LoadingSpinner.jsx';
 import SafeLogger from '../utils/logger';
 
-function ProtectedRoute({ children, allowedRoles = ['student', 'alumni', 'admin'], redirectTo = '/login' }) {
+function ProtectedRoute({ children, allowedRoles = ['student', 'alumni'], redirectTo = '/login' }) {
   const { currentUser, userRole, loading, getUserRole } = useAuth();
   const [roleLoading, setRoleLoading] = useState(false);
   const [hasCheckedRole, setHasCheckedRole] = useState(false);
@@ -68,19 +68,16 @@ function ProtectedRoute({ children, allowedRoles = ['student', 'alumni', 'admin'
   }
 
   // If user role is not in allowed roles, redirect to appropriate dashboard
-  if (userRole && !allowedRoles.includes(userRole)) {
-    SafeLogger.log('ProtectedRoute: User role', userRole, 'not in allowed roles', allowedRoles);
-    if (userRole === 'admin') {
-      SafeLogger.log('ProtectedRoute: Redirecting to admin dashboard');
-      return <Navigate to="/admin-dashboard" replace />;
-    } else if (userRole === 'alumni') {
-      SafeLogger.log('ProtectedRoute: Redirecting to alumni dashboard');
-      return <Navigate to="/alumni-dashboard" replace />;
-    } else {
-      SafeLogger.log('ProtectedRoute: Redirecting to student dashboard');
-      return <Navigate to="/student-dashboard" replace />;
-    }
-  }
+      if (userRole && !allowedRoles.includes(userRole)) {
+        SafeLogger.log('ProtectedRoute: User role', userRole, 'not in allowed roles', allowedRoles);
+        if (userRole === 'alumni') {
+          SafeLogger.log('ProtectedRoute: Redirecting to alumni dashboard');
+          return <Navigate to="/alumni-dashboard" replace />;
+        } else {
+          SafeLogger.log('ProtectedRoute: Redirecting to student dashboard');
+          return <Navigate to="/student-dashboard" replace />;
+        }
+      }
 
   // If authenticated and role is allowed, render children
   return children;

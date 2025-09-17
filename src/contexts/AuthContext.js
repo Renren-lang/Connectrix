@@ -94,8 +94,8 @@ export function AuthProvider({ children }) {
         throw new Error('Password must be at least 6 characters long');
       }
 
-      if (!['student', 'alumni', 'admin'].includes(role)) {
-        throw new Error('Invalid role. Must be student, alumni, or admin');
+      if (!['student', 'alumni'].includes(role)) {
+        throw new Error('Invalid role. Must be student or alumni');
       }
 
       const result = await createUserWithEmailAndPassword(auth, email, password);

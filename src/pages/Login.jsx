@@ -74,8 +74,6 @@ function Login() {
         navigate('/student-dashboard');
       } else if (userRole === 'alumni') {
         navigate('/alumni-dashboard');
-      } else if (userRole === 'admin') {
-        navigate('/admin-dashboard');
       }
     }
   }, [currentUser, userRole, loading, navigate, showSuccess]);
@@ -93,12 +91,6 @@ function Login() {
   }, []);
 
 
-  // Admin credentials (same as AdminLogin.jsx)
-  const ADMIN_CREDENTIALS = {
-    username: 'admin',
-    password: 'admin123',
-    email: 'admin@connectrix.com'
-  };
 
   // Helper function to look up email from username
   const lookupEmailFromUsername = async (input) => {
@@ -108,10 +100,6 @@ function Login() {
         return input; // Return as-is if it's an email
       }
       
-      // Check for admin credentials first
-      if (input === ADMIN_CREDENTIALS.username) {
-        return ADMIN_CREDENTIALS.email;
-      }
       
       // For now, we'll require users to enter their email address directly
       // This avoids the Firestore permission issue during login
@@ -131,8 +119,8 @@ function Login() {
       const emailValidation = validateEmail(trimmed);
       return emailValidation.isValid;
     }
-    // Allow admin username as exception
-    return trimmed === ADMIN_CREDENTIALS.username;
+    // Username validation - must be at least 3 characters
+    return trimmed.length >= 3;
   };
 
   const validatePassword = (password) => {
@@ -169,7 +157,7 @@ function Login() {
     // Validate inputs
     const newErrors = {};
     if (!validateUsername(formData.username)) {
-      newErrors.username = 'Please enter a valid username or admin username';
+      newErrors.username = 'Please enter a valid username';
     }
     if (!validatePassword(formData.password)) {
       newErrors.password = 'Password must be at least 8 characters long';
@@ -186,40 +174,12 @@ function Login() {
       const debugInfo = debugLoginAttempt(formData.username, formData.password);
       console.log('Login attempt debug info:', debugInfo);
       
-      // Check for admin credentials first
-      if (formData.username === ADMIN_CREDENTIALS.username && 
-          formData.password === ADMIN_CREDENTIALS.password) {
-        
-        // Handle admin login
-        const adminUser = {
-          uid: 'admin-uid-' + Date.now(),
-          email: ADMIN_CREDENTIALS.email,
-          displayName: 'Admin',
-          role: 'admin',
-          firstName: 'Admin',
-          lastName: 'User'
-        };
-
-        // Clear any existing Firebase auth data
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('adminUser');
-        
-        // Store admin role and user data in localStorage
-        localStorage.setItem('userRole', 'admin');
-        localStorage.setItem('adminUser', JSON.stringify(adminUser));
-        
-        setShowSuccess(true);
-        setTimeout(() => {
-          navigate('/admin-dashboard');
-        }, 1500);
-        return;
-      }
 
       // Look up email from username if needed
       const email = await lookupEmailFromUsername(formData.username);
       if (!email) {
         setErrors({
-          username: 'Please enter a valid username or admin username',
+          username: 'Please enter a valid username',
           password: ''
         });
         setIsSubmitting(false);
@@ -1130,21 +1090,6 @@ function Login() {
                       </button>
                     </div>
 
-                    <div style={{
-                      textAlign: 'center',
-                      marginTop: '20px',
-                      padding: '15px',
-                      background: 'rgba(220, 38, 38, 0.05)',
-                      borderRadius: '12px',
-                      border: '1px solid rgba(220, 38, 38, 0.1)'
-                    }}>
-                      <div style={{ color: '#dc2626', fontSize: '12px', fontWeight: '600', marginBottom: '8px' }}>
-                        Admin Access
-                      </div>
-                      <div style={{ color: '#6b7280', fontSize: '11px', fontFamily: 'monospace' }}>
-                        Username: admin | Password: admin123
-                      </div>
-                    </div>
                   </>
                 )}
               </div>
