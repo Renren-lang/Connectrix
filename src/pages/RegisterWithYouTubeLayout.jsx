@@ -9,7 +9,7 @@ import '../styles/responsive.css';
 
 function RegisterWithYouTubeLayout() {
   const navigate = useNavigate();
-  const { signup, currentUser, userRole, resetRegistrationFlag } = useAuth();
+  const { signup, currentUser, userRole } = useAuth();
   const [selectedRole, setSelectedRole] = useState('');
   const [formData, setFormData] = useState({
     schoolId: '',
@@ -123,17 +123,12 @@ function RegisterWithYouTubeLayout() {
         setSelectedRole('');
         setErrors({});
         setShowSuccess(false);
-        // Navigate to login page first
-        navigate('/login?from=registration');
-        // Reset registration flag after navigation
-        setTimeout(() => {
-          resetRegistrationFlag();
-        }, 100);
+      // Navigate to login page
+      navigate('/login?from=registration');
       }, 2000);
     } catch (error) {
       console.error('Registration failed:', error);
-      // Reset registration flag on error
-      resetRegistrationFlag();
+      // Handle registration error
       if (error.code === 'auth/email-already-in-use') {
         newErrors.email = 'An account with this email already exists';
       } else if (error.code === 'auth/weak-password') {

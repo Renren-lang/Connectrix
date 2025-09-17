@@ -6,14 +6,11 @@ import {
   onAuthStateChanged,
   updateProfile,
   sendEmailVerification,
-  signInWithRedirect,
-  getRedirectResult,
-  GoogleAuthProvider,
-  onIdTokenChanged
+  signInWithPopup,
+  GoogleAuthProvider
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { ErrorHandler } from '../utils/errorHandler';
 
 const AuthContext = createContext();
 
@@ -29,7 +26,6 @@ export function AuthProvider({ children }) {
   // Fetch user profile data from Firestore
   async function fetchUserProfile(uid) {
     try {
-      // Validate input
       if (!uid || typeof uid !== 'string' || uid.trim() === '') {
         console.error('Invalid user ID provided to fetchUserProfile:', uid);
         return null;
@@ -40,7 +36,6 @@ export function AuthProvider({ children }) {
       
       if (userSnap.exists()) {
         const userData = userSnap.data();
-        // Validate user data structure
         if (!userData || typeof userData !== 'object') {
           console.error('Invalid user data structure:', userData);
           return null;
@@ -50,12 +45,6 @@ export function AuthProvider({ children }) {
       return null;
     } catch (error) {
       console.error('Error fetching user profile:', error);
-      console.error('Error details:', {
-        code: error.code,
-        message: error.message,
-        uid: uid
-      });
-      // Return null instead of throwing to prevent crashes
       return null;
     }
   }
@@ -63,7 +52,6 @@ export function AuthProvider({ children }) {
   // Update user profile in Firestore
   async function updateUserProfile(uid, profileData) {
     try {
-      // Validate input
       if (!uid || typeof uid !== 'string' || uid.trim() === '') {
         throw new Error('Invalid user ID provided to updateUserProfile');
       }
@@ -72,79 +60,20 @@ export function AuthProvider({ children }) {
         throw new Error('Invalid profile data provided to updateUserProfile');
       }
 
-      // Validate and sanitize profile data using ErrorHandler
-      const sanitizedData = ErrorHandler.validateFirestoreData(profileData, 'user_profile_update');
-      
-      // Check request size
-      const sizeInfo = ErrorHandler.checkRequestSize(sanitizedData);
-      if (sizeInfo.warnings.length > 0) {
-        console.warn('Profile update size warnings:', sizeInfo.warnings);
-      }
-
       const userRef = doc(db, 'users', uid);
-      
-      try {
-        console.log('Attempting to update user profile in Firestore:', {
-          uid: uid,
-          dataKeys: Object.keys(sanitizedData),
-          dataSize: JSON.stringify(sanitizedData).length
-        });
-        
-        await updateDoc(userRef, sanitizedData);
-        console.log('User profile updated successfully in Firestore');
-      } catch (firestoreError) {
-        ErrorHandler.logError(firestoreError, 'user_profile_update_firestore', {
-          uid: uid,
-          dataKeys: Object.keys(sanitizedData),
-          dataSize: JSON.stringify(sanitizedData).length,
-          sizeInfo: sizeInfo
-        });
-        
-        // Check if it's a 400 error and provide specific handling
-        if (firestoreError.code === 'invalid-argument' || firestoreError.message?.includes('400')) {
-          console.error('🚨 400 Error in Firestore during profile update:', {
-            error: firestoreError,
-            data: sanitizedData,
-            uid: uid
-          });
-          
-          // Try to update with minimal data
-          try {
-            const minimalData = {
-              firstName: sanitizedData.firstName || '',
-              lastName: sanitizedData.lastName || '',
-              email: sanitizedData.email || '',
-              role: sanitizedData.role || 'student'
-            };
-            
-            await updateDoc(userRef, minimalData);
-            console.log('Minimal profile update successful');
-            return true;
-          } catch (minimalError) {
-            console.error('Failed to update with minimal data:', minimalError);
-          }
-        }
-        
-        throw firestoreError;
-      }
+      await updateDoc(userRef, profileData);
       
       // Update local state with new profile data
       if (currentUser && currentUser.uid === uid) {
         setCurrentUser(prev => ({
           ...prev,
-          ...sanitizedData
+          ...profileData
         }));
       }
       
       return true;
     } catch (error) {
       console.error('Error updating user profile:', error);
-      console.error('Error details:', {
-        code: error.code,
-        message: error.message,
-        uid: uid,
-        profileData: profileData
-      });
       throw error;
     }
   }
@@ -152,16 +81,6 @@ export function AuthProvider({ children }) {
   // Sign up function
   async function signup(email, password, role, userData) {
     try {
-      // Set registration flag to prevent navigation
-      setIsRegistration(true);
-      
-      // Auto-reset registration flag after 30 seconds as safety measure
-      setTimeout(() => {
-        console.log('Auto-resetting registration flag after timeout');
-        setIsRegistration(false);
-      }, 30000);
-      
-      // Validate inputs
       if (!email || !password || !role) {
         throw new Error('Missing required fields: email, password, and role are required');
       }
@@ -191,11 +110,10 @@ export function AuthProvider({ children }) {
         console.log('Email verification sent to:', result.user.email);
       } catch (verificationError) {
         console.error('Error sending email verification:', verificationError);
-        // Don't throw error - registration should still succeed
       }
 
-      // Prepare user data for validation
-      const userDataToValidate = {
+      // Prepare user data for Firestore
+      const userDataToStore = {
         email: email.trim(),
         username: userData.username || '',
         role: role,
@@ -238,83 +156,14 @@ export function AuthProvider({ children }) {
         other: userData.other || ''
       };
 
-      // Validate and sanitize user data using ErrorHandler
-      const sanitizedUserData = ErrorHandler.validateFirestoreData(userDataToValidate, 'user_signup');
-      
-      // Check request size
-      const sizeInfo = ErrorHandler.checkRequestSize(sanitizedUserData);
-      if (sizeInfo.warnings.length > 0) {
-        console.warn('Request size warnings:', sizeInfo.warnings);
-      }
-
-      // Store additional user data in Firestore with enhanced error handling
+      // Store user data in Firestore
       const userRef = doc(db, 'users', result.user.uid);
-      
-      try {
-        console.log('Attempting to store user data in Firestore:', {
-          uid: result.user.uid,
-          email: sanitizedUserData.email,
-          role: sanitizedUserData.role,
-          dataSize: JSON.stringify(sanitizedUserData).length
-        });
-        
-        await setDoc(userRef, sanitizedUserData);
-        console.log('User data stored successfully in Firestore');
-      } catch (firestoreError) {
-        ErrorHandler.logError(firestoreError, 'user_signup_firestore', {
-          uid: result.user.uid,
-          dataKeys: Object.keys(sanitizedUserData),
-          dataSize: JSON.stringify(sanitizedUserData).length,
-          sizeInfo: sizeInfo
-        });
-        
-        // Check if it's a 400 error and provide specific handling
-        if (firestoreError.code === 'invalid-argument' || firestoreError.message?.includes('400')) {
-          console.error('🚨 400 Error in Firestore during user creation:', {
-            error: firestoreError,
-            data: sanitizedUserData,
-            uid: result.user.uid
-          });
-          
-          // Try to create a minimal user document
-          try {
-            const minimalUserData = {
-              email: email.trim(),
-              role: role,
-              firstName: (userData.firstName || '').trim().substring(0, 100),
-              lastName: (userData.lastName || '').trim().substring(0, 100),
-              createdAt: new Date()
-            };
-            
-            await setDoc(userRef, minimalUserData);
-            console.log('Minimal user document created successfully');
-          } catch (minimalError) {
-            console.error('Failed to create minimal user document:', minimalError);
-          }
-        }
-        
-        // If Firestore fails, still allow user creation but log the error
-        console.warn('User created in Firebase Auth but Firestore storage failed');
-      }
-
-      // Don't store user data in localStorage during registration
-      // This prevents automatic login after registration
-      console.log('Registration completed, user will be redirected to login page');
-
-      // Reset Google auth flag to prevent navigation after registration
-      setIsGoogleAuth(false);
+      await setDoc(userRef, userDataToStore);
+      console.log('User data stored successfully in Firestore');
 
       return result;
     } catch (error) {
       console.error('Error in signup:', error);
-      console.error('Error details:', {
-        code: error.code,
-        message: error.message,
-        email: email,
-        role: role
-      });
-      // Reset registration flag on error
-      setIsRegistration(false);
       throw error;
     }
   }
@@ -322,245 +171,54 @@ export function AuthProvider({ children }) {
   // Login function
   async function login(email, password) {
     try {
-      console.log('Attempting to sign in with email:', email);
-      console.log('Firebase Auth instance:', auth);
-      console.log('Auth app:', auth.app);
-      
-      // Validate email format
-      if (!email || !email.includes('@')) {
-        throw new Error('Please enter a valid email address.');
+      if (!email || !password) {
+        throw new Error('Email and password are required');
       }
-      
-      // Validate password
-      if (!password || password.length < 6) {
-        throw new Error('Password must be at least 6 characters long.');
-      }
-      
+
       const result = await signInWithEmailAndPassword(auth, email, password);
-      console.log('Sign in successful:', result.user.uid);
-      
-      // Get user role from Firestore
-      const userRef = doc(db, 'users', result.user.uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (userSnap.exists()) {
-        const role = userSnap.data().role;
-        console.log('User role found:', role);
-        setUserRole(role);
-        // Store role and user data in localStorage for persistence
-        localStorage.setItem('userRole', role);
-        localStorage.setItem('adminUser', JSON.stringify(result.user));
-      } else {
-        console.log('User document does not exist, creating default...');
-        // Create a default user document if it doesn't exist
-        const defaultUserData = {
-          firstName: result.user.displayName?.split(' ')[0] || '',
-          lastName: result.user.displayName?.split(' ')[1] || '',
-          email: result.user.email,
-          role: 'student', // Default role
-          createdAt: new Date(),
-          profilePictureUrl: result.user.photoURL || '',
-          profilePictureBase64: '',
-          bio: '',
-          skills: [],
-          interests: [],
-          graduationYear: '',
-          major: '',
-          company: '',
-          position: '',
-          experience: '',
-          location: '',
-          phone: '',
-          website: '',
-          linkedin: '',
-          github: '',
-          twitter: '',
-          instagram: '',
-          facebook: '',
-          youtube: '',
-          tiktok: '',
-          snapchat: '',
-          discord: '',
-          telegram: '',
-          whatsapp: '',
-          skype: '',
-          zoom: '',
-          teams: '',
-          slack: '',
-          other: ''
-        };
-        
-        try {
-          await setDoc(userRef, defaultUserData);
-          console.log('Default user document created successfully');
-          setUserRole('student');
-          // Store role and user data in localStorage for persistence
-          localStorage.setItem('userRole', 'student');
-          localStorage.setItem('adminUser', JSON.stringify(result.user));
-        } catch (createError) {
-          console.error('Error creating user document:', createError);
-          // Don't throw error, just use default role
-          setUserRole('student');
-          localStorage.setItem('userRole', 'student');
-          localStorage.setItem('adminUser', JSON.stringify(result.user));
-        }
-      }
-      
-      return { success: true, user: result.user };
+      return result;
     } catch (error) {
-      console.error('Login error:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      console.error('Full error object:', error);
+      console.error('Error in login:', error);
       
-      // Handle specific Firebase Auth errors with detailed logging
-      if (error.code === 'auth/invalid-credential') {
-        console.error('Invalid credential error - email or password is incorrect');
-        throw new Error('Invalid email or password. Please check your credentials and try again.');
-      } else if (error.code === 'auth/user-not-found') {
-        console.error('User not found error - no account exists with this email');
-        throw new Error('No account found with this email address.');
-      } else if (error.code === 'auth/wrong-password') {
-        console.error('Wrong password error - password is incorrect');
-        throw new Error('Incorrect password. Please try again.');
-      } else if (error.code === 'auth/invalid-email') {
-        console.error('Invalid email error - email format is invalid');
-        throw new Error('Invalid email address format.');
-      } else if (error.code === 'auth/user-disabled') {
-        console.error('User disabled error - account has been disabled');
-        throw new Error('This account has been disabled. Please contact support.');
-      } else if (error.code === 'auth/too-many-requests') {
-        console.error('Too many requests error - rate limit exceeded');
-        throw new Error('Too many failed login attempts. Please try again later.');
-      } else if (error.code === 'auth/network-request-failed') {
-        console.error('Network request failed - connection issue');
-        throw new Error('Network error. Please check your internet connection.');
-      } else if (error.code === 'auth/operation-not-allowed') {
-        console.error('Operation not allowed - email/password auth not enabled');
-        throw new Error('Email/password authentication is not enabled. Please contact support.');
-      } else if (error.code === 'auth/weak-password') {
-        console.error('Weak password error - password is too weak');
-        throw new Error('Password is too weak. Please choose a stronger password.');
-      } else {
-        console.error('Unknown authentication error:', error);
-        throw new Error(`Login failed: ${error.message}`);
+      // Provide specific error messages
+      switch (error.code) {
+        case 'auth/invalid-credential':
+          throw new Error('Invalid email or password');
+        case 'auth/user-not-found':
+          throw new Error('No account found with this email');
+        case 'auth/wrong-password':
+          throw new Error('Incorrect password');
+        case 'auth/invalid-email':
+          throw new Error('Invalid email address');
+        case 'auth/user-disabled':
+          throw new Error('This account has been disabled');
+        case 'auth/too-many-requests':
+          throw new Error('Too many failed attempts. Please try again later');
+        case 'auth/network-request-failed':
+          throw new Error('Network error. Please check your connection');
+        default:
+          throw new Error(error.message || 'Login failed');
       }
     }
   }
 
   // Logout function
   function logout() {
-    setUserRole(null);
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('adminUser');
     return signOut(auth);
   }
 
   // Get user role
   async function getUserRole(uid) {
     try {
-      console.log('Getting user role for UID:', uid);
-      console.log('Current user:', currentUser);
-      console.log('Auth state:', auth.currentUser);
-      
-      // Check if user is authenticated
-      if (!auth.currentUser) {
-        console.log('No authenticated user found');
-        return null;
-      }
-      
-      // Validate UID
-      if (!uid || typeof uid !== 'string') {
-        console.log('Invalid UID provided:', uid);
-        return null;
-      }
-      
-      const userRef = doc(db, 'users', uid);
-      console.log('User ref created:', userRef.path);
-      
-      const userSnap = await getDoc(userRef);
-      console.log('User snapshot:', userSnap.exists() ? 'exists' : 'does not exist');
-      
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        console.log('User data:', userData);
-        const role = userData.role;
-        console.log('User role:', role);
-        
-        // Update the userRole state if we have a current user
-        if (currentUser && currentUser.uid === uid) {
-          setUserRole(role);
-        }
-        return role;
-      } else {
-        console.log('User document does not exist, creating default user document...');
-        
-        // Create a default user document if it doesn't exist
-        const defaultUserData = {
-          firstName: auth.currentUser.displayName?.split(' ')[0] || '',
-          lastName: auth.currentUser.displayName?.split(' ')[1] || '',
-          email: auth.currentUser.email,
-          role: 'student', // Default role
-          createdAt: new Date(),
-          profilePictureUrl: auth.currentUser.photoURL || '',
-          profilePictureBase64: '',
-          bio: '',
-          skills: [],
-          interests: [],
-          graduationYear: '',
-          major: '',
-          company: '',
-          position: '',
-          experience: '',
-          location: '',
-          phone: '',
-          website: '',
-          linkedin: '',
-          github: '',
-          twitter: '',
-          instagram: '',
-          facebook: '',
-          youtube: '',
-          tiktok: '',
-          snapchat: '',
-          discord: '',
-          telegram: '',
-          whatsapp: '',
-          skype: '',
-          zoom: '',
-          teams: '',
-          slack: '',
-          other: ''
-        };
-        
-        try {
-          await setDoc(userRef, defaultUserData);
-          console.log('Default user document created successfully');
-          
-          // Update the userRole state
-          if (currentUser && currentUser.uid === uid) {
-            setUserRole('student');
-          }
-          return 'student';
-        } catch (createError) {
-          console.error('Error creating user document:', createError);
-          console.error('Create error details:', createError.code, createError.message);
-          // Return 'student' as default even if creation fails
-          return 'student';
-        }
-      }
+      const profileData = await fetchUserProfile(uid);
+      return profileData?.role || 'student';
     } catch (error) {
       console.error('Error getting user role:', error);
-      console.error('Error details:', error.code, error.message);
-      console.error('Full error object:', error);
-      
-      // Return a default role instead of null to prevent crashes
-      console.log('Returning default student role due to error');
       return 'student';
     }
   }
 
-  // Refresh user role (useful after Google auth)
+  // Refresh user role
   async function refreshUserRole() {
     if (currentUser) {
       const role = await getUserRole(currentUser.uid);
@@ -570,310 +228,41 @@ export function AuthProvider({ children }) {
     return null;
   }
 
-  // Google authentication function using redirect
+  // Google authentication function using popup
   async function signInWithGoogle(additionalData = {}) {
     try {
-      console.log('Starting Google authentication with redirect');
-      setIsGoogleAuth(true); // Set flag for Google authentication
-      
       const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
-      
-      // Note: The actual result handling will be done in useEffect with getRedirectResult
-      return { success: true, redirecting: true };
+      const result = await signInWithPopup(auth, provider);
+
+      const userRef = doc(db, 'users', result.user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        const newUser = {
+          uid: result.user.uid,
+          email: result.user.email,
+          displayName: result.user.displayName,
+          role: 'student',
+          createdAt: new Date(),
+          profilePictureUrl: result.user.photoURL || '',
+          ...additionalData
+        };
+        await setDoc(userRef, newUser);
+        console.log('Google user created in Firestore');
+      } else {
+        console.log('Google user already exists in Firestore');
+      }
+
+      setCurrentUser(result.user);
+      setUserRole('student'); // default role for Google users
+      return { success: true, user: result.user };
     } catch (error) {
-      console.error('Google sign-in redirect error:', error);
-      setIsGoogleAuth(false); // Reset flag on error
+      console.error('Google sign-in error:', error);
       throw error;
     }
   }
 
-  // Handle Google redirect result
-  async function handleGoogleRedirectResult() {
-    try {
-      const result = await getRedirectResult(auth);
-      if (result && result.user) {
-        console.log('Google redirect result received:', result.user.uid);
-        setIsGoogleAuth(true); // Set flag for Google authentication
-
-        const userRef = doc(db, 'users', result.user.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (!userSnap.exists()) {
-          const newUser = {
-            uid: result.user.uid,
-            email: result.user.email,
-            displayName: result.user.displayName,
-            role: 'student',
-            createdAt: new Date(),
-            profilePictureUrl: result.user.photoURL || '',
-            firstName: result.user.displayName?.split(' ')[0] || '',
-            lastName: result.user.displayName?.split(' ')[1] || '',
-            bio: '',
-            skills: [],
-            interests: [],
-            graduationYear: '',
-            major: '',
-            company: '',
-            position: '',
-            experience: '',
-            location: '',
-            phone: '',
-            website: '',
-            linkedin: '',
-            github: '',
-            twitter: '',
-            instagram: '',
-            facebook: '',
-            youtube: '',
-            tiktok: '',
-            snapchat: '',
-            discord: '',
-            telegram: '',
-            whatsapp: '',
-            skype: '',
-            zoom: '',
-            teams: '',
-            slack: '',
-            other: ''
-          };
-          await setDoc(userRef, newUser);
-          console.log('Google user created in Firestore');
-        } else {
-          console.log('Google user already exists in Firestore');
-        }
-
-        return { success: true, user: result.user };
-      }
-      setIsGoogleAuth(false); // Reset flag if no Google user
-      return null;
-    } catch (error) {
-      console.error('Error handling Google redirect result:', error);
-      setIsGoogleAuth(false); // Reset flag on error
-      throw error;
-    }
-  }
-
-
-  // Handle Google redirect result on component mount
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      try {
-        const result = await handleGoogleRedirectResult();
-        if (result && result.success) {
-          console.log('Google authentication completed via redirect:', result);
-          // The onAuthStateChanged will handle the rest
-        }
-      } catch (error) {
-        console.error('Error handling Google redirect result:', error);
-      }
-    };
-
-    handleRedirectResult();
-  }, []);
-
-  // Navigation callback for Google authentication
-  const [navigationCallback, setNavigationCallback] = useState(null);
-  const [isGoogleAuth, setIsGoogleAuth] = useState(false);
-  const [isRegistration, setIsRegistration] = useState(false);
-
-  // Navigation effect for Google authentication only (not registration)
-  useEffect(() => {
-    if (currentUser && userRole && !loading && navigationCallback && isGoogleAuth && !isRegistration) {
-      console.log('User authenticated via Google, executing navigation callback');
-      
-      // Small delay to ensure state is fully updated
-      setTimeout(() => {
-        if (userRole === 'student') {
-          navigationCallback('/student-dashboard');
-        } else if (userRole === 'alumni') {
-          navigationCallback('/alumni-dashboard');
-        } else if (userRole === 'admin') {
-          navigationCallback('/admin-dashboard');
-        } else {
-          navigationCallback('/student-dashboard'); // Default fallback
-        }
-        
-        // Clear the callback after use
-        setNavigationCallback(null);
-        setIsGoogleAuth(false);
-      }, 1000);
-    }
-  }, [currentUser, userRole, loading, navigationCallback, isGoogleAuth, isRegistration]);
-
-  useEffect(() => {
-    let isMounted = true;
-    
-    // Check for stored authentication data on mount
-    const checkStoredAuth = () => {
-      const storedRole = localStorage.getItem('userRole');
-      const storedUser = localStorage.getItem('adminUser');
-      
-      console.log('Checking stored auth data:', {
-        storedRole,
-        storedUser: storedUser ? 'exists' : 'null',
-        isRegistration: isRegistration,
-        firebaseAuthUser: auth.currentUser?.uid || 'null'
-      });
-      
-      // Only restore from localStorage if not in registration mode
-      if (storedUser && storedRole && !isRegistration) {
-        try {
-          const userData = JSON.parse(storedUser);
-          console.log('Restoring user from localStorage:', userData.uid);
-          setCurrentUser(userData);
-          setUserRole(storedRole);
-        } catch (error) {
-          console.error('Error parsing stored user data:', error);
-          localStorage.removeItem('userRole');
-          localStorage.removeItem('adminUser');
-        }
-      } else if (isRegistration) {
-        console.log('Skipping localStorage restoration during registration');
-      }
-    };
-    
-    // Check stored auth first
-    checkStoredAuth();
-    
-    // Monitor token changes for debugging
-    const tokenUnsubscribe = onIdTokenChanged(auth, async (user) => {
-      if (!isMounted) return;
-      
-      console.log('🔄 Token changed:', user ? `User: ${user.uid}` : 'No user');
-      if (user) {
-        console.log('Token details:', {
-          uid: user.uid,
-          email: user.email,
-          emailVerified: user.emailVerified,
-          tokenExpiration: user.accessToken ? 'Valid' : 'Invalid'
-        });
-      }
-    });
-    
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!isMounted) return;
-      
-      console.log('Firebase auth state changed:', user ? `User: ${user.uid}` : 'No user');
-      
-      try {
-        if (user) {
-          // Check if this is during registration - if so, don't set user state
-          if (isRegistration) {
-            console.log('User authenticated during registration - not setting state, will redirect to login');
-            if (isMounted) {
-              setLoading(false);
-            }
-            return;
-          }
-          
-          // User is signed in
-          console.log('Auth state changed - user authenticated:', user.uid);
-          console.log('User email:', user.email);
-          console.log('User email verified:', user.emailVerified);
-          
-          const profileData = await fetchUserProfile(user.uid);
-          console.log('Fetched profile data:', profileData);
-          
-          if (isMounted) {
-            const userWithProfile = { ...user, ...profileData };
-            setCurrentUser(userWithProfile);
-            
-            const role = profileData?.role || 'student';
-            setUserRole(role);
-            
-            // Update localStorage with fresh data
-            localStorage.setItem('userRole', role);
-            localStorage.setItem('adminUser', JSON.stringify(userWithProfile));
-            
-            console.log('User state updated:', {
-              uid: userWithProfile.uid,
-              email: userWithProfile.email,
-              role: role
-            });
-          }
-        } else {
-          // User is signed out
-          console.log('Auth state changed - user not authenticated');
-          console.log('Clearing user state and localStorage');
-          console.log('Registration flag state:', isRegistration);
-          console.log('Current user before clear:', currentUser?.uid);
-          
-          if (isMounted) {
-            setCurrentUser(null);
-            setUserRole(null);
-          }
-          
-          // Only clear localStorage if not in registration mode
-          if (!isRegistration) {
-            localStorage.removeItem('userRole');
-            localStorage.removeItem('adminUser');
-            console.log('Cleared localStorage (not in registration mode)');
-          } else {
-            console.log('Skipped localStorage clear (in registration mode)');
-          }
-        }
-        
-        if (isMounted) {
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error in auth state change handler:', error);
-        console.error('Error details:', {
-          code: error.code,
-          message: error.message,
-          stack: error.stack
-        });
-        
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      try {
-        unsubscribe();
-        tokenUnsubscribe();
-      } catch (error) {
-        console.error('Error unsubscribing from auth state change:', error);
-      }
-    };
-  }, [isRegistration]);
-
-  // Debug function to check authentication state
-  const debugAuthState = () => {
-    console.group('🔍 Current Authentication State');
-    console.log('Current User:', currentUser);
-    console.log('User Role:', userRole);
-    console.log('Loading:', loading);
-    console.log('Firebase Auth Current User:', auth.currentUser);
-    console.log('LocalStorage userRole:', localStorage.getItem('userRole'));
-    console.log('LocalStorage adminUser:', localStorage.getItem('adminUser'));
-    console.log('Registration Flag:', isRegistration);
-    console.log('Google Auth Flag:', isGoogleAuth);
-    console.log('Navigation Callback:', navigationCallback ? 'Set' : 'Not set');
-    console.groupEnd();
-  };
-
-  // Function to set navigation callback for Google auth
-  const setGoogleAuthNavigationCallback = (callback) => {
-    setNavigationCallback(() => callback);
-  };
-
-  // Function to reset Google auth flag
-  const resetGoogleAuthFlag = () => {
-    setIsGoogleAuth(false);
-  };
-
-  // Function to reset registration flag
-  const resetRegistrationFlag = () => {
-    console.log('Resetting registration flag');
-    setIsRegistration(false);
-  };
-
-  // Function to send email verification
+  // Send email verification
   const sendEmailVerificationToUser = async () => {
     try {
       if (currentUser && !currentUser.emailVerified) {
@@ -891,102 +280,48 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Function to manually restore authentication state
-  const restoreAuthState = () => {
-    console.log('Attempting to restore authentication state...');
-    const storedRole = localStorage.getItem('userRole');
-    const storedUser = localStorage.getItem('adminUser');
-    
-    if (storedUser && storedRole) {
-      try {
-        const userData = JSON.parse(storedUser);
-        console.log('Restoring user from localStorage:', userData.uid);
-        setCurrentUser(userData);
-        setUserRole(storedRole);
-        return { success: true, message: 'Authentication state restored' };
-      } catch (error) {
-        console.error('Error parsing stored user data:', error);
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('adminUser');
-        return { success: false, message: 'Failed to parse stored user data' };
+  // Simplified onAuthStateChanged
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('Firebase auth state changed:', user ? `User: ${user.uid}` : 'No user');
+      
+      if (user) {
+        // User is signed in
+        try {
+          const profileData = await fetchUserProfile(user.uid);
+          const userWithProfile = { ...user, ...profileData };
+          setCurrentUser(userWithProfile);
+          setUserRole(profileData?.role || 'student');
+          console.log('User authenticated:', {
+            uid: userWithProfile.uid,
+            email: userWithProfile.email,
+            role: profileData?.role || 'student'
+          });
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+          setCurrentUser(user);
+          setUserRole('student');
+        }
+      } else {
+        // User is signed out
+        console.log('User signed out');
+        setCurrentUser(null);
+        setUserRole(null);
       }
-    } else {
-      return { success: false, message: 'No stored authentication data found' };
-    }
-  };
+      setLoading(false);
+    });
 
-  // Function to check if user is actually signed out or if it's a false positive
-  const checkAuthStatus = () => {
-    console.group('🔍 Authentication Status Check');
+    return unsubscribe;
+  }, []);
+
+  // Debug function to check authentication state
+  const debugAuthState = () => {
+    console.group('🔍 Current Authentication State');
+    console.log('Current User:', currentUser);
+    console.log('User Role:', userRole);
+    console.log('Loading:', loading);
     console.log('Firebase Auth Current User:', auth.currentUser);
-    console.log('Local State Current User:', currentUser);
-    console.log('Local State User Role:', userRole);
-    console.log('Loading State:', loading);
-    console.log('Registration Flag:', isRegistration);
-    console.log('Google Auth Flag:', isGoogleAuth);
-    
-    // Check if Firebase thinks user is signed in but local state is null
-    if (auth.currentUser && !currentUser) {
-      console.warn('⚠️ MISMATCH: Firebase has user but local state is null');
-      console.log('Firebase user details:', {
-        uid: auth.currentUser.uid,
-        email: auth.currentUser.email,
-        emailVerified: auth.currentUser.emailVerified
-      });
-    }
-    
-    // Check if local state has user but Firebase doesn't
-    if (currentUser && !auth.currentUser) {
-      console.warn('⚠️ MISMATCH: Local state has user but Firebase is null');
-      console.log('Local user details:', {
-        uid: currentUser.uid,
-        email: currentUser.email
-      });
-    }
-    
     console.groupEnd();
-    
-    return {
-      firebaseUser: auth.currentUser,
-      localUser: currentUser,
-      hasMismatch: (auth.currentUser && !currentUser) || (currentUser && !auth.currentUser)
-    };
-  };
-
-  // Function to force refresh authentication state
-  const forceRefreshAuth = async () => {
-    console.log('🔄 Force refreshing authentication state...');
-    
-    if (auth.currentUser) {
-      try {
-        console.log('Firebase user exists, fetching fresh profile data...');
-        const profileData = await fetchUserProfile(auth.currentUser.uid);
-        console.log('Fresh profile data:', profileData);
-        
-        const userWithProfile = { ...auth.currentUser, ...profileData };
-        setCurrentUser(userWithProfile);
-        
-        const role = profileData?.role || 'student';
-        setUserRole(role);
-        
-        // Update localStorage with fresh data
-        localStorage.setItem('userRole', role);
-        localStorage.setItem('adminUser', JSON.stringify(userWithProfile));
-        
-        console.log('✅ Authentication state refreshed successfully');
-        return { success: true, message: 'Authentication state refreshed' };
-      } catch (error) {
-        console.error('❌ Error refreshing authentication state:', error);
-        return { success: false, message: 'Failed to refresh authentication state' };
-      }
-    } else {
-      console.log('No Firebase user found, clearing local state...');
-      setCurrentUser(null);
-      setUserRole(null);
-      localStorage.removeItem('userRole');
-      localStorage.removeItem('adminUser');
-      return { success: true, message: 'Local state cleared (no Firebase user)' };
-    }
   };
 
   const value = {
@@ -1001,14 +336,7 @@ export function AuthProvider({ children }) {
     updateUserProfile,
     fetchUserProfile,
     signInWithGoogle,
-    handleGoogleRedirectResult,
-    setGoogleAuthNavigationCallback,
-    resetGoogleAuthFlag,
-    resetRegistrationFlag,
     sendEmailVerificationToUser,
-    restoreAuthState,
-    checkAuthStatus,
-    forceRefreshAuth,
     debugAuthState
   };
 

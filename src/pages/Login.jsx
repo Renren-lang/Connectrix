@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
+import { GoogleAuthProvider } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import SafeLogger from '../utils/logger';
@@ -11,7 +11,7 @@ import logoImage from '../components/Logo2.png';
 
 function Login() {
   const navigate = useNavigate();
-  const { currentUser, userRole, loading, login, getUserRole, refreshUserRole, signInWithGoogle, handleGoogleRedirectResult, setGoogleAuthNavigationCallback, resetRegistrationFlag } = useAuth();
+  const { currentUser, userRole, loading, login, signInWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -63,9 +63,9 @@ function Login() {
     }
   }, []);
 
-  // Check if user is already authenticated and redirect (but not if from registration)
+  // Check if user is already authenticated and redirect
   useEffect(() => {
-    if (!loading && currentUser && userRole && !isRegistrationRedirect) {
+    if (!loading && currentUser && userRole) {
       console.log('User already authenticated, redirecting from login page');
       if (userRole === 'student') {
         navigate('/student-dashboard');
@@ -75,7 +75,7 @@ function Login() {
         navigate('/admin-dashboard');
       }
     }
-  }, [currentUser, userRole, loading, navigate, isRegistrationRedirect]);
+  }, [currentUser, userRole, loading, navigate]);
 
   // Handle scroll effect for header
   useEffect(() => {
@@ -324,13 +324,9 @@ function Login() {
     try {
       setIsSubmitting(true);
       
-      // Use AuthContext Google auth function (redirect)
-      const result = await signInWithGoogle(googleFormData);
-      
-      if (result && result.success) {
-        console.log('Google authentication redirect initiated:', result);
-        // The redirect will happen automatically, no need to navigate
-      }
+      // Use AuthContext Google auth function (popup)
+      await signInWithGoogle(googleFormData);
+      console.log('Google authentication successful');
     } catch (error) {
       console.error('Google auth error:', error);
       console.error('Error code:', error.code);
@@ -368,7 +364,7 @@ function Login() {
           password: 'Google authentication failed. Please try again.'
         });
       }
-      
+    } finally {
       setIsSubmitting(false);
       setShowAuthConfirmation(false);
       setShowRoleSelection(false);

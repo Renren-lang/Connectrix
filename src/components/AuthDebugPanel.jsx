@@ -6,43 +6,13 @@ const AuthDebugPanel = () => {
     currentUser, 
     userRole, 
     loading, 
-    debugAuthState, 
-    restoreAuthState,
-    checkAuthStatus,
-    forceRefreshAuth,
-    resetRegistrationFlag,
-    resetGoogleAuthFlag 
+    debugAuthState
   } = useAuth();
   const [showPanel, setShowPanel] = useState(false);
   const [restoreResult, setRestoreResult] = useState('');
 
-  const handleRestoreAuth = () => {
-    const result = restoreAuthState();
-    setRestoreResult(result.message);
-    setTimeout(() => setRestoreResult(''), 3000);
-  };
-
   const handleDebugAuth = () => {
     debugAuthState();
-  };
-
-  const handleCheckAuthStatus = () => {
-    const status = checkAuthStatus();
-    setRestoreResult(`Auth Status: ${status.hasMismatch ? 'MISMATCH DETECTED' : 'OK'}`);
-    setTimeout(() => setRestoreResult(''), 5000);
-  };
-
-  const handleForceRefresh = async () => {
-    const result = await forceRefreshAuth();
-    setRestoreResult(result.message);
-    setTimeout(() => setRestoreResult(''), 5000);
-  };
-
-  const handleResetFlags = () => {
-    resetRegistrationFlag();
-    resetGoogleAuthFlag();
-    setRestoreResult('Flags reset successfully');
-    setTimeout(() => setRestoreResult(''), 3000);
   };
 
   // Only show in development or when there are auth issues
@@ -101,62 +71,6 @@ const AuthDebugPanel = () => {
               }}
             >
               Debug Auth State
-            </button>
-            
-            <button 
-              onClick={handleCheckAuthStatus}
-              style={{ 
-                background: '#6f42c1', 
-                border: 'none', 
-                color: 'white', 
-                padding: '5px',
-                borderRadius: '3px',
-                cursor: 'pointer'
-              }}
-            >
-              Check Auth Status
-            </button>
-            
-            <button 
-              onClick={handleForceRefresh}
-              style={{ 
-                background: '#17a2b8', 
-                border: 'none', 
-                color: 'white', 
-                padding: '5px',
-                borderRadius: '3px',
-                cursor: 'pointer'
-              }}
-            >
-              Force Refresh
-            </button>
-            
-            <button 
-              onClick={handleRestoreAuth}
-              style={{ 
-                background: '#28a745', 
-                border: 'none', 
-                color: 'white', 
-                padding: '5px',
-                borderRadius: '3px',
-                cursor: 'pointer'
-              }}
-            >
-              Restore Auth
-            </button>
-            
-            <button 
-              onClick={handleResetFlags}
-              style={{ 
-                background: '#ffc107', 
-                border: 'none', 
-                color: 'black', 
-                padding: '5px',
-                borderRadius: '3px',
-                cursor: 'pointer'
-              }}
-            >
-              Reset Flags
             </button>
           </div>
           
