@@ -66,7 +66,9 @@ function ProtectedRoute({ children, allowedRoles = ['student', 'alumni', 'admin'
         return children;
       } else {
         // Redirect to appropriate dashboard based on stored role
-        if (storedRole === 'alumni') {
+        if (storedRole === 'admin') {
+          return <Navigate to="/admin-dashboard" replace />;
+        } else if (storedRole === 'alumni') {
           return <Navigate to="/alumni-dashboard" replace />;
         } else {
           return <Navigate to="/student-dashboard" replace />;

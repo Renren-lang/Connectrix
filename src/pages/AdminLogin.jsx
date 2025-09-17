@@ -66,25 +66,26 @@ function AdminLogin() {
     }
 
     try {
-      // Check admin credentials
+      // Check admin credentials directly (no Firebase lookup needed)
       if (formData.username === ADMIN_CREDENTIALS.username && 
           formData.password === ADMIN_CREDENTIALS.password) {
         
-        // Create a mock admin user for Firebase auth
-        // In production, you'd want to create a real admin user in Firebase
+        // Create a mock admin user for the session
         const adminUser = {
-          uid: 'admin-uid',
+          uid: 'admin-uid-' + Date.now(),
           email: ADMIN_CREDENTIALS.email,
           displayName: 'Admin',
-          role: 'admin'
+          role: 'admin',
+          firstName: 'Admin',
+          lastName: 'User'
         };
 
-        // Store admin role in localStorage
+        // Store admin role and user data in localStorage
         localStorage.setItem('userRole', 'admin');
         localStorage.setItem('adminUser', JSON.stringify(adminUser));
         
-        // Navigate to admin dashboard
-        navigate('/admin-dashboard');
+        // Force a page reload to trigger the auth context update
+        window.location.href = '/admin-dashboard';
       } else {
         setErrors({
           username: '',

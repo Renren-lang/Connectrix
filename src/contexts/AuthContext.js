@@ -320,14 +320,33 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
+    // Check for admin user first (before Firebase auth)
+    const adminUser = localStorage.getItem('adminUser');
+    const storedRole = localStorage.getItem('userRole');
+    
+    if (adminUser && storedRole === 'admin') {
+      try {
+        const adminData = JSON.parse(adminUser);
+        console.log('AuthContext: Admin user detected from localStorage');
+        setCurrentUser(adminData);
+        setUserRole('admin');
+        setLoading(false);
+        return;
+      } catch (error) {
+        console.error('Error parsing admin user data:', error);
+        localStorage.removeItem('adminUser');
+        localStorage.removeItem('userRole');
+      }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
         if (user) {
           console.log('Auth state changed - user authenticated:', user.uid);
           
-          // Check if this is an admin user from localStorage
+          // Double-check for admin user (in case Firebase auth overrides)
           const adminUser = localStorage.getItem('adminUser');
-          if (adminUser) {
+          if (adminUser && localStorage.getItem('userRole') === 'admin') {
             const adminData = JSON.parse(adminUser);
             console.log('AuthContext: Admin user detected from localStorage');
             setCurrentUser(adminData);
