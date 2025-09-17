@@ -8,6 +8,7 @@ import SafeLogger from '../utils/logger';
 import API_CONFIG from '../config/api';
 import { debugAuthError, debugLoginAttempt, validateEmail, validatePassword as validatePasswordUtil } from '../utils/authDebugger';
 import logoImage from '../components/Logo2.png';
+import PopupInstructions from '../components/PopupInstructions';
 
 function Login() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ function Login() {
   const [isRegistrationRedirect, setIsRegistrationRedirect] = useState(false);
   const [googleUser, setGoogleUser] = useState(null);
   const [googleSelectedRole, setGoogleSelectedRole] = useState('');
+  const [showPopupInstructions, setShowPopupInstructions] = useState(false);
   const [googleFormData, setGoogleFormData] = useState({
     batch: '',
     course: '',
@@ -321,13 +323,28 @@ function Login() {
     try {
       setIsSubmitting(true);
       
-      // Use AuthContext Google auth function (popup)
-      await signInWithGoogle(googleFormData);
+      // Use AuthContext Google auth function (popup with redirect fallback)
+      const result = await signInWithGoogle(googleFormData);
+      
+      if (result.redirect) {
+        // User will be redirected, no need to do anything else
+        console.log('Google authentication redirect initiated');
+        return;
+      }
+      
       console.log('Google authentication successful');
     } catch (error) {
       console.error('Google auth error:', error);
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
+      
+      // Show popup instructions if popup is blocked
+      if (error.code === 'auth/popup-blocked' || 
+          error.message?.includes('popup') || 
+          error.message?.includes('blocked')) {
+        setShowPopupInstructions(true);
+        return;
+      }
       
       // Handle specific Google Auth errors
       if (error.code === 'auth/popup-closed-by-user') {
@@ -1091,6 +1108,13 @@ function Login() {
           </div>
         </div>
       </div>
+      
+      {/* Popup Instructions Modal */}
+      {showPopupInstructions && (
+        <PopupInstructions 
+          onClose={() => setShowPopupInstructions(false)} 
+        />
+      )}
     </div>
   );
 }
