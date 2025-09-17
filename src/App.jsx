@@ -23,6 +23,7 @@ import StudentProfiles from './pages/StudentProfiles.jsx';
 import AdminLogin from './pages/AdminLogin.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import AuthDebugger from './components/AuthDebugger.jsx';
+import AuthDebugPanel from './components/AuthDebugPanel.jsx';
 import { Debug400Errors } from './utils/debug400Errors';
 
 
@@ -56,6 +57,7 @@ function AppContent() {
   return (
     <div className="App">
       <AuthDebugger />
+      <AuthDebugPanel />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />

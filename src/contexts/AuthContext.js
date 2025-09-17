@@ -154,6 +154,12 @@ export function AuthProvider({ children }) {
       // Set registration flag to prevent navigation
       setIsRegistration(true);
       
+      // Auto-reset registration flag after 30 seconds as safety measure
+      setTimeout(() => {
+        console.log('Auto-resetting registration flag after timeout');
+        setIsRegistration(false);
+      }, 30000);
+      
       // Validate inputs
       if (!email || !password || !role) {
         throw new Error('Missing required fields: email, password, and role are required');
@@ -704,10 +710,12 @@ export function AuthProvider({ children }) {
       
       console.log('Checking stored auth data:', {
         storedRole,
-        storedUser: storedUser ? 'exists' : 'null'
+        storedUser: storedUser ? 'exists' : 'null',
+        isRegistration: isRegistration
       });
       
-      if (storedUser && storedRole) {
+      // Only restore from localStorage if not in registration mode
+      if (storedUser && storedRole && !isRegistration) {
         try {
           const userData = JSON.parse(storedUser);
           console.log('Restoring user from localStorage:', userData.uid);
@@ -718,6 +726,8 @@ export function AuthProvider({ children }) {
           localStorage.removeItem('userRole');
           localStorage.removeItem('adminUser');
         }
+      } else if (isRegistration) {
+        console.log('Skipping localStorage restoration during registration');
       }
     };
     
@@ -769,15 +779,22 @@ export function AuthProvider({ children }) {
           // User is signed out
           console.log('Auth state changed - user not authenticated');
           console.log('Clearing user state and localStorage');
+          console.log('Registration flag state:', isRegistration);
+          console.log('Current user before clear:', currentUser?.uid);
           
           if (isMounted) {
             setCurrentUser(null);
             setUserRole(null);
           }
           
-          // Clear localStorage
-          localStorage.removeItem('userRole');
-          localStorage.removeItem('adminUser');
+          // Only clear localStorage if not in registration mode
+          if (!isRegistration) {
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('adminUser');
+            console.log('Cleared localStorage (not in registration mode)');
+          } else {
+            console.log('Skipped localStorage clear (in registration mode)');
+          }
         }
         
         if (isMounted) {
@@ -816,6 +833,9 @@ export function AuthProvider({ children }) {
     console.log('Firebase Auth Current User:', auth.currentUser);
     console.log('LocalStorage userRole:', localStorage.getItem('userRole'));
     console.log('LocalStorage adminUser:', localStorage.getItem('adminUser'));
+    console.log('Registration Flag:', isRegistration);
+    console.log('Google Auth Flag:', isGoogleAuth);
+    console.log('Navigation Callback:', navigationCallback ? 'Set' : 'Not set');
     console.groupEnd();
   };
 
@@ -831,6 +851,7 @@ export function AuthProvider({ children }) {
 
   // Function to reset registration flag
   const resetRegistrationFlag = () => {
+    console.log('Resetting registration flag');
     setIsRegistration(false);
   };
 
@@ -852,6 +873,30 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Function to manually restore authentication state
+  const restoreAuthState = () => {
+    console.log('Attempting to restore authentication state...');
+    const storedRole = localStorage.getItem('userRole');
+    const storedUser = localStorage.getItem('adminUser');
+    
+    if (storedUser && storedRole) {
+      try {
+        const userData = JSON.parse(storedUser);
+        console.log('Restoring user from localStorage:', userData.uid);
+        setCurrentUser(userData);
+        setUserRole(storedRole);
+        return { success: true, message: 'Authentication state restored' };
+      } catch (error) {
+        console.error('Error parsing stored user data:', error);
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('adminUser');
+        return { success: false, message: 'Failed to parse stored user data' };
+      }
+    } else {
+      return { success: false, message: 'No stored authentication data found' };
+    }
+  };
+
   const value = {
     currentUser,
     userRole,
@@ -869,6 +914,7 @@ export function AuthProvider({ children }) {
     resetGoogleAuthFlag,
     resetRegistrationFlag,
     sendEmailVerificationToUser,
+    restoreAuthState,
     debugAuthState
   };
 
