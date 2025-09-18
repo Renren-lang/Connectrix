@@ -328,22 +328,20 @@ function Login() {
         console.log('✅ Google popup authentication successful');
         console.log('✅ Selected role:', googleSelectedRole);
         
-        // Show success message briefly
-        setShowSuccess(true);
-        
-        // Redirect immediately based on role - no delay needed
+        // Redirect immediately based on role - no delay, no success message
         const selectedRole = googleSelectedRole || 'student';
         console.log('🚀 Redirecting to dashboard for role:', selectedRole);
         
+        // Use window.location.href for immediate redirect
         if (selectedRole === 'student') {
           console.log('🎓 Redirecting to student dashboard');
-          navigate('/student-dashboard');
+          window.location.href = '/student-dashboard';
         } else if (selectedRole === 'alumni') {
           console.log('👔 Redirecting to alumni dashboard');
-          navigate('/alumni-dashboard');
+          window.location.href = '/alumni-dashboard';
         } else {
           console.log('🎓 Default redirect to student dashboard');
-          navigate('/student-dashboard');
+          window.location.href = '/student-dashboard';
         }
       }
       

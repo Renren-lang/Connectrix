@@ -246,7 +246,7 @@ export function AuthProvider({ children }) {
         const user = result.user;
         console.log("✅ Logged in as:", user.email);
         
-        // Process the result immediately
+        // Process the result immediately - minimal processing
         const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
 
@@ -268,21 +268,14 @@ export function AuthProvider({ children }) {
           console.log('Google user already exists in Firestore via popup');
         }
 
-        // Save to localStorage for persistence
+        // Save to localStorage for persistence - this is the key!
         localStorage.setItem("user", JSON.stringify(user));
         localStorage.setItem("userRole", additionalData.role || 'student');
         
-        // Set user state immediately
-        const profileData = await fetchUserProfile(user.uid);
-        const userWithProfile = { ...user, ...profileData };
-        setCurrentUser(userWithProfile);
-        setUserRole(profileData?.role || additionalData.role || 'student');
-        setLoading(false);
-        
-        console.log('User state set immediately after popup login:', {
-          uid: userWithProfile.uid,
-          email: userWithProfile.email,
-          role: profileData?.role || additionalData.role || 'student'
+        console.log('User data saved to localStorage:', {
+          uid: user.uid,
+          email: user.email,
+          role: additionalData.role || 'student'
         });
       }
       
