@@ -370,11 +370,12 @@ function Login() {
       
       // Handle specific Google Auth errors
       if (error.code === 'auth/popup-closed-by-user') {
-        console.log('ℹ️ User closed the popup window');
-        // Don't show error message, just reset the form
-        setGoogleFormData({ email: '', password: '' });
-        setGoogleSelectedRole('');
-        setShowAuthConfirmation(false);
+        console.log('ℹ️ Popup was closed - this might be due to browser security or timing issues');
+        // Show a helpful message instead of silent reset
+        setErrors({
+          email: '',
+          password: 'Google sign-in popup was closed. This might be due to browser security settings. Please try again or check if popups are allowed.'
+        });
         return;
       } else if (error.code === 'auth/popup-blocked') {
         setErrors({

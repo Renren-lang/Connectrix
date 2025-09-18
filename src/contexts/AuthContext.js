@@ -229,7 +229,7 @@ export function AuthProvider({ children }) {
     return null;
   }
 
-  // Google authentication function using popup
+  // Google authentication function using popup with redirect fallback
   async function signInWithGoogle(additionalData = {}) {
     try {
       const provider = new GoogleAuthProvider();
@@ -242,14 +242,22 @@ export function AuthProvider({ children }) {
       console.log('🔧 Starting Google authentication with provider:', provider);
       console.log('🔧 Additional data:', additionalData);
       
-      // Use popup method for better user experience
-      // Add timeout to prevent hanging
-      const result = await Promise.race([
-        signInWithPopup(auth, provider),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Popup timeout')), 60000) // 60 second timeout
-        )
-      ]);
+      // Try popup first, fallback to redirect if it fails
+      let result;
+      try {
+        console.log('🔧 Attempting popup method...');
+        result = await signInWithPopup(auth, provider);
+        console.log('🔧 Popup completed successfully:', result);
+      } catch (popupError) {
+        console.log('🔧 Popup failed, trying redirect method:', popupError);
+        
+        // Store the additional data for redirect
+        localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
+        
+        // Use redirect method as fallback
+        await signInWithRedirect(auth, provider);
+        return { success: true, redirect: true };
+      }
       
       if (result && result.user) {
         const user = result.user;
@@ -320,6 +328,64 @@ export function AuthProvider({ children }) {
   }
 
 
+
+  // Handle Google redirect result
+  useEffect(() => {
+    const handleGoogleRedirect = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          console.log('🔧 Google redirect result:', result);
+          
+          // Get stored additional data
+          const storedData = localStorage.getItem('googleAuthData');
+          const additionalData = storedData ? JSON.parse(storedData) : {};
+          localStorage.removeItem('googleAuthData');
+          
+          // Process the user data
+          const user = result.user;
+          const userRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userRef);
+
+          if (!userSnap.exists()) {
+            const newUser = {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              role: additionalData.role || 'student',
+              firstName: user.displayName?.split(' ')[0] || '',
+              lastName: user.displayName?.split(' ').slice(1).join(' ') || '',
+              createdAt: new Date(),
+              profilePictureUrl: user.photoURL || '',
+              ...additionalData
+            };
+            await setDoc(userRef, newUser);
+            console.log('Google user created in Firestore via redirect');
+          } else {
+            console.log('Google user already exists in Firestore via redirect');
+          }
+
+          // Save to localStorage for persistence
+          localStorage.setItem("user", JSON.stringify(user));
+          localStorage.setItem("userRole", additionalData.role || 'student');
+          
+          // Redirect to appropriate dashboard
+          const role = additionalData.role || 'student';
+          if (role === 'student') {
+            window.location.href = '/student-dashboard';
+          } else if (role === 'alumni') {
+            window.location.href = '/alumni-dashboard';
+          } else {
+            window.location.href = '/student-dashboard';
+          }
+        }
+      } catch (error) {
+        console.error('Error handling Google redirect:', error);
+      }
+    };
+
+    handleGoogleRedirect();
+  }, []);
 
   // Handle auth state changes for persistence
   useEffect(() => {
