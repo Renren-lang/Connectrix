@@ -240,7 +240,13 @@ export function AuthProvider({ children }) {
       });
       
       // Use popup method for better user experience
-      const result = await signInWithPopup(auth, provider);
+      // Add timeout to prevent hanging
+      const result = await Promise.race([
+        signInWithPopup(auth, provider),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Popup timeout')), 60000) // 60 second timeout
+        )
+      ]);
       
       if (result && result.user) {
         const user = result.user;
@@ -291,6 +297,8 @@ export function AuthProvider({ children }) {
         throw new Error('Sign-in was cancelled. Please try again.');
       } else if (error.code === 'auth/cancelled-popup-request') {
         throw new Error('Sign-in was cancelled. Please try again.');
+      } else if (error.message === 'Popup timeout') {
+        throw new Error('Sign-in timed out. Please try again.');
       }
       
       throw error;

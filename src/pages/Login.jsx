@@ -360,10 +360,12 @@ function Login() {
       
       // Handle specific Google Auth errors
       if (error.code === 'auth/popup-closed-by-user') {
-        setErrors({
-          email: '',
-          password: 'Google sign-in was cancelled. Please try again.'
-        });
+        console.log('ℹ️ User closed the popup window');
+        // Don't show error message, just reset the form
+        setGoogleFormData({ email: '', password: '' });
+        setGoogleSelectedRole('');
+        setShowAuthConfirmation(false);
+        return;
       } else if (error.code === 'auth/popup-blocked') {
         setErrors({
           email: '',
@@ -373,6 +375,11 @@ function Login() {
         setErrors({
           email: '',
           password: 'Another sign-in process is already in progress. Please wait.'
+        });
+      } else if (error.message === 'Sign-in timed out. Please try again.') {
+        setErrors({
+          email: '',
+          password: 'Sign-in timed out. Please try again.'
         });
       } else if (error.code === 'auth/account-exists-with-different-credential') {
         setErrors({
