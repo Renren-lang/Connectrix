@@ -242,23 +242,24 @@ export function AuthProvider({ children }) {
       // Use popup method for better user experience
       const result = await signInWithPopup(auth, provider);
       
-      // Process the result immediately
       if (result && result.user) {
-        console.log('Google popup authentication successful:', result.user.uid);
+        const user = result.user;
+        console.log("✅ Logged in as:", user.email);
         
-        const userRef = doc(db, 'users', result.user.uid);
+        // Process the result immediately
+        const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
 
         if (!userSnap.exists()) {
           const newUser = {
-            uid: result.user.uid,
-            email: result.user.email,
-            displayName: result.user.displayName,
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
             role: additionalData.role || 'student',
-            firstName: result.user.displayName?.split(' ')[0] || '',
-            lastName: result.user.displayName?.split(' ').slice(1).join(' ') || '',
+            firstName: user.displayName?.split(' ')[0] || '',
+            lastName: user.displayName?.split(' ').slice(1).join(' ') || '',
             createdAt: new Date(),
-            profilePictureUrl: result.user.photoURL || '',
+            profilePictureUrl: user.photoURL || '',
             ...additionalData
           };
           await setDoc(userRef, newUser);
@@ -266,6 +267,23 @@ export function AuthProvider({ children }) {
         } else {
           console.log('Google user already exists in Firestore via popup');
         }
+
+        // Save to localStorage for persistence
+        localStorage.setItem("user", JSON.stringify(user));
+        localStorage.setItem("userRole", additionalData.role || 'student');
+        
+        // Set user state immediately
+        const profileData = await fetchUserProfile(user.uid);
+        const userWithProfile = { ...user, ...profileData };
+        setCurrentUser(userWithProfile);
+        setUserRole(profileData?.role || additionalData.role || 'student');
+        setLoading(false);
+        
+        console.log('User state set immediately after popup login:', {
+          uid: userWithProfile.uid,
+          email: userWithProfile.email,
+          role: profileData?.role || additionalData.role || 'student'
+        });
       }
       
       return { success: true, user: result.user };
@@ -288,25 +306,32 @@ export function AuthProvider({ children }) {
 
 
 
-  // Handle auth state changes
+  // Handle auth state changes for persistence
   useEffect(() => {
     let isMounted = true;
     
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!isMounted) return;
       
-      console.log('Firebase auth state changed:', user ? `User: ${user.uid}` : 'No user');
+      console.log('🔑 Auth state changed:', user ? `User: ${user.email}` : 'No user');
       
       try {
         if (user) {
-          // User is signed in
+          console.log("🔑 Already logged in:", user.email);
+          
+          // User is signed in - fetch profile and set state
           try {
             const profileData = await fetchUserProfile(user.uid);
             if (isMounted) {
               const userWithProfile = { ...user, ...profileData };
               setCurrentUser(userWithProfile);
               setUserRole(profileData?.role || 'student');
-              console.log('User authenticated:', {
+              
+              // Save to localStorage for persistence
+              localStorage.setItem("user", JSON.stringify(user));
+              localStorage.setItem("userRole", profileData?.role || 'student');
+              
+              console.log('User authenticated and persisted:', {
                 uid: userWithProfile.uid,
                 email: userWithProfile.email,
                 role: profileData?.role || 'student'
@@ -317,14 +342,18 @@ export function AuthProvider({ children }) {
             if (isMounted) {
               setCurrentUser(user);
               setUserRole('student');
+              localStorage.setItem("user", JSON.stringify(user));
+              localStorage.setItem("userRole", 'student');
             }
           }
         } else {
-          // User is signed out
-          console.log('User signed out');
+          console.log("🚪 No user logged in");
+          // User is signed out - clear state and localStorage
           if (isMounted) {
             setCurrentUser(null);
             setUserRole(null);
+            localStorage.removeItem("user");
+            localStorage.removeItem("userRole");
           }
         }
       } catch (error) {

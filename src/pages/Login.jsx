@@ -321,17 +321,28 @@ function Login() {
       const result = await signInWithGoogle(authData);
       
       if (result.success) {
-        console.log('Google popup authentication successful');
-        // The onAuthStateChanged will handle the rest and redirect the user
+        console.log('✅ Google popup authentication successful');
+        
+        // Show success message briefly
         setShowSuccess(true);
+        
+        // Redirect immediately based on role
         setTimeout(() => {
-          setShowAuthConfirmation(false);
-          setShowRoleSelection(false);
+          const selectedRole = authData.role || 'student';
+          console.log('Redirecting to dashboard for role:', selectedRole);
+          
+          if (selectedRole === 'student') {
+            navigate('/student-dashboard');
+          } else if (selectedRole === 'alumni') {
+            navigate('/alumni-dashboard');
+          } else {
+            navigate('/student-dashboard'); // default fallback
+          }
         }, 1000);
       }
       
     } catch (error) {
-      console.error('Google auth error:', error);
+      console.error('❌ Google auth error:', error);
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
       
