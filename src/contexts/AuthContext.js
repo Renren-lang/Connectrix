@@ -265,122 +265,104 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // Handle Google redirect result
-  async function handleGoogleRedirect() {
-    try {
-      const result = await getRedirectResult(auth);
-      if (result) {
-        console.log('Google redirect result:', result);
-        
-        // Get stored additional data
-        const storedData = localStorage.getItem('googleAuthData');
-        const additionalData = storedData ? JSON.parse(storedData) : {};
-        
-        // Clear stored data
-        localStorage.removeItem('googleAuthData');
-        
-        const userRef = doc(db, 'users', result.user.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (!userSnap.exists()) {
-          const newUser = {
-            uid: result.user.uid,
-            email: result.user.email,
-            displayName: result.user.displayName,
-            role: additionalData.role || 'student',
-            firstName: result.user.displayName?.split(' ')[0] || '',
-            lastName: result.user.displayName?.split(' ').slice(1).join(' ') || '',
-            createdAt: new Date(),
-            profilePictureUrl: result.user.photoURL || '',
-            ...additionalData
-          };
-          await setDoc(userRef, newUser);
-          console.log('Google user created in Firestore via redirect');
-        } else {
-          console.log('Google user already exists in Firestore via redirect');
-        }
-
-        // Don't set state here - let onAuthStateChanged handle it
-        return { success: true, user: result.user };
-      }
-      return { success: false };
-    } catch (error) {
-      console.error('Error handling Google redirect:', error);
-      return { success: false, error };
-    }
-  }
 
 
   // Simplified onAuthStateChanged with redirect handling
   useEffect(() => {
     let isMounted = true;
     
-    const initializeAuth = async () => {
-      // Check for redirect result first
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!isMounted) return;
+      
+      console.log('Firebase auth state changed:', user ? `User: ${user.uid}` : 'No user');
+      
       try {
-        const redirectResult = await handleGoogleRedirect();
-        if (redirectResult.success) {
-          console.log('Google redirect authentication successful');
-          // The onAuthStateChanged will handle the rest
+        if (user) {
+          // User is signed in
+          try {
+            const profileData = await fetchUserProfile(user.uid);
+            if (isMounted) {
+              const userWithProfile = { ...user, ...profileData };
+              setCurrentUser(userWithProfile);
+              setUserRole(profileData?.role || 'student');
+              console.log('User authenticated:', {
+                uid: userWithProfile.uid,
+                email: userWithProfile.email,
+                role: profileData?.role || 'student'
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching user profile:', error);
+            if (isMounted) {
+              setCurrentUser(user);
+              setUserRole('student');
+            }
+          }
+        } else {
+          // User is signed out
+          console.log('User signed out');
+          if (isMounted) {
+            setCurrentUser(null);
+            setUserRole(null);
+          }
         }
       } catch (error) {
-        console.error('Error handling redirect:', error);
+        console.error('Error in auth state change handler:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      
-      // Set up auth state listener
-      const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (!isMounted) return;
-        
-        console.log('Firebase auth state changed:', user ? `User: ${user.uid}` : 'No user');
-        
-        try {
-          if (user) {
-            // User is signed in
-            try {
-              const profileData = await fetchUserProfile(user.uid);
-              if (isMounted) {
-                const userWithProfile = { ...user, ...profileData };
-                setCurrentUser(userWithProfile);
-                setUserRole(profileData?.role || 'student');
-                console.log('User authenticated:', {
-                  uid: userWithProfile.uid,
-                  email: userWithProfile.email,
-                  role: profileData?.role || 'student'
-                });
-              }
-            } catch (error) {
-              console.error('Error fetching user profile:', error);
-              if (isMounted) {
-                setCurrentUser(user);
-                setUserRole('student');
-              }
-            }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  // Handle Google redirect result on component mount
+  useEffect(() => {
+    const handleRedirectOnMount = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log('Google redirect result on mount:', result);
+          
+          // Get stored additional data
+          const storedData = localStorage.getItem('googleAuthData');
+          const additionalData = storedData ? JSON.parse(storedData) : {};
+          
+          // Clear stored data
+          localStorage.removeItem('googleAuthData');
+          
+          const userRef = doc(db, 'users', result.user.uid);
+          const userSnap = await getDoc(userRef);
+
+          if (!userSnap.exists()) {
+            const newUser = {
+              uid: result.user.uid,
+              email: result.user.email,
+              displayName: result.user.displayName,
+              role: additionalData.role || 'student',
+              firstName: result.user.displayName?.split(' ')[0] || '',
+              lastName: result.user.displayName?.split(' ').slice(1).join(' ') || '',
+              createdAt: new Date(),
+              profilePictureUrl: result.user.photoURL || '',
+              ...additionalData
+            };
+            await setDoc(userRef, newUser);
+            console.log('Google user created in Firestore via redirect');
           } else {
-            // User is signed out
-            console.log('User signed out');
-            if (isMounted) {
-              setCurrentUser(null);
-              setUserRole(null);
-            }
-          }
-        } catch (error) {
-          console.error('Error in auth state change handler:', error);
-        } finally {
-          if (isMounted) {
-            setLoading(false);
+            console.log('Google user already exists in Firestore via redirect');
           }
         }
-      });
-
-      return unsubscribe;
+      } catch (error) {
+        console.error('Error handling Google redirect on mount:', error);
+      }
     };
 
-    initializeAuth().then(unsubscribe => {
-      return () => {
-        isMounted = false;
-        if (unsubscribe) unsubscribe();
-      };
-    });
+    handleRedirectOnMount();
   }, []);
 
   // Debug function to check authentication state
@@ -405,7 +387,6 @@ export function AuthProvider({ children }) {
     updateUserProfile,
     fetchUserProfile,
     signInWithGoogle,
-    handleGoogleRedirect,
     debugAuthState
   };
 

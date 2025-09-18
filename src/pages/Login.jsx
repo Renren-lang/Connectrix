@@ -12,7 +12,7 @@ import PopupInstructions from '../components/PopupInstructions';
 
 function Login() {
   const navigate = useNavigate();
-  const { currentUser, userRole, loading, login, signInWithGoogle, handleGoogleRedirect } = useAuth();
+  const { currentUser, userRole, loading, login, signInWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -53,22 +53,6 @@ function Login() {
     }
   }, []);
 
-  // Check for Google redirect result on component mount
-  useEffect(() => {
-    const checkGoogleRedirect = async () => {
-      try {
-        const result = await handleGoogleRedirect();
-        if (result.success) {
-          console.log('Google redirect authentication successful');
-          // The user will be automatically redirected by the useEffect that checks currentUser and userRole
-        }
-      } catch (error) {
-        console.error('Error handling Google redirect:', error);
-      }
-    };
-
-    checkGoogleRedirect();
-  }, [handleGoogleRedirect]);
 
   // Check if this is a registration redirect
   useEffect(() => {
