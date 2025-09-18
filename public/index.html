@@ -13,9 +13,10 @@
     <meta http-equiv="Cross-Origin-Embedder-Policy" content="unsafe-none" />
     <meta http-equiv="Cross-Origin-Resource-Policy" content="cross-origin" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
+    <meta name="cache-buster" content="20250118-1200" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -32,6 +33,18 @@
       }
     </style>
     <title>Connectrix </title>
+    <script>
+      // Error handling for syntax errors
+      window.addEventListener('error', function(e) {
+        if (e.message && e.message.includes('Unexpected token')) {
+          console.error('Syntax error detected:', e);
+          // Force reload to get fresh files
+          if (confirm('A syntax error was detected. Would you like to reload the page to get the latest version?')) {
+            window.location.reload(true);
+          }
+        }
+      });
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
