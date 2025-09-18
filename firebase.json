@@ -1,6 +1,5 @@
 {
   "hosting": {
-    "site": "cconnect-7f562",
     "public": "build",
     "ignore": [
       "firebase.json",

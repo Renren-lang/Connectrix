@@ -287,7 +287,9 @@ export function AuthProvider({ children }) {
             uid: result.user.uid,
             email: result.user.email,
             displayName: result.user.displayName,
-            role: 'student',
+            role: additionalData.role || 'student',
+            firstName: result.user.displayName?.split(' ')[0] || '',
+            lastName: result.user.displayName?.split(' ').slice(1).join(' ') || '',
             createdAt: new Date(),
             profilePictureUrl: result.user.photoURL || '',
             ...additionalData
@@ -298,8 +300,7 @@ export function AuthProvider({ children }) {
           console.log('Google user already exists in Firestore via redirect');
         }
 
-        setCurrentUser(result.user);
-        setUserRole('student');
+        // Don't set state here - let onAuthStateChanged handle it
         return { success: true, user: result.user };
       }
       return { success: false };
@@ -320,7 +321,7 @@ export function AuthProvider({ children }) {
         const redirectResult = await handleGoogleRedirect();
         if (redirectResult.success) {
           console.log('Google redirect authentication successful');
-          return;
+          // The onAuthStateChanged will handle the rest
         }
       } catch (error) {
         console.error('Error handling redirect:', error);
@@ -358,20 +359,20 @@ export function AuthProvider({ children }) {
             // User is signed out
             console.log('User signed out');
             if (isMounted) {
-        setCurrentUser(null);
+              setCurrentUser(null);
               setUserRole(null);
             }
           }
         } catch (error) {
           console.error('Error in auth state change handler:', error);
-      } finally {
+        } finally {
           if (isMounted) {
-        setLoading(false);
+            setLoading(false);
           }
-      }
-    });
+        }
+      });
 
-    return unsubscribe;
+      return unsubscribe;
     };
 
     initializeAuth().then(unsubscribe => {
