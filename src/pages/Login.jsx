@@ -317,16 +317,19 @@ function Login() {
         role: googleSelectedRole
       };
       
-      // Use AuthContext Google auth function (redirect method)
+      // Use AuthContext Google auth function (popup method)
       const result = await signInWithGoogle(authData);
       
-      if (result.redirect) {
-        // User will be redirected, no need to do anything else
-        console.log('Google authentication redirect initiated');
-        return;
+      if (result.success) {
+        console.log('Google popup authentication successful');
+        // The onAuthStateChanged will handle the rest and redirect the user
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowAuthConfirmation(false);
+          setShowRoleSelection(false);
+        }, 1000);
       }
       
-      console.log('Google authentication successful');
     } catch (error) {
       console.error('Google auth error:', error);
       console.error('Error code:', error.code);
@@ -374,8 +377,6 @@ function Login() {
       }
     } finally {
       setIsSubmitting(false);
-      setShowAuthConfirmation(false);
-      setShowRoleSelection(false);
     }
   };
 

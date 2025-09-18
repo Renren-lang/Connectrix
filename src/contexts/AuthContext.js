@@ -229,25 +229,46 @@ export function AuthProvider({ children }) {
     return null;
   }
 
-  // Google authentication function with improved COOP handling
+  // Google authentication function using popup
   async function signInWithGoogle(additionalData = {}) {
     try {
       const provider = new GoogleAuthProvider();
       
-      // Add custom parameters to prevent popup blocking
+      // Add custom parameters
       provider.setCustomParameters({
         prompt: 'select_account'
       });
       
-      // Use redirect method by default to avoid COOP issues
-      // Store additional data for after redirect
-      if (Object.keys(additionalData).length > 0) {
-        localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
+      // Use popup method for better user experience
+      const result = await signInWithPopup(auth, provider);
+      
+      // Process the result immediately
+      if (result && result.user) {
+        console.log('Google popup authentication successful:', result.user.uid);
+        
+        const userRef = doc(db, 'users', result.user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) {
+          const newUser = {
+            uid: result.user.uid,
+            email: result.user.email,
+            displayName: result.user.displayName,
+            role: additionalData.role || 'student',
+            firstName: result.user.displayName?.split(' ')[0] || '',
+            lastName: result.user.displayName?.split(' ').slice(1).join(' ') || '',
+            createdAt: new Date(),
+            profilePictureUrl: result.user.photoURL || '',
+            ...additionalData
+          };
+          await setDoc(userRef, newUser);
+          console.log('Google user created in Firestore via popup');
+        } else {
+          console.log('Google user already exists in Firestore via popup');
+        }
       }
       
-      // Use redirect method to avoid COOP popup issues
-      await signInWithRedirect(auth, provider);
-      return { success: true, redirect: true };
+      return { success: true, user: result.user };
       
     } catch (error) {
       console.error('Google sign-in error:', error);
@@ -267,135 +288,58 @@ export function AuthProvider({ children }) {
 
 
 
-  // Handle Google redirect result and auth state changes
+  // Handle auth state changes
   useEffect(() => {
     let isMounted = true;
     
-    const initializeAuth = async () => {
-      // First, check for Google redirect result
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!isMounted) return;
+      
+      console.log('Firebase auth state changed:', user ? `User: ${user.uid}` : 'No user');
+      
       try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          console.log('Google redirect result found:', result);
-          
-          // Get stored additional data
-          const storedData = localStorage.getItem('googleAuthData');
-          const additionalData = storedData ? JSON.parse(storedData) : {};
-          
-          // Clear stored data
-          localStorage.removeItem('googleAuthData');
-          
-          const userRef = doc(db, 'users', result.user.uid);
-          const userSnap = await getDoc(userRef);
-
-          if (!userSnap.exists()) {
-            const newUser = {
-              uid: result.user.uid,
-              email: result.user.email,
-              displayName: result.user.displayName,
-              role: additionalData.role || 'student',
-              firstName: result.user.displayName?.split(' ')[0] || '',
-              lastName: result.user.displayName?.split(' ').slice(1).join(' ') || '',
-              createdAt: new Date(),
-              profilePictureUrl: result.user.photoURL || '',
-              ...additionalData
-            };
-            await setDoc(userRef, newUser);
-            console.log('Google user created in Firestore via redirect');
-          } else {
-            console.log('Google user already exists in Firestore via redirect');
-          }
-          
-          // Small delay to ensure Firestore write completes
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Force auth state update after redirect processing
-          console.log('Google redirect processed, user should be authenticated now');
-          
-          // Manually set user state after redirect processing
-          if (auth.currentUser) {
-            console.log('Manual auth check - user is authenticated:', auth.currentUser.uid);
-            try {
-              const profileData = await fetchUserProfile(auth.currentUser.uid);
-              if (isMounted) {
-                const userWithProfile = { ...auth.currentUser, ...profileData };
-                setCurrentUser(userWithProfile);
-                setUserRole(profileData?.role || 'student');
-                setLoading(false);
-                console.log('User state set manually after redirect:', {
-                  uid: userWithProfile.uid,
-                  email: userWithProfile.email,
-                  role: profileData?.role || 'student'
-                });
-              }
-            } catch (error) {
-              console.error('Error fetching user profile after redirect:', error);
-              if (isMounted) {
-                setCurrentUser(auth.currentUser);
-                setUserRole('student');
-                setLoading(false);
-              }
+        if (user) {
+          // User is signed in
+          try {
+            const profileData = await fetchUserProfile(user.uid);
+            if (isMounted) {
+              const userWithProfile = { ...user, ...profileData };
+              setCurrentUser(userWithProfile);
+              setUserRole(profileData?.role || 'student');
+              console.log('User authenticated:', {
+                uid: userWithProfile.uid,
+                email: userWithProfile.email,
+                role: profileData?.role || 'student'
+              });
             }
+          } catch (error) {
+            console.error('Error fetching user profile:', error);
+            if (isMounted) {
+              setCurrentUser(user);
+              setUserRole('student');
+            }
+          }
+        } else {
+          // User is signed out
+          console.log('User signed out');
+          if (isMounted) {
+            setCurrentUser(null);
+            setUserRole(null);
           }
         }
       } catch (error) {
-        console.error('Error handling Google redirect:', error);
-      }
-      
-      // Then set up the auth state listener
-      const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (!isMounted) return;
-        
-        console.log('Firebase auth state changed:', user ? `User: ${user.uid}` : 'No user');
-        
-        try {
-          if (user) {
-            // User is signed in
-            try {
-              const profileData = await fetchUserProfile(user.uid);
-              if (isMounted) {
-                const userWithProfile = { ...user, ...profileData };
-                setCurrentUser(userWithProfile);
-                setUserRole(profileData?.role || 'student');
-                console.log('User authenticated:', {
-                  uid: userWithProfile.uid,
-                  email: userWithProfile.email,
-                  role: profileData?.role || 'student'
-                });
-              }
-            } catch (error) {
-              console.error('Error fetching user profile:', error);
-              if (isMounted) {
-                setCurrentUser(user);
-                setUserRole('student');
-              }
-            }
-          } else {
-            // User is signed out
-            console.log('User signed out');
-            if (isMounted) {
-              setCurrentUser(null);
-              setUserRole(null);
-            }
-          }
-        } catch (error) {
-          console.error('Error in auth state change handler:', error);
-        } finally {
-          if (isMounted) {
-            setLoading(false);
-          }
+        console.error('Error in auth state change handler:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
         }
-      });
-
-      return unsubscribe;
-    };
-
-    initializeAuth().then(unsubscribe => {
-      return () => {
-        isMounted = false;
-        if (unsubscribe) unsubscribe();
-      };
+      }
     });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
 
