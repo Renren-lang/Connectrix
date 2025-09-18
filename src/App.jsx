@@ -22,12 +22,20 @@ import BrowseMentor from './pages/BrowseMentor.jsx';
 import StudentProfiles from './pages/StudentProfiles.jsx';
 import AuthDebugger from './components/AuthDebugger.jsx';
 import AuthDebugPanel from './components/AuthDebugPanel.jsx';
+import EnvironmentDiagnostic from './components/EnvironmentDiagnostic.jsx';
 import { Debug400Errors } from './utils/debug400Errors';
 
 
 
 function AppContent() {
   const location = useLocation();
+
+  // Debug environment info
+  useEffect(() => {
+    console.log('🚀 App initialized in environment:', process.env.NODE_ENV);
+    console.log('🚀 Current URL:', window.location.href);
+    console.log('🚀 User Agent:', navigator.userAgent);
+  }, []);
 
   // Start 400 error monitoring in both development and production
   useEffect(() => {
@@ -156,6 +164,7 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <PostsProvider>
+          <EnvironmentDiagnostic />
           <Router>
             <AppContent />
           </Router>

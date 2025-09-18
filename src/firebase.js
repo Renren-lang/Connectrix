@@ -27,6 +27,8 @@ export const storage = getStorage(app);
 setPersistence(auth, browserLocalPersistence)
   .then(() => {
     console.log("Firebase Auth persistence set to local (browserLocalPersistence).");
+    console.log("Environment:", process.env.NODE_ENV);
+    console.log("Firebase config loaded successfully");
   })
   .catch((error) => {
     console.error("Error setting Firebase Auth persistence:", error);

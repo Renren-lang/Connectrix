@@ -24,6 +24,11 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState(null);
 
+  // Debug environment info
+  console.log('🔧 AuthProvider initialized in environment:', process.env.NODE_ENV);
+  console.log('🔧 Current URL:', window.location.href);
+  console.log('🔧 Firebase Auth object:', auth);
+
   // Fetch user profile data from Firestore
   async function fetchUserProfile(uid) {
     try {
