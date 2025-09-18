@@ -67,8 +67,11 @@ function Login() {
 
   // Check if user is already authenticated and redirect (only if not showing success message)
   useEffect(() => {
+    console.log('Login useEffect - loading:', loading, 'currentUser:', !!currentUser, 'userRole:', userRole, 'showSuccess:', showSuccess);
+    
     if (!loading && currentUser && userRole && !showSuccess) {
       console.log('User already authenticated, redirecting from login page');
+      console.log('Redirecting to:', userRole === 'student' ? '/student-dashboard' : '/alumni-dashboard');
       if (userRole === 'student') {
         navigate('/student-dashboard');
       } else if (userRole === 'alumni') {
