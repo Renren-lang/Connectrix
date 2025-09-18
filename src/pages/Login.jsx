@@ -349,6 +349,7 @@ function Login() {
       console.error('❌ Google auth error:', error);
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
+      console.error('Full error object:', JSON.stringify(error, null, 2));
       
       // Show popup instructions if popup is blocked
       if (error.code === 'auth/popup-blocked' || 
@@ -391,10 +392,30 @@ function Login() {
           email: '',
           password: 'Google sign-in is not enabled. Please contact support.'
         });
+      } else if (error.code === 'auth/network-request-failed') {
+        setErrors({
+          email: '',
+          password: 'Network error. Please check your internet connection and try again.'
+        });
+      } else if (error.code === 'auth/too-many-requests') {
+        setErrors({
+          email: '',
+          password: 'Too many attempts. Please wait a moment and try again.'
+        });
+      } else if (error.code === 'auth/invalid-credential') {
+        setErrors({
+          email: '',
+          password: 'Invalid credentials. Please try again.'
+        });
+      } else if (error.code === 'auth/user-disabled') {
+        setErrors({
+          email: '',
+          password: 'This account has been disabled. Please contact support.'
+        });
       } else {
         setErrors({
           email: '',
-          password: 'Google authentication failed. Please try again.'
+          password: `Google authentication failed: ${error.message || 'Unknown error'}. Please try again.`
         });
       }
     } finally {

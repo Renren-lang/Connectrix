@@ -239,6 +239,9 @@ export function AuthProvider({ children }) {
         prompt: 'select_account'
       });
       
+      console.log('🔧 Starting Google authentication with provider:', provider);
+      console.log('🔧 Additional data:', additionalData);
+      
       // Use popup method for better user experience
       // Add timeout to prevent hanging
       const result = await Promise.race([
@@ -289,6 +292,11 @@ export function AuthProvider({ children }) {
       
     } catch (error) {
       console.error('Google sign-in error:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        stack: error.stack
+      });
       
       // Handle specific errors
       if (error.code === 'auth/popup-blocked') {
@@ -299,6 +307,12 @@ export function AuthProvider({ children }) {
         throw new Error('Sign-in was cancelled. Please try again.');
       } else if (error.message === 'Popup timeout') {
         throw new Error('Sign-in timed out. Please try again.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        throw new Error('Google sign-in is not enabled. Please contact support.');
+      } else if (error.code === 'auth/network-request-failed') {
+        throw new Error('Network error. Please check your internet connection and try again.');
+      } else if (error.code === 'auth/too-many-requests') {
+        throw new Error('Too many attempts. Please wait a moment and try again.');
       }
       
       throw error;
