@@ -36,21 +36,33 @@
     </style>
     <title>Connectrix </title>
     <script>
-      // Immediate syntax error detection and cache clearing
+      // Smart syntax error detection - only clear cache when there's actually an error
       (function() {
-        // Check if we're getting HTML instead of JS
+        let hasSyntaxError = false;
+        let checkCount = 0;
+        const maxChecks = 3; // Only check 3 times to avoid infinite loops
+        
         const checkScripts = function() {
+          if (hasSyntaxError || checkCount >= maxChecks) return;
+          checkCount++;
+          
           const scripts = document.querySelectorAll('script[src*=".js"]');
+          let foundHtmlInJs = false;
+          
           scripts.forEach(function(script) {
-            if (script.src) {
+            if (script.src && !foundHtmlInJs) {
               fetch(script.src, {cache: 'no-cache'})
                 .then(response => response.text())
                 .then(text => {
                   if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
                     console.error('CRITICAL: JavaScript file contains HTML!', script.src);
                     console.error('This indicates a severe caching issue.');
+                    foundHtmlInJs = true;
+                    hasSyntaxError = true;
                     
-                    // Clear everything and reload
+                    // Only clear cache if we actually found HTML in JS
+                    console.log('Clearing cache due to HTML in JavaScript file...');
+                    
                     if ('caches' in window) {
                       caches.keys().then(names => {
                         names.forEach(name => caches.delete(name));
@@ -58,7 +70,9 @@
                     }
                     
                     // Force reload with cache bypass
-                    window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now();
+                    setTimeout(function() {
+                      window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now();
+                    }, 1000);
                   }
                 })
                 .catch(err => {
@@ -68,56 +82,58 @@
           });
         };
         
-        // Run check immediately
-        checkScripts();
-        
-        // Also run on DOM ready
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', checkScripts);
-        } else {
-          checkScripts();
-        }
+        // Only run check if there are syntax errors in console
+        setTimeout(function() {
+          const hasErrors = document.querySelector('.console-message-text') && 
+                           document.querySelector('.console-message-text').textContent.includes('Unexpected token');
+          
+          if (hasErrors) {
+            console.log('Syntax errors detected, checking for HTML in JS files...');
+            checkScripts();
+          } else {
+            console.log('No syntax errors detected, skipping cache check.');
+          }
+        }, 2000); // Wait 2 seconds to see if errors appear
       })();
     </script>
     <script>
-      // Enhanced error handling for syntax errors and caching issues
+      // Smart error handling - only clear cache when there's a real syntax error
+      let syntaxErrorCount = 0;
       window.addEventListener('error', function(e) {
         console.error('JavaScript error detected:', e);
         
         if (e.message && e.message.includes('Unexpected token')) {
+          syntaxErrorCount++;
           console.error('Syntax error detected - likely caching issue:', e);
           console.error('Error details:', {
             message: e.message,
             filename: e.filename,
             lineno: e.lineno,
             colno: e.colno,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            errorCount: syntaxErrorCount
           });
           
-          // Automatically clear cache and reload without asking
-          console.log('Clearing all caches and reloading...');
-          
-          // Clear all caches
-          if ('caches' in window) {
-            caches.keys().then(function(names) {
-              names.forEach(function(name) {
-                caches.delete(name);
+          // Only clear cache if we have multiple syntax errors (indicating real problem)
+          if (syntaxErrorCount >= 2) {
+            console.log('Multiple syntax errors detected, clearing cache and reloading...');
+            
+            // Clear all caches
+            if ('caches' in window) {
+              caches.keys().then(function(names) {
+                names.forEach(function(name) {
+                  caches.delete(name);
+                });
               });
-            });
+            }
+            
+            // Force reload with cache bypass
+            setTimeout(function() {
+              window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now();
+            }, 2000);
+          } else {
+            console.log('Single syntax error detected, will monitor for more errors...');
           }
-          
-          // Clear localStorage and sessionStorage
-          try {
-            localStorage.clear();
-            sessionStorage.clear();
-          } catch (err) {
-            console.warn('Could not clear storage:', err);
-          }
-          
-          // Force reload with cache bypass
-          setTimeout(function() {
-            window.location.href = window.location.href + '?v=' + Date.now();
-          }, 1000);
         }
       });
       
