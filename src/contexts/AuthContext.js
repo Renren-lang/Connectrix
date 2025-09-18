@@ -239,9 +239,9 @@ export function AuthProvider({ children }) {
     try {
       const provider = new GoogleAuthProvider();
       
-      // Add custom parameters
+      // Add custom parameters to prevent repeated account selection
       provider.setCustomParameters({
-        prompt: 'select_account'
+        prompt: 'consent' // This will show account selection but remember the choice
       });
       
       console.log('🔧 Starting Google authentication with provider:', provider);
@@ -251,7 +251,20 @@ export function AuthProvider({ children }) {
       let result;
       try {
         console.log('🔧 Attempting popup method...');
-        result = await signInWithPopup(auth, provider);
+        
+        // Clear any previous session flags
+        sessionStorage.removeItem('googlePopupCompleted');
+        
+        // Add a timeout to prevent hanging popups
+        const popupPromise = signInWithPopup(auth, provider);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Popup timeout')), 30000)
+        );
+        
+        result = await Promise.race([popupPromise, timeoutPromise]);
+        
+        // Set flag immediately after successful popup
+        sessionStorage.setItem('googlePopupCompleted', 'true');
         console.log('🔧 Popup completed successfully:', result);
       } catch (popupError) {
         console.log('🔧 Popup failed, trying redirect method:', popupError);
@@ -259,7 +272,8 @@ export function AuthProvider({ children }) {
         // Only use redirect if popup was actually blocked or failed
         if (popupError.code === 'auth/popup-blocked' || 
             popupError.code === 'auth/popup-closed-by-user' ||
-            popupError.message?.includes('popup')) {
+            popupError.message?.includes('popup') ||
+            popupError.message === 'Popup timeout') {
           
           // Store the additional data for redirect
           localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
@@ -424,7 +438,11 @@ export function AuthProvider({ children }) {
       }
     };
 
-    handleGoogleRedirect();
+    // Only run redirect handler if we're not in a popup flow
+    const isPopupFlow = sessionStorage.getItem('googlePopupCompleted');
+    if (!isPopupFlow) {
+      handleGoogleRedirect();
+    }
   }, []);
 
   // Handle auth state changes for persistence

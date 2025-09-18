@@ -320,27 +320,33 @@ function Login() {
   const handleConfirmGoogleAuth = async () => {
     try {
       setIsSubmitting(true);
-      
+
       // Store the selected role in the form data
       const authData = {
         ...googleFormData,
         role: googleSelectedRole
       };
-      
+
       console.log('🔍 Starting Google auth with role:', googleSelectedRole);
       console.log('🔍 Auth data:', authData);
-      
+
+      // Clear any previous session flags
+      sessionStorage.removeItem('googlePopupCompleted');
+
       // Use AuthContext Google auth function (popup method)
       const result = await signInWithGoogle(authData);
-      
+
       if (result.success) {
         console.log('✅ Google popup authentication successful');
         console.log('✅ Selected role:', googleSelectedRole);
-        
+
+        // Set the session flag to prevent redirect handler from running
+        sessionStorage.setItem('googlePopupCompleted', 'true');
+
         // Redirect immediately based on role - no delay, no success message
         const selectedRole = googleSelectedRole || 'student';
         console.log('🚀 Redirecting to dashboard for role:', selectedRole);
-        
+
         // Use window.location.href for immediate redirect
         if (selectedRole === 'student') {
           console.log('🎓 Redirecting to student dashboard');
@@ -353,21 +359,21 @@ function Login() {
           window.location.href = '/student-dashboard';
         }
       }
-      
+
     } catch (error) {
       console.error('❌ Google auth error:', error);
       console.error('Error code:', error.code);
       console.error('Error message:', error.message);
       console.error('Full error object:', JSON.stringify(error, null, 2));
-      
+
       // Show popup instructions if popup is blocked
-      if (error.code === 'auth/popup-blocked' || 
-          error.message?.includes('popup') || 
+      if (error.code === 'auth/popup-blocked' ||
+          error.message?.includes('popup') ||
           error.message?.includes('blocked')) {
         setShowPopupInstructions(true);
         return;
       }
-      
+
       // Handle specific Google Auth errors
       if (error.code === 'auth/popup-closed-by-user') {
         console.log('ℹ️ Popup was closed - this might be due to browser security or timing issues');
@@ -387,7 +393,7 @@ function Login() {
           email: '',
           password: 'Another sign-in process is already in progress. Please wait.'
         });
-      } else if (error.message === 'Sign-in timed out. Please try again.') {
+      } else if (error.message === 'Sign-in timed out. Please try again.' || error.message === 'Popup timeout') {
         setErrors({
           email: '',
           password: 'Sign-in timed out. Please try again.'
