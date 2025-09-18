@@ -270,6 +270,7 @@ function Login() {
   };
 
   const handleGoogleRoleSelect = (role) => {
+    console.log('🎯 Role selected:', role);
     setGoogleSelectedRole(role);
     setShowAuthConfirmation(true);
   };
@@ -317,28 +318,33 @@ function Login() {
         role: googleSelectedRole
       };
       
+      console.log('🔍 Starting Google auth with role:', googleSelectedRole);
+      console.log('🔍 Auth data:', authData);
+      
       // Use AuthContext Google auth function (popup method)
       const result = await signInWithGoogle(authData);
       
       if (result.success) {
         console.log('✅ Google popup authentication successful');
+        console.log('✅ Selected role:', googleSelectedRole);
         
         // Show success message briefly
         setShowSuccess(true);
         
-        // Redirect immediately based on role
-        setTimeout(() => {
-          const selectedRole = authData.role || 'student';
-          console.log('Redirecting to dashboard for role:', selectedRole);
-          
-          if (selectedRole === 'student') {
-            navigate('/student-dashboard');
-          } else if (selectedRole === 'alumni') {
-            navigate('/alumni-dashboard');
-          } else {
-            navigate('/student-dashboard'); // default fallback
-          }
-        }, 1000);
+        // Redirect immediately based on role - no delay needed
+        const selectedRole = googleSelectedRole || 'student';
+        console.log('🚀 Redirecting to dashboard for role:', selectedRole);
+        
+        if (selectedRole === 'student') {
+          console.log('🎓 Redirecting to student dashboard');
+          navigate('/student-dashboard');
+        } else if (selectedRole === 'alumni') {
+          console.log('👔 Redirecting to alumni dashboard');
+          navigate('/alumni-dashboard');
+        } else {
+          console.log('🎓 Default redirect to student dashboard');
+          navigate('/student-dashboard');
+        }
       }
       
     } catch (error) {
@@ -796,8 +802,8 @@ function Login() {
                             <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>Google Authentication</h3>
                             <p style={{ margin: '0', color: '#666', lineHeight: '1.5' }}>
                               You are about to sign in with Google. 
-                              Google users will be registered as <strong>students</strong> by default.
-                              This will redirect you to Google for secure authentication.
+                              You will be registered as <strong>{googleSelectedRole}</strong>.
+                              This will open a popup window for secure authentication.
                             </p>
                           </div>
                           
