@@ -247,87 +247,15 @@ export function AuthProvider({ children }) {
       console.log('🔧 Starting Google authentication with provider:', provider);
       console.log('🔧 Additional data:', additionalData);
       
-      // Try popup first, fallback to redirect if it fails
-      let result;
-      try {
-        console.log('🔧 Attempting popup method...');
-        
-        // Clear any previous session flags
-        sessionStorage.removeItem('googlePopupCompleted');
-        
-        // Add a timeout to prevent hanging popups
-        const popupPromise = signInWithPopup(auth, provider);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Popup timeout')), 30000)
-        );
-        
-        result = await Promise.race([popupPromise, timeoutPromise]);
-        
-        // Set flag immediately after successful popup
-        sessionStorage.setItem('googlePopupCompleted', 'true');
-        console.log('🔧 Popup completed successfully:', result);
-      } catch (popupError) {
-        console.log('🔧 Popup failed, trying redirect method:', popupError);
-        
-        // Only use redirect if popup was actually blocked or failed
-        if (popupError.code === 'auth/popup-blocked' || 
-            popupError.code === 'auth/popup-closed-by-user' ||
-            popupError.message?.includes('popup') ||
-            popupError.message === 'Popup timeout') {
-          
-          // Store the additional data for redirect
-          localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
-          
-          // Use redirect method as fallback
-          await signInWithRedirect(auth, provider);
-          return { success: true, redirect: true };
-        } else {
-          // Re-throw other errors
-          throw popupError;
-        }
-      }
+      // Use redirect method to avoid popup issues
+      console.log('🔧 Using redirect method to avoid popup issues...');
       
-      if (result && result.user) {
-        const user = result.user;
-        console.log("✅ Logged in as:", user.email);
-        
-        // Process the result immediately - minimal processing
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (!userSnap.exists()) {
-          const newUser = {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            role: additionalData.role || 'student',
-            firstName: user.displayName?.split(' ')[0] || '',
-            lastName: user.displayName?.split(' ').slice(1).join(' ') || '',
-            createdAt: new Date(),
-            profilePictureUrl: user.photoURL || '',
-            ...additionalData
-          };
-          await setDoc(userRef, newUser);
-          console.log('Google user created in Firestore via popup');
-        } else {
-          console.log('Google user already exists in Firestore via popup');
-        }
-
-        // Save to localStorage for persistence - this is the key!
-        localStorage.setItem("user", JSON.stringify(user));
-        localStorage.setItem("userRole", additionalData.role || 'student');
-        
-        // Set flag to prevent redirect handler from running
-        sessionStorage.setItem('googlePopupCompleted', 'true');
-        
-        console.log('User data saved to localStorage:', {
-          uid: user.uid,
-          email: user.email,
-          role: additionalData.role || 'student'
-        });
-      }
+      // Store the additional data for redirect
+      localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
       
-      return { success: true, user: result.user };
+      // Use redirect method
+      await signInWithRedirect(auth, provider);
+      return { success: true, redirect: true };
       
     } catch (error) {
       console.error('Google sign-in error:', error);
@@ -364,14 +292,6 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const handleGoogleRedirect = async () => {
       try {
-        // Check if we just completed a popup login
-        const justCompletedPopup = sessionStorage.getItem('googlePopupCompleted');
-        if (justCompletedPopup) {
-          sessionStorage.removeItem('googlePopupCompleted');
-          console.log('🔧 Skipping redirect handler - popup was used');
-          return;
-        }
-        
         const result = await getRedirectResult(auth);
         if (result && result.user) {
           console.log('🔧 Google redirect result:', result);
@@ -421,28 +341,27 @@ export function AuthProvider({ children }) {
             role: profileData?.role || additionalData.role || 'student'
           });
           
-          // Use a small delay before redirect to ensure state is set
-          setTimeout(() => {
-            const role = additionalData.role || 'student';
-            if (role === 'student') {
-              window.location.href = '/student-dashboard';
-            } else if (role === 'alumni') {
-              window.location.href = '/alumni-dashboard';
-            } else {
-              window.location.href = '/student-dashboard';
-            }
-          }, 100);
+          // Redirect immediately based on role
+          const role = additionalData.role || 'student';
+          console.log('🚀 Redirecting to dashboard for role:', role);
+          
+          if (role === 'student') {
+            console.log('🎓 Redirecting to student dashboard');
+            window.location.href = '/student-dashboard';
+          } else if (role === 'alumni') {
+            console.log('👔 Redirecting to alumni dashboard');
+            window.location.href = '/alumni-dashboard';
+          } else {
+            console.log('🎓 Default redirect to student dashboard');
+            window.location.href = '/student-dashboard';
+          }
         }
       } catch (error) {
         console.error('Error handling Google redirect:', error);
       }
     };
 
-    // Only run redirect handler if we're not in a popup flow
-    const isPopupFlow = sessionStorage.getItem('googlePopupCompleted');
-    if (!isPopupFlow) {
-      handleGoogleRedirect();
-    }
+    handleGoogleRedirect();
   }, []);
 
   // Handle auth state changes for persistence

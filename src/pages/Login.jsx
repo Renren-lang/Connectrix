@@ -330,34 +330,15 @@ function Login() {
       console.log('🔍 Starting Google auth with role:', googleSelectedRole);
       console.log('🔍 Auth data:', authData);
 
-      // Clear any previous session flags
-      sessionStorage.removeItem('googlePopupCompleted');
-
-      // Use AuthContext Google auth function (popup method)
+      // Use AuthContext Google auth function (redirect method)
       const result = await signInWithGoogle(authData);
 
-      if (result.success) {
-        console.log('✅ Google popup authentication successful');
+      if (result.success && result.redirect) {
+        console.log('✅ Google redirect authentication initiated');
         console.log('✅ Selected role:', googleSelectedRole);
-
-        // Set the session flag to prevent redirect handler from running
-        sessionStorage.setItem('googlePopupCompleted', 'true');
-
-        // Redirect immediately based on role - no delay, no success message
-        const selectedRole = googleSelectedRole || 'student';
-        console.log('🚀 Redirecting to dashboard for role:', selectedRole);
-
-        // Use window.location.href for immediate redirect
-        if (selectedRole === 'student') {
-          console.log('🎓 Redirecting to student dashboard');
-          window.location.href = '/student-dashboard';
-        } else if (selectedRole === 'alumni') {
-          console.log('👔 Redirecting to alumni dashboard');
-          window.location.href = '/alumni-dashboard';
-        } else {
-          console.log('🎓 Default redirect to student dashboard');
-          window.location.href = '/student-dashboard';
-        }
+        console.log('🔄 User will be redirected to Google and then back to the app');
+        // The redirect will handle the rest of the flow
+        return;
       }
 
     } catch (error) {
