@@ -308,6 +308,35 @@ export function AuthProvider({ children }) {
           
           // Small delay to ensure Firestore write completes
           await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Force auth state update after redirect processing
+          console.log('Google redirect processed, user should be authenticated now');
+          
+          // Manually set user state after redirect processing
+          if (auth.currentUser) {
+            console.log('Manual auth check - user is authenticated:', auth.currentUser.uid);
+            try {
+              const profileData = await fetchUserProfile(auth.currentUser.uid);
+              if (isMounted) {
+                const userWithProfile = { ...auth.currentUser, ...profileData };
+                setCurrentUser(userWithProfile);
+                setUserRole(profileData?.role || 'student');
+                setLoading(false);
+                console.log('User state set manually after redirect:', {
+                  uid: userWithProfile.uid,
+                  email: userWithProfile.email,
+                  role: profileData?.role || 'student'
+                });
+              }
+            } catch (error) {
+              console.error('Error fetching user profile after redirect:', error);
+              if (isMounted) {
+                setCurrentUser(auth.currentUser);
+                setUserRole('student');
+                setLoading(false);
+              }
+            }
+          }
         }
       } catch (error) {
         console.error('Error handling Google redirect:', error);
