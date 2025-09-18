@@ -251,12 +251,21 @@ export function AuthProvider({ children }) {
       } catch (popupError) {
         console.log('🔧 Popup failed, trying redirect method:', popupError);
         
-        // Store the additional data for redirect
-        localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
-        
-        // Use redirect method as fallback
-        await signInWithRedirect(auth, provider);
-        return { success: true, redirect: true };
+        // Only use redirect if popup was actually blocked or failed
+        if (popupError.code === 'auth/popup-blocked' || 
+            popupError.code === 'auth/popup-closed-by-user' ||
+            popupError.message?.includes('popup')) {
+          
+          // Store the additional data for redirect
+          localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
+          
+          // Use redirect method as fallback
+          await signInWithRedirect(auth, provider);
+          return { success: true, redirect: true };
+        } else {
+          // Re-throw other errors
+          throw popupError;
+        }
       }
       
       if (result && result.user) {
@@ -288,6 +297,9 @@ export function AuthProvider({ children }) {
         // Save to localStorage for persistence - this is the key!
         localStorage.setItem("user", JSON.stringify(user));
         localStorage.setItem("userRole", additionalData.role || 'student');
+        
+        // Set flag to prevent redirect handler from running
+        sessionStorage.setItem('googlePopupCompleted', 'true');
         
         console.log('User data saved to localStorage:', {
           uid: user.uid,
@@ -333,6 +345,14 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const handleGoogleRedirect = async () => {
       try {
+        // Check if we just completed a popup login
+        const justCompletedPopup = sessionStorage.getItem('googlePopupCompleted');
+        if (justCompletedPopup) {
+          sessionStorage.removeItem('googlePopupCompleted');
+          console.log('🔧 Skipping redirect handler - popup was used');
+          return;
+        }
+        
         const result = await getRedirectResult(auth);
         if (result && result.user) {
           console.log('🔧 Google redirect result:', result);
@@ -369,15 +389,30 @@ export function AuthProvider({ children }) {
           localStorage.setItem("user", JSON.stringify(user));
           localStorage.setItem("userRole", additionalData.role || 'student');
           
-          // Redirect to appropriate dashboard
-          const role = additionalData.role || 'student';
-          if (role === 'student') {
-            window.location.href = '/student-dashboard';
-          } else if (role === 'alumni') {
-            window.location.href = '/alumni-dashboard';
-          } else {
-            window.location.href = '/student-dashboard';
-          }
+          // Set user state immediately
+          const profileData = await fetchUserProfile(user.uid);
+          const userWithProfile = { ...user, ...profileData };
+          setCurrentUser(userWithProfile);
+          setUserRole(profileData?.role || additionalData.role || 'student');
+          setLoading(false);
+          
+          console.log('User authenticated via redirect:', {
+            uid: userWithProfile.uid,
+            email: userWithProfile.email,
+            role: profileData?.role || additionalData.role || 'student'
+          });
+          
+          // Use a small delay before redirect to ensure state is set
+          setTimeout(() => {
+            const role = additionalData.role || 'student';
+            if (role === 'student') {
+              window.location.href = '/student-dashboard';
+            } else if (role === 'alumni') {
+              window.location.href = '/alumni-dashboard';
+            } else {
+              window.location.href = '/student-dashboard';
+            }
+          }, 100);
         }
       } catch (error) {
         console.error('Error handling Google redirect:', error);
