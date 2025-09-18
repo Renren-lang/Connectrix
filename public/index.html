@@ -16,7 +16,9 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <meta name="cache-buster" content="20250118-1300" />
+    <meta name="cache-buster" content="20250118-1400" />
+    <meta name="version" content="2.0.0" />
+    <meta name="build-time" content="2025-01-18T14:00:00Z" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -34,6 +36,50 @@
     </style>
     <title>Connectrix </title>
     <script>
+      // Immediate syntax error detection and cache clearing
+      (function() {
+        // Check if we're getting HTML instead of JS
+        const checkScripts = function() {
+          const scripts = document.querySelectorAll('script[src*=".js"]');
+          scripts.forEach(function(script) {
+            if (script.src) {
+              fetch(script.src, {cache: 'no-cache'})
+                .then(response => response.text())
+                .then(text => {
+                  if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+                    console.error('CRITICAL: JavaScript file contains HTML!', script.src);
+                    console.error('This indicates a severe caching issue.');
+                    
+                    // Clear everything and reload
+                    if ('caches' in window) {
+                      caches.keys().then(names => {
+                        names.forEach(name => caches.delete(name));
+                      });
+                    }
+                    
+                    // Force reload with cache bypass
+                    window.location.href = window.location.href.split('?')[0] + '?v=' + Date.now();
+                  }
+                })
+                .catch(err => {
+                  console.warn('Could not check script content:', err);
+                });
+            }
+          });
+        };
+        
+        // Run check immediately
+        checkScripts();
+        
+        // Also run on DOM ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', checkScripts);
+        } else {
+          checkScripts();
+        }
+      })();
+    </script>
+    <script>
       // Enhanced error handling for syntax errors and caching issues
       window.addEventListener('error', function(e) {
         console.error('JavaScript error detected:', e);
@@ -48,18 +94,30 @@
             timestamp: new Date().toISOString()
           });
           
-          // Force reload to get fresh files
-          if (confirm('A syntax error was detected. This is usually caused by cached files. Would you like to reload the page to get the latest version?')) {
-            // Clear all caches and reload
-            if ('caches' in window) {
-              caches.keys().then(function(names) {
-                names.forEach(function(name) {
-                  caches.delete(name);
-                });
+          // Automatically clear cache and reload without asking
+          console.log('Clearing all caches and reloading...');
+          
+          // Clear all caches
+          if ('caches' in window) {
+            caches.keys().then(function(names) {
+              names.forEach(function(name) {
+                caches.delete(name);
               });
-            }
-            window.location.reload(true);
+            });
           }
+          
+          // Clear localStorage and sessionStorage
+          try {
+            localStorage.clear();
+            sessionStorage.clear();
+          } catch (err) {
+            console.warn('Could not clear storage:', err);
+          }
+          
+          // Force reload with cache bypass
+          setTimeout(function() {
+            window.location.href = window.location.href + '?v=' + Date.now();
+          }, 1000);
         }
       });
       

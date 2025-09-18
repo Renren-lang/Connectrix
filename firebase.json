@@ -39,23 +39,31 @@
           }
         ]
       },
-      {
-        "source": "**/*.js",
-        "headers": [
           {
-            "key": "Cache-Control",
-            "value": "no-cache, no-store, must-revalidate, max-age=0"
+            "source": "**/*.js",
+            "headers": [
+              {
+                "key": "Cache-Control",
+                "value": "no-cache, no-store, must-revalidate, max-age=0, private"
+              },
+              {
+                "key": "Pragma",
+                "value": "no-cache"
+              },
+              {
+                "key": "Expires",
+                "value": "0"
+              },
+              {
+                "key": "Last-Modified",
+                "value": "Thu, 01 Jan 1970 00:00:00 GMT"
+              },
+              {
+                "key": "ETag",
+                "value": "\"0\""
+              }
+            ]
           },
-          {
-            "key": "Pragma",
-            "value": "no-cache"
-          },
-          {
-            "key": "Expires",
-            "value": "0"
-          }
-        ]
-      },
       {
         "source": "**/*.css",
         "headers": [
