@@ -14,11 +14,11 @@ function Login() {
   const navigate = useNavigate();
   const { currentUser, userRole, loading, login, signInWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     password: ''
   });
   const [errors, setErrors] = useState({
-    username: '',
+    email: '',
     password: ''
   });
   const [showSuccess, setShowSuccess] = useState(false);
@@ -95,18 +95,27 @@ function Login() {
 
 
   // Helper function to look up email from username
-  const lookupEmailFromUsername = async (input) => {
+  const lookupEmailFromUsername = async (username) => {
     try {
       // Check if input is an email (contains @)
-      if (input.includes('@')) {
-        return input; // Return as-is if it's an email
+      if (username.includes('@')) {
+        return username; // Return as-is if it's an email
       }
       
+      // Look up username in Firestore to get the email
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('username', '==', username));
+      const querySnapshot = await getDocs(q);
       
-      // For now, we'll require users to enter their email address directly
-      // This avoids the Firestore permission issue during login
-      console.log('Username lookup not supported during login. Please use email address.');
-      return null;
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
+        console.log('Found user with username:', username, 'Email:', userData.email);
+        return userData.email;
+      } else {
+        console.log('No user found with username:', username);
+        return null;
+      }
     } catch (error) {
       console.error('Error looking up email from username:', error);
       return null;
@@ -116,7 +125,7 @@ function Login() {
   // Validation functions
   const validateUsername = (input) => {
     const trimmed = input.trim();
-    // Only allow emails (contain @) for login
+    // Allow both emails and usernames
     if (trimmed.includes('@')) {
       const emailValidation = validateEmail(trimmed);
       return emailValidation.isValid;
@@ -158,8 +167,8 @@ function Login() {
 
     // Validate inputs
     const newErrors = {};
-    if (!validateUsername(formData.username)) {
-      newErrors.username = 'Please enter a valid username';
+    if (!validateUsername(formData.email)) {
+      newErrors.email = 'Please enter a valid username or email';
     }
     if (!validatePassword(formData.password)) {
       newErrors.password = 'Password must be at least 8 characters long';
@@ -173,15 +182,15 @@ function Login() {
 
     try {
       // Debug login attempt
-      const debugInfo = debugLoginAttempt(formData.username, formData.password);
+      const debugInfo = debugLoginAttempt(formData.email, formData.password);
       console.log('Login attempt debug info:', debugInfo);
       
 
       // Look up email from username if needed
-      const email = await lookupEmailFromUsername(formData.username);
+      const email = await lookupEmailFromUsername(formData.email);
       if (!email) {
         setErrors({
-          username: 'Please enter a valid username',
+          email: 'Please enter a valid username or email',
           password: ''
         });
         setIsSubmitting(false);
@@ -882,15 +891,15 @@ function Login() {
                           fontWeight: '500',
                           color: '#374151',
                           fontSize: '14px'
-                        }}>Username</label>
+                        }}>Username or Email</label>
                         <input
                           type="text"
                           id="login-username"
-                          name="username"
+                          name="email"
                           style={{
                             width: '100%',
                             padding: '15px 20px',
-                            border: `1px solid ${errors.username ? '#ef4444' : '#d1d5db'}`,
+                            border: `1px solid ${errors.email ? '#ef4444' : '#d1d5db'}`,
                             borderRadius: '12px',
                             fontSize: '16px',
                             background: 'white',
@@ -899,8 +908,8 @@ function Login() {
                             transition: 'all 0.3s ease',
                             outline: 'none'
                           }}
-                          placeholder="Enter your username"
-                          value={formData.username}
+                          placeholder="Enter your username or email"
+                          value={formData.email}
                           onChange={handleInputChange}
                           autoComplete="username"
                           onFocus={(e) => {
@@ -908,16 +917,16 @@ function Login() {
                             e.target.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.3)';
                           }}
                           onBlur={(e) => {
-                            e.target.style.borderColor = errors.username ? '#ef4444' : '#d1d5db';
+                            e.target.style.borderColor = errors.email ? '#ef4444' : '#d1d5db';
                             e.target.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
                           }}
                         />
-                        {errors.username && (
+                        {errors.email && (
                           <div style={{
                             color: '#ef4444',
                             fontSize: '14px',
                             marginTop: '5px'
-                          }}>{errors.username}</div>
+                          }}>{errors.email}</div>
                         )}
                       </div>
 
