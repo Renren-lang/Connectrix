@@ -398,10 +398,10 @@ export function AuthProvider({ children }) {
       if (error.code === 'auth/popup-closed-by-user') {
         // Don't log as error for popup closed, just return a failure
         console.log('ℹ️ User closed the popup or it was closed by browser');
-        return { success: false, error: 'popup_closed', message: null }; // Don't show message for popup closed
+        return { success: false, error: 'popup_closed_by_user' }; // Match the onFailure expected format
       } else if (error.code === 'auth/cancelled-popup-request') {
         console.log('ℹ️ Popup request was cancelled');
-        return { success: false, error: 'cancelled', message: null }; // Don't show message for cancelled
+        return { success: false, error: 'cancelled' }; // Match the onFailure expected format
       }
       
       // Log other errors normally

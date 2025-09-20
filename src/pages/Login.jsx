@@ -44,7 +44,6 @@ function Login() {
   const [selectedRoleBeforeAuth, setSelectedRoleBeforeAuth] = useState('');
   const [showAuthConfirmation, setShowAuthConfirmation] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [popupClosedMessage, setPopupClosedMessage] = useState('');
 
   // Check for stored role on component mount
   useEffect(() => {
@@ -363,6 +362,14 @@ function Login() {
     }
   };
 
+  const onFailure = (error) => {
+    if (error.error === 'popup_closed_by_user') {
+      alert('Login popup was closed before completing authentication.');
+    } else {
+      alert('Login failed: ' + error.error);
+    }
+  };
+
   const handleConfirmGoogleAuth = async () => {
     try {
       setIsSubmitting(true);
@@ -390,16 +397,9 @@ function Login() {
         // The user will be automatically redirected by the useEffect in Login component
         // based on the currentUser and userRole state changes
         return;
-      } else if (result.error === 'popup_closed' || result.error === 'cancelled') {
-        // Handle popup closed gracefully - only show message if there is one
-        console.log('ℹ️ Google auth popup was closed by user');
-        if (result.message) {
-          setPopupClosedMessage(result.message);
-          // Clear the message after 5 seconds
-          setTimeout(() => {
-            setPopupClosedMessage('');
-          }, 5000);
-        }
+      } else {
+        // Handle failure cases
+        onFailure(result);
         setShowRoleSelection(false);
         setShowAuthConfirmation(false);
         return;
@@ -411,74 +411,12 @@ function Login() {
       console.error('Error message:', error.message);
       console.error('Full error object:', JSON.stringify(error, null, 2));
 
-      // Show popup instructions if popup is blocked
-      if (error.code === 'auth/popup-blocked' ||
-          error.message?.includes('popup') ||
-          error.message?.includes('blocked')) {
-        setShowPopupInstructions(true);
-        return;
-      }
-
-      // Handle specific Google Auth errors
-      if (error.code === 'auth/popup-closed-by-user') {
-        console.log('ℹ️ Popup was closed - this might be due to browser security or timing issues');
-        // Show a helpful message instead of silent reset
-        setErrors({
-          email: '',
-          password: 'Google sign-in popup was closed. This might be due to browser security settings. Please try again or check if popups are allowed.'
-        });
-        return;
-      } else if (error.code === 'auth/popup-blocked') {
-        setErrors({
-          email: '',
-          password: 'Popup was blocked by your browser. Please allow popups and try again.'
-        });
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        setErrors({
-          email: '',
-          password: 'Another sign-in process is already in progress. Please wait.'
-        });
-      } else if (error.message === 'Sign-in timed out. Please try again.' || error.message === 'Popup timeout') {
-        setErrors({
-          email: '',
-          password: 'Sign-in timed out. Please try again.'
-        });
-      } else if (error.code === 'auth/account-exists-with-different-credential') {
-        setErrors({
-          email: '',
-          password: 'An account already exists with this email using a different sign-in method.'
-        });
-      } else if (error.code === 'auth/operation-not-allowed') {
-        setErrors({
-          email: '',
-          password: 'Google sign-in is not enabled. Please contact support.'
-        });
-      } else if (error.code === 'auth/network-request-failed') {
-        setErrors({
-          email: '',
-          password: 'Network error. Please check your internet connection and try again.'
-        });
-      } else if (error.code === 'auth/too-many-requests') {
-        setErrors({
-          email: '',
-          password: 'Too many attempts. Please wait a moment and try again.'
-        });
-      } else if (error.code === 'auth/invalid-credential') {
-        setErrors({
-          email: '',
-          password: 'Invalid credentials. Please try again.'
-        });
-      } else if (error.code === 'auth/user-disabled') {
-        setErrors({
-          email: '',
-          password: 'This account has been disabled. Please contact support.'
-        });
-      } else {
-        setErrors({
-          email: '',
-          password: `Google authentication failed: ${error.message || 'Unknown error'}. Please try again.`
-        });
-      }
+      // Use the onFailure callback for error handling
+      onFailure({ error: error.code || 'unknown_error' });
+      
+      // Close modals
+      setShowRoleSelection(false);
+      setShowAuthConfirmation(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -1044,17 +982,6 @@ function Login() {
                             fontSize: '14px',
                             marginTop: '5px'
                           }}>{errors.password}</div>
-                        )}
-                        {popupClosedMessage && (
-                          <div style={{
-                            color: '#f59e0b',
-                            fontSize: '14px',
-                            marginTop: '5px',
-                            backgroundColor: '#fef3c7',
-                            padding: '8px 12px',
-                            borderRadius: '6px',
-                            border: '1px solid #fbbf24'
-                          }}>{popupClosedMessage}</div>
                         )}
                       </div>
 
