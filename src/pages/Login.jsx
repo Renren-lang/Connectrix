@@ -371,9 +371,9 @@ function Login() {
   const onFailure = (error) => {
     console.log('Login Failed:', error);
     if (error.error === 'popup_closed_by_user') {
-      alert('Login was cancelled because the popup was closed.');
+      alert('Sign-in was cancelled. Please try again to continue.');
     } else {
-      alert('Login failed: ' + error.error);
+      alert('Sign-in failed: ' + (error.error || 'Unknown error'));
     }
   };
 
