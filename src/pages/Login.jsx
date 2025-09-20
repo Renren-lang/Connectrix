@@ -44,6 +44,7 @@ function Login() {
   const [selectedRoleBeforeAuth, setSelectedRoleBeforeAuth] = useState('');
   const [showAuthConfirmation, setShowAuthConfirmation] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [popupClosedMessage, setPopupClosedMessage] = useState('');
 
   // Check for stored role on component mount
   useEffect(() => {
@@ -388,6 +389,18 @@ function Login() {
         
         // The user will be automatically redirected by the useEffect in Login component
         // based on the currentUser and userRole state changes
+        return;
+      } else if (result.error === 'popup_closed' || result.error === 'cancelled') {
+        // Handle popup closed gracefully - show helpful message
+        console.log('ℹ️ Google auth popup was closed by user');
+        setPopupClosedMessage('Google sign-in popup was closed. Please try again and complete the sign-in process.');
+        setShowRoleSelection(false);
+        setShowAuthConfirmation(false);
+        
+        // Clear the message after 5 seconds
+        setTimeout(() => {
+          setPopupClosedMessage('');
+        }, 5000);
         return;
       }
 
@@ -1030,6 +1043,17 @@ function Login() {
                             fontSize: '14px',
                             marginTop: '5px'
                           }}>{errors.password}</div>
+                        )}
+                        {popupClosedMessage && (
+                          <div style={{
+                            color: '#f59e0b',
+                            fontSize: '14px',
+                            marginTop: '5px',
+                            backgroundColor: '#fef3c7',
+                            padding: '8px 12px',
+                            borderRadius: '6px',
+                            border: '1px solid #fbbf24'
+                          }}>{popupClosedMessage}</div>
                         )}
                       </div>
 

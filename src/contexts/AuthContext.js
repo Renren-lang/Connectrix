@@ -337,7 +337,7 @@ export function AuthProvider({ children }) {
       
       // Add custom parameters for better UX
       provider.setCustomParameters({
-        prompt: 'consent' // This will ask for consent but remember the choice
+        prompt: 'select_account' // Allow account selection
       });
       
       console.log('🔧 Starting Google authentication with provider:', provider);
@@ -401,13 +401,16 @@ export function AuthProvider({ children }) {
         stack: error.stack
       });
       
-      // Handle specific error cases
+      // Handle specific error cases with better user guidance
       if (error.code === 'auth/popup-blocked') {
         throw new Error('Popup was blocked by your browser. Please allow popups for this site and try again.');
       } else if (error.code === 'auth/popup-closed-by-user') {
-        throw new Error('Sign-in was cancelled. Please try again.');
+        // Don't throw an error for popup closed, just return a failure
+        console.log('ℹ️ User closed the popup or it was closed by browser');
+        return { success: false, error: 'popup_closed', message: 'Sign-in popup was closed. Please try again.' };
       } else if (error.code === 'auth/cancelled-popup-request') {
-        throw new Error('Sign-in was cancelled. Please try again.');
+        console.log('ℹ️ Popup request was cancelled');
+        return { success: false, error: 'cancelled', message: 'Sign-in was cancelled. Please try again.' };
       } else if (error.code === 'auth/operation-not-allowed') {
         throw new Error('Google sign-in is not enabled. Please contact support.');
       } else if (error.code === 'auth/network-request-failed') {
