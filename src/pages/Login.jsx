@@ -391,16 +391,17 @@ function Login() {
         // based on the currentUser and userRole state changes
         return;
       } else if (result.error === 'popup_closed' || result.error === 'cancelled') {
-        // Handle popup closed gracefully - show helpful message
+        // Handle popup closed gracefully - only show message if there is one
         console.log('ℹ️ Google auth popup was closed by user');
-        setPopupClosedMessage('Google sign-in popup was closed. Please try again and complete the sign-in process.');
+        if (result.message) {
+          setPopupClosedMessage(result.message);
+          // Clear the message after 5 seconds
+          setTimeout(() => {
+            setPopupClosedMessage('');
+          }, 5000);
+        }
         setShowRoleSelection(false);
         setShowAuthConfirmation(false);
-        
-        // Clear the message after 5 seconds
-        setTimeout(() => {
-          setPopupClosedMessage('');
-        }, 5000);
         return;
       }
 
