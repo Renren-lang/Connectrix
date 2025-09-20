@@ -12,6 +12,8 @@ function ProtectedRoute({ children, allowedRoles = ['student', 'alumni'], redire
   // Debug logging
   SafeLogger.log('ProtectedRoute: currentUser:', currentUser?.uid, 'userRole:', userRole, 'allowedRoles:', allowedRoles);
   SafeLogger.log('ProtectedRoute: localStorage userRole:', localStorage.getItem('userRole'));
+  SafeLogger.log('ProtectedRoute: loading:', loading, 'roleLoading:', roleLoading, 'hasCheckedRole:', hasCheckedRole);
+  SafeLogger.log('ProtectedRoute: current path:', window.location.pathname);
 
   // Simplified role checking
   useEffect(() => {
@@ -46,8 +48,10 @@ function ProtectedRoute({ children, allowedRoles = ['student', 'alumni'], redire
   }
 
   // If we have a user but no role yet, check localStorage as fallback
-  if (currentUser && !userRole && !hasCheckedRole) {
+  if (currentUser && !userRole) {
     const storedRole = localStorage.getItem('userRole');
+    SafeLogger.log('ProtectedRoute: No userRole in state, checking localStorage:', storedRole);
+    
     if (storedRole) {
       SafeLogger.log('ProtectedRoute: Using stored role from localStorage:', storedRole);
       // If we have a stored role, allow access
@@ -63,12 +67,19 @@ function ProtectedRoute({ children, allowedRoles = ['student', 'alumni'], redire
           return <Navigate to="/student-dashboard" replace />;
         }
       }
+    } else {
+      // No stored role, but we have a user - assume student role
+      SafeLogger.log('ProtectedRoute: No stored role, assuming student role');
+      if (allowedRoles.includes('student')) {
+        return children;
+      } else {
+        return <Navigate to="/student-dashboard" replace />;
+      }
     }
-    return <LoadingSpinner />;
   }
 
   // If user role is not in allowed roles, redirect to appropriate dashboard
-      if (userRole && !allowedRoles.includes(userRole)) {
+  if (userRole && !allowedRoles.includes(userRole)) {
         SafeLogger.log('ProtectedRoute: User role', userRole, 'not in allowed roles', allowedRoles);
         if (userRole === 'alumni') {
           SafeLogger.log('ProtectedRoute: Redirecting to alumni dashboard');

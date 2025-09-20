@@ -1,0 +1,131 @@
+/* Verification Badge */
+.verification-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.verification-badge.small {
+  padding: 2px 6px;
+  font-size: 10px;
+  gap: 4px;
+}
+
+.verification-badge.medium {
+  padding: 4px 8px;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.verification-badge.large {
+  padding: 6px 12px;
+  font-size: 14px;
+  gap: 8px;
+}
+
+.verification-icon {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.verification-text {
+  line-height: 1;
+}
+
+/* Status Styles */
+.verification-badge.verified {
+  background: linear-gradient(135deg, #27ae60, #2ecc71);
+  color: white;
+  box-shadow: 0 2px 8px rgba(39, 174, 96, 0.3);
+}
+
+.verification-badge.verified:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+}
+
+.verification-badge.pending {
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  color: white;
+  box-shadow: 0 2px 8px rgba(243, 156, 18, 0.3);
+}
+
+.verification-badge.pending:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+}
+
+.verification-badge.rejected {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+}
+
+.verification-badge.rejected:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+}
+
+.verification-badge.unverified {
+  background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+  color: white;
+  box-shadow: 0 2px 8px rgba(149, 165, 166, 0.3);
+}
+
+.verification-badge.unverified:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(149, 165, 166, 0.4);
+}
+
+/* Icon-only version */
+.verification-badge.icon-only {
+  padding: 6px;
+  border-radius: 50%;
+  min-width: 24px;
+  min-height: 24px;
+  justify-content: center;
+}
+
+.verification-badge.icon-only .verification-text {
+  display: none;
+}
+
+/* Tooltip styles */
+.verification-badge[title] {
+  cursor: help;
+}
+
+/* Animation for status changes */
+.verification-badge {
+  animation: fadeInScale 0.3s ease-out;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .verification-badge.medium {
+    padding: 3px 6px;
+    font-size: 11px;
+  }
+  
+  .verification-badge.large {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+}

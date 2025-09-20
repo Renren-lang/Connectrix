@@ -950,6 +950,7 @@ function Register() {
                             onChange={handleInputChange}
                             autoComplete="off"
                             style={{
+                              marginLeft: '0px',
                               marginRight: '8px',
                               accentColor: '#2563eb'
                             }}

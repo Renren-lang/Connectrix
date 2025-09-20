@@ -1,0 +1,68 @@
+/* Verification Styles for Profile */
+.name-and-verification {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.verification-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 15px 0;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.verification-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.verification-label {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.verify-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.verify-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.verify-btn i {
+  font-size: 16px;
+}
+
+@media (max-width: 768px) {
+  .verification-section {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  
+  .name-and-verification {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

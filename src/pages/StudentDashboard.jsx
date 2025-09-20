@@ -59,6 +59,141 @@ function StudentDashboard() {
   });
   const [isPosting, setIsPosting] = useState(false);
 
+  // Fetch alumni posts from database
+  // Unified feed function that merges posts and threads with course-based suggestions
+  const fetchUnifiedFeed = async () => {
+    if (!currentUser) return;
+    
+    try {
+      setIsLoadingFeed(true);
+      
+      // Fetch both forum posts and threads
+      const [postsSnapshot, threadsSnapshot] = await Promise.all([
+        getDocs(query(collection(db, 'forum-posts'), orderBy('createdAt', 'desc'), limit(20))),
+        getDocs(query(collection(db, 'forum-threads'), orderBy('createdAt', 'desc'), limit(20)))
+      ]);
+      
+      // Process posts
+      const posts = postsSnapshot.docs.map(doc => {
+        try {
+          const data = doc.data();
+          const timeAgo = data.createdAt ? 
+            getTimeAgo(data.createdAt.toDate()) : 
+            'Just now';
+          
+          return {
+            id: doc.id,
+            type: 'post',
+            avatar: data.authorName ? data.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A',
+          name: data.authorName || 'User',
+          role: data.authorRole || 'student',
+          meta: `${data.category || 'General'} • ${timeAgo}`,
+          roleLabel: data.authorRole === 'alumni' ? 'Mentor' : data.authorRole === 'student' ? 'Student' : 'User',
+            content: data.content || 'No content available',
+            title: data.title || '',
+            likes: data.likes || 0,
+            comments: data.comments || 0,
+            createdAt: data.createdAt,
+            authorId: data.authorId,
+            authorName: data.authorName,
+            authorPhoto: data.authorPhoto,
+            authorRole: data.authorRole,
+            category: data.category,
+            privacy: data.privacy
+          };
+        } catch (error) {
+          console.error('Error processing post:', doc.id, error);
+          return null;
+        }
+      }).filter(Boolean);
+
+      // Process threads
+      const threads = threadsSnapshot.docs.map(doc => {
+        try {
+          const data = doc.data();
+          const timeAgo = data.createdAt ? 
+            getTimeAgo(data.createdAt.toDate()) : 
+            'Just now';
+          
+          return {
+            id: doc.id,
+            type: 'thread',
+            avatar: data.authorName ? data.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A',
+            name: data.authorName || 'User',
+            role: data.authorRole || 'student',
+            meta: `Thread • ${timeAgo}`,
+            roleLabel: data.authorRole === 'alumni' ? 'Mentor' : data.authorRole === 'student' ? 'Student' : 'User',
+            content: data.content || 'No content available',
+            title: data.title || '',
+            likes: data.likes || 0,
+            comments: data.comments || 0,
+            createdAt: data.createdAt,
+            authorId: data.authorId,
+            authorName: data.authorName,
+            authorPhoto: data.authorPhoto,
+            authorRole: data.authorRole,
+            category: data.category,
+            privacy: data.privacy
+          };
+        } catch (error) {
+          console.error('Error processing thread:', doc.id, error);
+          return null;
+        }
+      }).filter(Boolean);
+
+      // Combine and sort by creation time
+      const combinedFeed = [...posts, ...threads].sort((a, b) => {
+        const aTime = a.createdAt?.toDate?.() || new Date(0);
+        const bTime = b.createdAt?.toDate?.() || new Date(0);
+        return bTime - aTime;
+      });
+
+      setUnifiedFeed(combinedFeed);
+      setFeedPosts(combinedFeed);
+    } catch (error) {
+      console.error('Error fetching unified feed:', error);
+    } finally {
+      setIsLoadingFeed(false);
+    }
+  };
+
+  // Fetch reactions for a specific post
+  const fetchPostReactions = async (postId) => {
+    try {
+      const reactionsRef = collection(db, 'forum-posts', postId, 'reactions');
+      const q = query(reactionsRef);
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const reactionsData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Count reactions by type
+        const reactionCounts = {};
+        reactionsData.forEach(reaction => {
+          reactionCounts[reaction.type] = (reactionCounts[reaction.type] || 0) + 1;
+        });
+        
+        // Check if current user has reacted
+        const userReaction = reactionsData.find(r => r.userId === currentUser?.uid);
+        
+        setPostReactions(prev => ({
+          ...prev,
+          [postId]: {
+            counts: reactionCounts,
+            userReaction: userReaction?.type || null,
+            total: reactionsData.length
+          }
+        }));
+      });
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error fetching reactions for post:', postId, error);
+    }
+  };
+
   // Post creation functionality
   const handleCreatePostSubmit = async () => {
     if (!currentUser) {
@@ -278,117 +413,10 @@ function StudentDashboard() {
     fetchSuggestedMentors();
   }, [currentUser]);
 
-  // Fetch alumni posts from database
-  // Unified feed function that merges posts and threads with course-based suggestions
-  const fetchUnifiedFeed = async () => {
-    if (!currentUser) return;
-    
-    try {
-      setIsLoadingFeed(true);
-      
-      // Fetch both forum posts and threads
-      const [postsSnapshot, threadsSnapshot] = await Promise.all([
-        getDocs(query(collection(db, 'forum-posts'), orderBy('createdAt', 'desc'), limit(20))),
-        getDocs(query(collection(db, 'forum-threads'), orderBy('createdAt', 'desc'), limit(20)))
-      ]);
-      
-      // Process posts
-      const posts = postsSnapshot.docs.map(doc => {
-        try {
-          const data = doc.data();
-          const timeAgo = data.createdAt ? 
-            getTimeAgo(data.createdAt.toDate()) : 
-            'Just now';
-          
-          return {
-            id: doc.id,
-            type: 'post',
-            avatar: data.authorName ? data.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A',
-          name: data.authorName || 'User',
-          role: data.authorRole || 'student',
-          meta: `${data.category || 'General'} • ${timeAgo}`,
-          roleLabel: data.authorRole === 'alumni' ? 'Mentor' : data.authorRole === 'student' ? 'Student' : 'User',
-            content: data.content || 'No content available',
-            title: data.title || '',
-            category: data.category || 'general',
-            likes: data.likes || 0,
-            comments: data.replyCount || 0,
-            isLiked: false,
-            createdAt: data.createdAt,
-            authorId: data.authorId,
-            isCourseRelevant: data.category && currentUser?.course && 
-              ((data.category || '').toLowerCase().includes(currentUser.course.toLowerCase()) ||
-               (data.content || '').toLowerCase().includes(currentUser.course.toLowerCase()))
-          };
-        } catch (error) {
-          console.error('Error processing post:', error);
-          return null;
-        }
-      }).filter(Boolean);
-      
-      // Process threads
-      const threads = threadsSnapshot.docs.map(doc => {
-        try {
-          const data = doc.data();
-          const timeAgo = data.createdAt ? 
-            getTimeAgo(data.createdAt.toDate()) : 
-            'Just now';
-          
-          return {
-            id: doc.id,
-            type: 'thread',
-            avatar: data.authorName ? data.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A',
-          name: data.authorName || 'User',
-          role: data.authorRole || 'student',
-          meta: `${data.category || 'General'} • ${timeAgo}`,
-          roleLabel: data.authorRole === 'alumni' ? 'Mentor' : data.authorRole === 'student' ? 'Student' : 'User',
-            content: data.content || 'No content available',
-            title: data.title || '',
-            category: data.category || 'general',
-            likes: data.likes || 0,
-            comments: data.replyCount || 0,
-            isLiked: false,
-            createdAt: data.createdAt,
-            authorId: data.authorId,
-            isCourseRelevant: data.category && currentUser?.course && 
-              ((data.category || '').toLowerCase().includes(currentUser.course.toLowerCase()) ||
-               (data.content || '').toLowerCase().includes(currentUser.course.toLowerCase()))
-          };
-        } catch (error) {
-          console.error('Error processing thread:', error);
-          return null;
-        }
-      }).filter(Boolean);
-      
-      // Combine and sort by relevance and recency
-      const allContent = [...posts, ...threads];
-      
-      // Sort: Course-relevant content first, then by recency
-      const sortedFeed = allContent.sort((a, b) => {
-        // Course-relevant content first
-        if (a.isCourseRelevant && !b.isCourseRelevant) return -1;
-        if (!a.isCourseRelevant && b.isCourseRelevant) return 1;
-        
-        // Then by recency
-        const aTime = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
-        const bTime = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
-        return bTime - aTime;
-      });
-      
-      setUnifiedFeed(sortedFeed);
-      console.log('Fetched unified feed:', sortedFeed.length);
-      
-    } catch (error) {
-      console.error('Error fetching unified feed:', error);
-      setUnifiedFeed([]);
-    } finally {
-      setIsLoadingFeed(false);
-    }
-  };
 
   useEffect(() => {
     fetchUnifiedFeed();
-  }, [currentUser]);
+  }, [currentUser, fetchUnifiedFeed]);
 
   // Load reactions for existing posts when component mounts or posts change
   useEffect(() => {
@@ -398,7 +426,7 @@ function StudentDashboard() {
         fetchPostReactions(post.id);
       });
     }
-  }, [feedPosts, currentUser]);
+  }, [feedPosts, currentUser, fetchPostReactions]);
 
   // Initialize Vanta.js background
   useEffect(() => {
@@ -427,43 +455,6 @@ function StudentDashboard() {
       };
     }
   }, []);
-
-  // Fetch reactions for a specific post
-  const fetchPostReactions = async (postId) => {
-    try {
-      const reactionsRef = collection(db, 'forum-posts', postId, 'reactions');
-      const q = query(reactionsRef);
-      
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const reactionsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        
-        // Count reactions by type
-        const reactionCounts = {};
-        reactionsData.forEach(reaction => {
-          reactionCounts[reaction.type] = (reactionCounts[reaction.type] || 0) + 1;
-        });
-        
-        // Check if current user has reacted
-        const userReaction = reactionsData.find(r => r.userId === currentUser?.uid);
-        
-        setPostReactions(prev => ({
-          ...prev,
-          [postId]: {
-            counts: reactionCounts,
-            userReaction: userReaction?.type || null,
-            total: reactionsData.length
-          }
-        }));
-      });
-      
-      return unsubscribe;
-    } catch (error) {
-      console.error('Error fetching reactions for post:', postId, error);
-    }
-  };
 
   const handleQuickAccessClick = (cardTitle) => {
     alert(`Navigating to ${cardTitle} section`);
@@ -715,24 +706,38 @@ function StudentDashboard() {
       return;
     }
 
-    const post = feedPosts.find(p => p.id === postId);
+    if (!currentUser) {
+      alert('Please log in to post a comment');
+      return;
+    }
+
+    // Find post in both feedPosts and unifiedFeed
+    const post = feedPosts.find(p => p.id === postId) || unifiedFeed.find(p => p.id === postId);
     if (!post) {
-      alert('Post not found');
+      console.error('Post not found:', postId);
+      alert('Post not found. Please refresh and try again.');
       return;
     }
 
     try {
       console.log('Posting comment for post:', postId);
       console.log('Post authorId:', post.authorId);
+      console.log('Current user:', currentUser.uid);
       
       // Get user's actual name from their profile
-      const userRef = doc(db, 'users', currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      const userData = userSnap.exists() ? userSnap.data() : {};
+      let authorName = currentUser.displayName || currentUser.email?.split('@')[0] || 'User';
       
-      const authorName = userData.firstName && userData.lastName 
-        ? `${userData.firstName} ${userData.lastName}`
-        : userData.displayName || currentUser.displayName || currentUser.email?.split('@')[0] || 'User';
+      try {
+        const userRef = doc(db, 'users', currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        const userData = userSnap.exists() ? userSnap.data() : {};
+        
+        authorName = userData.firstName && userData.lastName 
+          ? `${userData.firstName} ${userData.lastName}`
+          : userData.displayName || currentUser.displayName || currentUser.email?.split('@')[0] || 'User';
+      } catch (userError) {
+        console.warn('Could not fetch user data, using fallback name:', userError);
+      }
       
       // Create a comment
       const comment = {
@@ -746,29 +751,46 @@ function StudentDashboard() {
 
       await addDoc(collection(db, 'forum-comments'), comment);
 
+      // Update comment count on the post
+      try {
+        const postRef = doc(db, 'forum-posts', postId);
+        await updateDoc(postRef, {
+          comments: (post.comments || 0) + 1,
+          updatedAt: serverTimestamp()
+        });
+      } catch (updateError) {
+        console.warn('Could not update comment count:', updateError);
+        // Don't fail the comment if count update fails
+      }
+
       // Create notification for post author (only if authorId exists and is not the current user)
       if (post.authorId && post.authorId !== currentUser.uid) {
-        console.log('Creating notification for author:', post.authorId);
-        
-        const notification = {
-          recipientId: post.authorId,
-          senderId: currentUser.uid,
-          senderName: authorName,
-          type: 'forum-comment',
-          title: '💬 New Comment',
-          message: `${authorName} commented on your post "${post.content.substring(0, 50)}..."`,
-          postId: postId, // Add postId directly for easier access
-          data: {
+        try {
+          console.log('Creating notification for author:', post.authorId);
+          
+          const notification = {
+            recipientId: post.authorId,
+            senderId: currentUser.uid,
+            senderName: authorName,
+            type: 'forum-comment',
+            title: '💬 New Comment',
+            message: `${authorName} commented on your post "${post.content.substring(0, 50)}..."`,
             postId: postId,
-            postContent: post.content,
-            commentContent: commentText
-          },
-          read: false,
-          createdAt: serverTimestamp()
-        };
+            data: {
+              postId: postId,
+              postContent: post.content,
+              commentContent: commentText
+            },
+            read: false,
+            createdAt: serverTimestamp()
+          };
 
-        await addDoc(collection(db, 'notifications'), notification);
-        console.log('Notification created successfully');
+          await addDoc(collection(db, 'notifications'), notification);
+          console.log('Notification created successfully');
+        } catch (notificationError) {
+          console.warn('Failed to create notification:', notificationError);
+          // Don't fail the comment if notification fails
+        }
       } else {
         console.log('Skipping notification - no authorId or self-comment');
       }
@@ -779,9 +801,23 @@ function StudentDashboard() {
       // Refresh comments for this post
       await fetchPostComments(postId);
       
+      // Refresh the feed to show updated comment count
+      await fetchUnifiedFeed();
+      
+      console.log('Comment posted successfully');
     } catch (error) {
       console.error('Error posting comment:', error);
-      alert('Failed to post comment. Please try again.');
+      
+      // Provide more specific error messages
+      if (error.code === 'permission-denied') {
+        alert('You do not have permission to post comments. Please check your account status.');
+      } else if (error.code === 'unavailable') {
+        alert('Service temporarily unavailable. Please try again in a moment.');
+      } else if (error.message.includes('network')) {
+        alert('Network error. Please check your connection and try again.');
+      } else {
+        alert('Failed to post comment. Please try again.');
+      }
     }
   };
 

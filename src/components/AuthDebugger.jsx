@@ -22,8 +22,10 @@ const AuthDebugger = () => {
     console.groupEnd();
   };
 
-  // Hide debugger completely
-  return null;
+  // Hide debugger completely in production
+  if (process.env.NODE_ENV === 'production') {
+    return null;
+  }
 
   return (
     <div style={{

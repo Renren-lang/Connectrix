@@ -67,16 +67,43 @@ function Login() {
 
   // Check if user is already authenticated and redirect (only if not showing success message)
   useEffect(() => {
-    console.log('Login useEffect - loading:', loading, 'currentUser:', !!currentUser, 'userRole:', userRole, 'showSuccess:', showSuccess);
+    console.log('🔍 Login useEffect - loading:', loading, 'currentUser:', !!currentUser, 'userRole:', userRole, 'showSuccess:', showSuccess);
+    console.log('🔍 Login useEffect - currentUser details:', currentUser?.uid, currentUser?.email);
+    console.log('🔍 Login useEffect - localStorage userRole:', localStorage.getItem('userRole'));
+    console.log('🔍 Login useEffect - localStorage firebaseToken:', localStorage.getItem('firebaseToken') ? 'Present' : 'Missing');
+    console.log('🔍 Login useEffect - localStorage user:', localStorage.getItem('user') ? 'Present' : 'Missing');
     
     if (!loading && currentUser && userRole && !showSuccess) {
-      console.log('User already authenticated, redirecting from login page');
-      console.log('Redirecting to:', userRole === 'student' ? '/student-dashboard' : '/alumni-dashboard');
+      console.log('✅ User already authenticated, redirecting from login page');
+      console.log('✅ Redirecting to:', userRole === 'student' ? '/student-dashboard' : '/alumni-dashboard');
       if (userRole === 'student') {
+        console.log('🚀 Navigating to student dashboard...');
         navigate('/student-dashboard');
       } else if (userRole === 'alumni') {
+        console.log('🚀 Navigating to alumni dashboard...');
         navigate('/alumni-dashboard');
       }
+    } else if (!loading && currentUser && !userRole && !showSuccess) {
+      // If we have a user but no role, check localStorage as fallback
+      const storedRole = localStorage.getItem('userRole');
+      console.log('🔍 No userRole in state, checking localStorage:', storedRole);
+      if (storedRole) {
+        console.log('✅ Using stored role from localStorage for navigation:', storedRole);
+        if (storedRole === 'student') {
+          console.log('🚀 Navigating to student dashboard (from localStorage)...');
+          navigate('/student-dashboard');
+        } else if (storedRole === 'alumni') {
+          console.log('🚀 Navigating to alumni dashboard (from localStorage)...');
+          navigate('/alumni-dashboard');
+        }
+      } else {
+        console.log('⚠️ No user role found in state or localStorage, defaulting to student dashboard');
+        navigate('/student-dashboard');
+      }
+    } else if (!loading && !currentUser) {
+      console.log('⚠️ No current user found');
+    } else if (loading) {
+      console.log('⏳ Still loading...');
     }
   }, [currentUser, userRole, loading, navigate, showSuccess]);
 
@@ -199,14 +226,32 @@ function Login() {
 
       // Attempt to login with the found email
       const result = await login(email, formData.password);
+      console.log('🔍 Login form - Login result:', result);
       
       // If we get here, login was successful
       setShowSuccess(true);
+      console.log('🔍 Login form - Set showSuccess to true, will redirect in 1.5s');
+      
+      // Force immediate navigation instead of waiting
       setTimeout(() => {
-        // The user will be automatically redirected by the useEffect
-        // that checks currentUser and userRole
-        console.log('Login successful, user will be redirected automatically');
-      }, 1500);
+        console.log('🔍 Login form - Timeout reached, forcing navigation');
+        console.log('🔍 Login form - currentUser:', !!currentUser, 'userRole:', userRole);
+        
+        // Force navigation based on stored role
+        const storedRole = localStorage.getItem('userRole');
+        console.log('🔍 Login form - Stored role for navigation:', storedRole);
+        
+        if (storedRole === 'student') {
+          console.log('🚀 Forcing navigation to student dashboard...');
+          navigate('/student-dashboard');
+        } else if (storedRole === 'alumni') {
+          console.log('🚀 Forcing navigation to alumni dashboard...');
+          navigate('/alumni-dashboard');
+        } else {
+          console.log('🚀 Default navigation to student dashboard...');
+          navigate('/student-dashboard');
+        }
+      }, 1000); // Reduced timeout
     } catch (error) {
       // Debug the authentication error
       debugAuthError(error, 'Login');
@@ -330,14 +375,19 @@ function Login() {
       console.log('🔍 Starting Google auth with role:', googleSelectedRole);
       console.log('🔍 Auth data:', authData);
 
-      // Use AuthContext Google auth function (redirect method)
+      // Use AuthContext Google auth function (popup method)
       const result = await signInWithGoogle(authData);
 
-      if (result.success && result.redirect) {
-        console.log('✅ Google redirect authentication initiated');
+      if (result.success) {
+        console.log('✅ Google popup authentication successful');
         console.log('✅ Selected role:', googleSelectedRole);
-        console.log('🔄 User will be redirected to Google and then back to the app');
-        // The redirect will handle the rest of the flow
+        
+        // Close the role selection modal
+        setShowRoleSelection(false);
+        setShowAuthConfirmation(false);
+        
+        // The user will be automatically redirected by the useEffect in Login component
+        // based on the currentUser and userRole state changes
         return;
       }
 

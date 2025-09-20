@@ -3,12 +3,12 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged,
   updateProfile,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  sendEmailVerification
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -16,7 +16,11 @@ import { auth, db } from '../firebase';
 const AuthContext = createContext();
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }
 
 export function AuthProvider({ children }) {
@@ -37,20 +41,55 @@ export function AuthProvider({ children }) {
         return null;
       }
 
-      const userRef = doc(db, 'users', uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        if (!userData || typeof userData !== 'object') {
-          console.error('Invalid user data structure:', userData);
-          return null;
-        }
-        return userData;
+      // Check if user is authenticated before making Firestore calls
+      if (!auth.currentUser) {
+        console.log('No authenticated user, skipping Firestore fetch');
+        return null;
       }
+
+      // Add retry logic for Firestore connection issues
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const userRef = doc(db, 'users', uid);
+          const userSnap = await getDoc(userRef);
+          
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            if (!userData || typeof userData !== 'object') {
+              console.error('Invalid user data structure:', userData);
+              return null;
+            }
+            return userData;
+          }
+          return null;
+        } catch (error) {
+          retryCount++;
+          console.warn(`Firestore fetch attempt ${retryCount}/${maxRetries} failed:`, error.message);
+          
+          // Handle specific Firestore errors
+          if (error.code === 'permission-denied') {
+            console.warn('Permission denied accessing Firestore. User may not be authenticated.');
+            break; // Don't retry permission errors
+          } else if (error.code === 'unavailable' || error.message?.includes('Unknown SID')) {
+            console.warn('Firestore connection error. Retrying...');
+            if (retryCount < maxRetries) {
+              // Wait before retry with exponential backoff
+              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+              continue;
+            }
+          }
+          
+          // If it's not a retryable error or we've exhausted retries
+          throw error;
+        }
+      }
+      
       return null;
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error('Error fetching user profile after retries:', error);
       return null;
     }
   }
@@ -182,6 +221,42 @@ export function AuthProvider({ children }) {
       }
       
       const result = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Get the Firebase ID token for backend authentication
+      const idToken = await result.user.getIdToken();
+      
+      // Store the token in localStorage for API calls
+      localStorage.setItem('firebaseToken', idToken);
+      
+      // Fetch user profile and set state
+      const profileData = await fetchUserProfile(result.user.uid);
+      console.log('🔍 Login - Profile data fetched:', profileData);
+      
+      const userWithProfile = { ...result.user, ...profileData };
+      console.log('🔍 Login - Setting currentUser:', userWithProfile.uid, userWithProfile.email);
+      setCurrentUser(userWithProfile);
+      
+      const userRole = profileData?.role || 'student';
+      console.log('🔍 Login - Setting user role:', userRole);
+      setUserRole(userRole);
+      
+      // Also store role in localStorage for immediate access
+      localStorage.setItem('userRole', userRole);
+      console.log('🔍 Login - Stored role in localStorage:', userRole);
+      
+      // Store user data in localStorage for persistence
+      localStorage.setItem('user', JSON.stringify({
+        uid: userWithProfile.uid,
+        email: userWithProfile.email,
+        displayName: userWithProfile.displayName,
+        role: userRole
+      }));
+      console.log('🔍 Login - Stored user data in localStorage');
+      
+      setLoading(false);
+      console.log('🔍 Login - Login completed successfully, user should be redirected');
+      console.log('🔍 Login - Final state - currentUser:', !!userWithProfile, 'userRole:', userRole, 'loading:', false);
+      
       return result;
     } catch (error) {
       console.error('Error in login:', error);
@@ -210,7 +285,30 @@ export function AuthProvider({ children }) {
 
   // Logout function
   function logout() {
+    // Clear all user data
+    setCurrentUser(null);
+    setUserRole(null);
+    localStorage.removeItem('firebaseToken');
+    localStorage.removeItem('user');
+    localStorage.removeItem('userRole');
+    
+    console.log('🔑 User logged out, state cleared');
     return signOut(auth);
+  }
+
+  // Get Firebase ID token for API calls
+  async function getFirebaseToken() {
+    try {
+      if (currentUser) {
+        const token = await currentUser.getIdToken();
+        localStorage.setItem('firebaseToken', token);
+        return token;
+      }
+      return localStorage.getItem('firebaseToken');
+    } catch (error) {
+      console.error('Error getting Firebase token:', error);
+      return null;
+    }
   }
 
   // Get user role
@@ -234,28 +332,68 @@ export function AuthProvider({ children }) {
     return null;
   }
 
-  // Google authentication function using popup with redirect fallback
+  // Google authentication function with popup and redirect fallback
   async function signInWithGoogle(additionalData = {}) {
     try {
       const provider = new GoogleAuthProvider();
       
       // Add custom parameters to prevent repeated account selection
       provider.setCustomParameters({
-        prompt: 'consent' // This will show account selection but remember the choice
+        prompt: 'select_account' // This will show account selection but remember the choice
       });
       
       console.log('🔧 Starting Google authentication with provider:', provider);
       console.log('🔧 Additional data:', additionalData);
       
-      // Use redirect method to avoid popup issues
-      console.log('🔧 Using redirect method to avoid popup issues...');
+      // Store additional data for redirect fallback
+      if (additionalData.role) {
+        localStorage.setItem('googleAuthRole', additionalData.role);
+        localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
+      }
       
-      // Store the additional data for redirect
-      localStorage.setItem('googleAuthData', JSON.stringify(additionalData));
+      console.log('🔧 Attempting popup authentication...');
+      const result = await signInWithPopup(auth, provider);
       
-      // Use redirect method
-      await signInWithRedirect(auth, provider);
-      return { success: true, redirect: true };
+      // Process the user data immediately
+      const user = result.user;
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        const newUser = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          role: additionalData.role || 'student',
+          firstName: user.displayName?.split(' ')[0] || '',
+          lastName: user.displayName?.split(' ').slice(1).join(' ') || '',
+          createdAt: new Date(),
+          profilePictureUrl: user.photoURL || '',
+          ...additionalData
+        };
+        await setDoc(userRef, newUser);
+        console.log('Google user created in Firestore via popup');
+      } else {
+        console.log('Google user already exists in Firestore via popup');
+      }
+
+      // Get the Firebase ID token for backend authentication
+      const idToken = await user.getIdToken();
+      localStorage.setItem('firebaseToken', idToken);
+      
+      // Save to localStorage for persistence
+      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("userRole", additionalData.role || 'student');
+      
+      // Set user state immediately
+      const profileData = await fetchUserProfile(user.uid);
+      const userWithProfile = { ...user, ...profileData };
+      setCurrentUser(userWithProfile);
+      setUserRole(profileData?.role || additionalData.role || 'student');
+      setLoading(false);
+      
+      console.log('✅ Google popup authentication successful');
+      return { success: true, user: userWithProfile };
       
     } catch (error) {
       console.error('Google sign-in error:', error);
@@ -265,15 +403,22 @@ export function AuthProvider({ children }) {
         stack: error.stack
       });
       
-      // Handle specific errors
-      if (error.code === 'auth/popup-blocked') {
-        throw new Error('Popup was blocked by the browser. Please allow popups for this site and try again.');
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        throw new Error('Sign-in was cancelled. Please try again.');
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        throw new Error('Sign-in was cancelled. Please try again.');
-      } else if (error.message === 'Popup timeout') {
-        throw new Error('Sign-in timed out. Please try again.');
+      // Handle popup failures by using redirect
+      if (error.code === 'auth/popup-blocked' || 
+          error.code === 'auth/popup-closed-by-user' || 
+          error.code === 'auth/cancelled-popup-request') {
+        
+        console.log('🔄 Popup failed, trying redirect method...');
+        
+        try {
+          // Use redirect method as fallback
+          await signInWithRedirect(auth, provider);
+          // The page will redirect, so we don't need to return anything here
+          return { success: true, redirect: true };
+        } catch (redirectError) {
+          console.error('Redirect also failed:', redirectError);
+          throw new Error('Both popup and redirect methods failed. Please try again or check your browser settings.');
+        }
       } else if (error.code === 'auth/operation-not-allowed') {
         throw new Error('Google sign-in is not enabled. Please contact support.');
       } else if (error.code === 'auth/network-request-failed') {
@@ -288,18 +433,19 @@ export function AuthProvider({ children }) {
 
 
 
+
   // Handle Google redirect result
   useEffect(() => {
     const handleGoogleRedirect = async () => {
       try {
         const result = await getRedirectResult(auth);
-        if (result && result.user) {
-          console.log('🔧 Google redirect result:', result);
+        if (result) {
+          console.log('🔄 Google redirect result received:', result);
           
-          // Get stored additional data
+          // Get stored data from redirect
+          const storedRole = localStorage.getItem('googleAuthRole') || 'student';
           const storedData = localStorage.getItem('googleAuthData');
           const additionalData = storedData ? JSON.parse(storedData) : {};
-          localStorage.removeItem('googleAuthData');
           
           // Process the user data
           const user = result.user;
@@ -311,7 +457,7 @@ export function AuthProvider({ children }) {
               uid: user.uid,
               email: user.email,
               displayName: user.displayName,
-              role: additionalData.role || 'student',
+              role: storedRole,
               firstName: user.displayName?.split(' ')[0] || '',
               lastName: user.displayName?.split(' ').slice(1).join(' ') || '',
               createdAt: new Date(),
@@ -324,109 +470,60 @@ export function AuthProvider({ children }) {
             console.log('Google user already exists in Firestore via redirect');
           }
 
+          // Get the Firebase ID token for backend authentication
+          const idToken = await user.getIdToken();
+          localStorage.setItem('firebaseToken', idToken);
+          
           // Save to localStorage for persistence
           localStorage.setItem("user", JSON.stringify(user));
-          localStorage.setItem("userRole", additionalData.role || 'student');
+          localStorage.setItem("userRole", storedRole);
           
           // Set user state immediately
           const profileData = await fetchUserProfile(user.uid);
           const userWithProfile = { ...user, ...profileData };
           setCurrentUser(userWithProfile);
-          setUserRole(profileData?.role || additionalData.role || 'student');
+          setUserRole(profileData?.role || storedRole);
           setLoading(false);
           
-          console.log('User authenticated via redirect:', {
-            uid: userWithProfile.uid,
-            email: userWithProfile.email,
-            role: profileData?.role || additionalData.role || 'student'
-          });
+          // Clean up stored data
+          localStorage.removeItem('googleAuthRole');
+          localStorage.removeItem('googleAuthData');
           
-          // Redirect immediately based on role
-          const role = additionalData.role || 'student';
-          console.log('🚀 Redirecting to dashboard for role:', role);
-          
-          if (role === 'student') {
-            console.log('🎓 Redirecting to student dashboard');
-            window.location.href = '/student-dashboard';
-          } else if (role === 'alumni') {
-            console.log('👔 Redirecting to alumni dashboard');
-            window.location.href = '/alumni-dashboard';
-          } else {
-            console.log('🎓 Default redirect to student dashboard');
-            window.location.href = '/student-dashboard';
-          }
+          console.log('✅ Google redirect authentication successful');
         }
       } catch (error) {
         console.error('Error handling Google redirect:', error);
+        setLoading(false);
       }
     };
 
     handleGoogleRedirect();
   }, []);
 
-  // Handle auth state changes for persistence
+  // Initialize authentication state from localStorage on app start
   useEffect(() => {
-    let isMounted = true;
-    
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!isMounted) return;
-      
-      console.log('🔑 Auth state changed:', user ? `User: ${user.email}` : 'No user');
-      
+    const initializeAuth = async () => {
       try {
-        if (user) {
-          console.log("🔑 Already logged in:", user.email);
-          
-          // User is signed in - fetch profile and set state
-          try {
-            const profileData = await fetchUserProfile(user.uid);
-            if (isMounted) {
-              const userWithProfile = { ...user, ...profileData };
-              setCurrentUser(userWithProfile);
-              setUserRole(profileData?.role || 'student');
-              
-              // Save to localStorage for persistence
-              localStorage.setItem("user", JSON.stringify(user));
-              localStorage.setItem("userRole", profileData?.role || 'student');
-              
-              console.log('User authenticated and persisted:', {
-                uid: userWithProfile.uid,
-                email: userWithProfile.email,
-                role: profileData?.role || 'student'
-              });
-            }
-          } catch (error) {
-            console.error('Error fetching user profile:', error);
-            if (isMounted) {
-              setCurrentUser(user);
-              setUserRole('student');
-              localStorage.setItem("user", JSON.stringify(user));
-              localStorage.setItem("userRole", 'student');
-            }
-          }
+        const storedUser = localStorage.getItem('user');
+        const storedRole = localStorage.getItem('userRole');
+        
+        if (storedUser && storedRole) {
+          console.log('🔑 Restoring user from localStorage:', storedUser);
+          const userData = JSON.parse(storedUser);
+          setCurrentUser(userData);
+          setUserRole(storedRole);
+          console.log('🔑 User restored:', { uid: userData.uid, email: userData.email, role: storedRole });
         } else {
-          console.log("🚪 No user logged in");
-          // User is signed out - clear state and localStorage
-          if (isMounted) {
-            setCurrentUser(null);
-            setUserRole(null);
-            localStorage.removeItem("user");
-            localStorage.removeItem("userRole");
-          }
+          console.log('🔑 No stored user found');
         }
       } catch (error) {
-        console.error('Error in auth state change handler:', error);
+        console.error('Error initializing auth from localStorage:', error);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
     };
+
+    initializeAuth();
   }, []);
 
 
@@ -447,6 +544,7 @@ export function AuthProvider({ children }) {
     signup,
     login,
     logout,
+    getFirebaseToken,
     getUserRole,
     refreshUserRole,
     updateUserProfile,

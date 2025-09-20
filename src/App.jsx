@@ -11,7 +11,7 @@ import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import NotificationSettings from './pages/NotificationSettings.jsx';
 import Notifications from './pages/Notifications.jsx';
-import AlumniDashboard from './pages/AlumniDashboardNew.jsx';
+import AlumniDashboard from './pages/AlumniDashboard.jsx';
 import StudentDashboard from './pages/StudentDashboard.jsx';
 import Events from './pages/Events.jsx';
 import Forum from './pages/Forum.jsx';
@@ -20,10 +20,10 @@ import Messaging from './pages/Messaging.jsx';
 import Profile from './pages/Profile.jsx';
 import BrowseMentor from './pages/BrowseMentor.jsx';
 import StudentProfiles from './pages/StudentProfiles.jsx';
-import AuthDebugger from './components/AuthDebugger.jsx';
-import AuthDebugPanel from './components/AuthDebugPanel.jsx';
-import EnvironmentDiagnostic from './components/EnvironmentDiagnostic.jsx';
+import AdminVerification from './pages/AdminVerification.jsx';
 import { Debug400Errors } from './utils/debug400Errors';
+import { initializeConnectionMonitoring, cleanupConnectionMonitoring } from './utils/firestoreConnection';
+import FirestoreDebugger from './components/FirestoreDebugger';
 
 
 
@@ -46,6 +46,16 @@ function AppContent() {
       Debug400Errors.stopMonitoring();
     };
   }, []);
+
+  // Initialize Firestore connection monitoring
+  useEffect(() => {
+    initializeConnectionMonitoring();
+    console.log('🔍 Firestore connection monitoring enabled');
+    
+    return () => {
+      cleanupConnectionMonitoring();
+    };
+  }, []);
   const isLandingPage = location.pathname === '/';
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
 
@@ -62,8 +72,7 @@ function AppContent() {
 
   return (
     <div className="App">
-      <AuthDebugger />
-      <AuthDebugPanel />
+      <FirestoreDebugger />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
@@ -153,6 +162,13 @@ function AppContent() {
             </YouTubeStyleLayout>
           </ProtectedRoute>
         } />
+        <Route path="/admin-verification" element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <YouTubeStyleLayout currentPage={getCurrentPage()}>
+              <AdminVerification />
+            </YouTubeStyleLayout>
+          </ProtectedRoute>
+        } />
         
       </Routes>
     </div>
@@ -164,7 +180,6 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <PostsProvider>
-          <EnvironmentDiagnostic />
           <Router>
             <AppContent />
           </Router>

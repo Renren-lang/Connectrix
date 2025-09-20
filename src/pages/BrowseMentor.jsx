@@ -49,34 +49,17 @@ function BrowseMentor() {
         // Query users collection for all alumni users
         const mentorsRef = collection(db, 'users');
         
-        // Try the main query first (with orderBy - needs Firebase index)
-        // To fix "Expected type 'Qp'" error: Go to Firebase Console → Firestore → Indexes → 
-        // Create composite index: collection: 'users', fields: 'role' (ASC) + 'firstName' (ASC)
-        let querySnapshot;
-                try {
-          const q = query(
-            mentorsRef,
-          where('role', '==', 'alumni'),
-            orderBy('firstName', 'asc')
+        // Query users with role 'alumni' (simplified to avoid index issues)
+        const q = query(
+          mentorsRef,
+          where('role', '==', 'alumni')
         );
         
-          console.log('Executing main query with orderBy...');
-          querySnapshot = await getDocs(q);
-          console.log('Main query executed successfully, got', querySnapshot.docs.length, 'documents');
-        } catch (queryError) {
-          console.warn('Main query failed (likely missing index), falling back to basic query:', queryError);
-          console.log('💡 To fix this permanently, create a Firebase index for: role (ASC) + firstName (ASC)');
-          
-          // Fallback: query without orderBy, then sort in JavaScript
-          const fallbackQuery = query(
-            mentorsRef,
-            where('role', '==', 'alumni')
-          );
-          querySnapshot = await getDocs(fallbackQuery);
-          console.log('Fallback query executed, got', querySnapshot.docs.length, 'documents');
-        }
+        console.log('Executing query for alumni users...');
+        const querySnapshot = await getDocs(q);
+        console.log('Query executed successfully, got', querySnapshot.docs.length, 'documents');
         
-        // Convert docs to mentor data and filter for willing mentors
+        // Convert docs to mentor data
         let mentorsData = querySnapshot.docs
           .map(doc => {
           const data = doc.data();
@@ -89,23 +72,46 @@ function BrowseMentor() {
             mentees: 0,
             rating: 5.0,
             tags: data.skills ? data.skills.split(',').map(skill => skill.trim()) : [],
-            isWillingToMentor: data.willingToMentor !== undefined ? data.willingToMentor : true
+            isWillingToMentor: (() => {
+              // Check multiple possible field names for mentoring availability
+              const willingToMentor = data.willingToMentor === true;
+              const availableForMentoring = data.availableForMentoring === true;
+              const isWillingToMentor = data.isWillingToMentor === true;
+              const mentoringStatus = data.mentoringStatus === 'available' || data.mentoringStatus === 'willing';
+              const mentoringAvailable = data.mentoringAvailable === true;
+              const availableForMentorship = data.availableForMentorship === true;
+              
+              // Default to true if no explicit availability field is found
+              const hasExplicitField = data.hasOwnProperty('willingToMentor') || 
+                                     data.hasOwnProperty('availableForMentoring') || 
+                                     data.hasOwnProperty('isWillingToMentor') || 
+                                     data.hasOwnProperty('mentoringStatus') ||
+                                     data.hasOwnProperty('mentoringAvailable') ||
+                                     data.hasOwnProperty('availableForMentorship');
+              
+              const isAvailable = willingToMentor || availableForMentoring || isWillingToMentor || 
+                                mentoringStatus || mentoringAvailable || availableForMentorship;
+              
+              // If no explicit field is found, default to true (available)
+              return hasExplicitField ? isAvailable : true;
+            })()
             };
-          })
-          .filter(mentor => mentor.isWillingToMentor); // Filter for willing mentors
+          });
         
-        // If we used fallback query (no orderBy), sort in JavaScript
-        if (!querySnapshot.docs.length || mentorsData.length > 0) {
-          try {
-            mentorsData.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || ''));
-            console.log('Sorted mentors in JavaScript by firstName');
-          } catch (sortError) {
-            console.warn('JavaScript sorting failed:', sortError);
-            // Continue with unsorted data
-          }
+        // Sort mentors in JavaScript by firstName
+        try {
+          mentorsData.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || ''));
+          console.log('Sorted mentors in JavaScript by firstName');
+        } catch (sortError) {
+          console.warn('JavaScript sorting failed:', sortError);
+          // Continue with unsorted data
         }
         
         console.log('Fetched mentors:', mentorsData.length, mentorsData);
+        
+        if (mentorsData.length === 0) {
+          console.log('No alumni users found. This might be normal if no users have registered as alumni yet.');
+        }
         
         setMentors(mentorsData);
         setFilteredMentors(mentorsData);
@@ -116,10 +122,14 @@ function BrowseMentor() {
         
         // Provide helpful error messages
         let errorMessage = 'Failed to load mentors';
-        if (error.message.includes('Expected type')) {
-          errorMessage = 'Database query error - please contact support or refresh the page';
-        } else if (error.message.includes('permission')) {
-          errorMessage = 'Permission denied - please check your account status';
+        if (error.code === 'permission-denied') {
+          errorMessage = 'Permission denied - please check your account status and try logging in again';
+        } else if (error.code === 'unavailable') {
+          errorMessage = 'Service temporarily unavailable - please try again in a moment';
+        } else if (error.message.includes('Expected type')) {
+          errorMessage = 'Database query error - please refresh the page';
+        } else if (error.message.includes('network')) {
+          errorMessage = 'Network error - please check your connection';
         } else {
           errorMessage = `Failed to load mentors: ${error.message}`;
         }
@@ -554,6 +564,14 @@ function BrowseMentor() {
                         <span className={`mentor-tag ${mentor.isWillingToMentor ? 'mentor-available' : 'mentor-limited'}`}>
                           {mentor.isWillingToMentor ? 'Available for Mentoring' : 'Limited Availability'}
                         </span>
+                        {/* Debug info - remove in production */}
+                        {process.env.NODE_ENV === 'development' && (
+                          <small style={{fontSize: '10px', color: '#666', display: 'block'}}>
+                            Debug: willingToMentor={mentor.willingToMentor}, 
+                            availableForMentoring={mentor.availableForMentoring}, 
+                            isWillingToMentor={mentor.isWillingToMentor}
+                          </small>
+                        )}
                         </div>
                         <div className="mentor-actions">
                           <button 

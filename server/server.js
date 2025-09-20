@@ -74,13 +74,24 @@ app.use('/api', apiRateLimit);
 let firebaseConfig;
 if (process.env.NODE_ENV === 'production') {
   // Use environment variables in production
+  console.log('🔧 Production mode: Using environment variables for Firebase');
+  console.log('🔧 FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID ? 'Set' : 'Missing');
+  console.log('🔧 FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'Set' : 'Missing');
+  console.log('🔧 FIREBASE_PRIVATE_KEY:', process.env.FIREBASE_PRIVATE_KEY ? 'Set' : 'Missing');
+  
+  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
+    console.error('❌ Missing required Firebase environment variables');
+    console.error('Required: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY');
+    process.exit(1);
+  }
+  
   firebaseConfig = {
     credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
     }),
-    databaseURL: process.env.FIREBASE_DATABASE_URL || "https://cconnect-7f562-default-rtdb.firebaseio.com"
+    databaseURL: process.env.FIREBASE_DATABASE_URL || `https://${process.env.FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`
   };
 } else {
   // Use service account file in development
@@ -96,7 +107,15 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-admin.initializeApp(firebaseConfig);
+try {
+  admin.initializeApp(firebaseConfig);
+  console.log('✅ Firebase Admin SDK initialized successfully');
+  console.log('🔧 Database URL:', firebaseConfig.databaseURL);
+} catch (error) {
+  console.error('❌ Failed to initialize Firebase Admin SDK:', error);
+  console.error('❌ Error details:', error.message);
+  process.exit(1);
+}
 
 const db = admin.firestore();
 
@@ -300,6 +319,16 @@ app.get('/', (req, res) => {
 });
 
 // API Routes
+
+// Root endpoint for basic connectivity
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Connectrix API Server is running',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
 
 // Health check endpoint (no auth required)
 app.get('/api/health', (req, res) => {

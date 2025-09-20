@@ -7,6 +7,7 @@
 
 .main-content {
   padding: 2rem 0;
+  min-height: calc(100vh - 200px); /* Ensure enough height for content */
 }
 
 .container {
@@ -191,6 +192,7 @@
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
+  align-items: start; /* Ensure cards align to top */
 }
 
 .mentor-card {
@@ -199,6 +201,11 @@
   padding: 1.5rem;
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
   transition: transform 0.2s, box-shadow 0.2s;
+  min-height: 280px; /* Ensure minimum height */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between; /* Distribute content evenly */
+  overflow: visible; /* Ensure content is not clipped */
 }
 
 .mentor-card:hover {
@@ -273,6 +280,7 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
+  flex-grow: 1; /* Allow tags to take available space */
 }
 
 .mentor-tag {
@@ -297,6 +305,8 @@
 .mentor-actions {
   display: flex;
   gap: 0.75rem;
+  margin-top: auto; /* Push buttons to bottom */
+  padding-top: 1rem; /* Add some space above buttons */
 }
 
 .btn-view, .btn-request {

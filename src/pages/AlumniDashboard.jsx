@@ -1,150 +1,162 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { collection, query, where, getDocs, limit, orderBy, doc, updateDoc, addDoc, serverTimestamp, onSnapshot, getDoc, deleteDoc } from 'firebase/firestore';
+import { usePosts } from '../contexts/PostsContext';
+import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, orderBy, doc, getDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
 function AlumniDashboard() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { posts, createPost, likePost, addComment } = usePosts();
   const vantaRef = useRef(null);
-  const [activeFilter, setActiveFilter] = useState('All');
-  const [mentorshipRequests, setMentorshipRequests] = useState([
-    {
-      id: 1,
-      name: 'Alex Smith',
-      details: 'Computer Science \'24 • Interested in Software Engineering',
-      status: 'pending'
-    },
-    {
-      id: 2,
-      name: 'Rachel Green',
-      details: 'Marketing \'23 • Interested in Digital Marketing',
-      status: 'pending'
-    },
-    {
-      id: 3,
-      name: 'David Lee',
-      details: 'Business Administration \'24 • Interested in Finance',
-      status: 'pending'
-    }
-  ]);
 
+  // Helper function to calculate real time ago
+  const getTimeAgo = (date) => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return 'Just now';
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes}m ago`;
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours}h ago`;
+    } else if (diffInSeconds < 2592000) {
+      const days = Math.floor(diffInSeconds / 86400);
+      return `${days}d ago`;
+    } else {
+      const months = Math.floor(diffInSeconds / 2592000);
+      return `${months}mo ago`;
+    }
+  };
+
+  const [activeFilter, setActiveFilter] = useState('All');
+  const [suggestedMentors, setSuggestedMentors] = useState([]);
+  const [isLoadingMentors, setIsLoadingMentors] = useState(true);
+  const [mentorsError, setMentorsError] = useState(null);
   const [feedPosts, setFeedPosts] = useState([]);
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
-  const [isLoadingRequests, setIsLoadingRequests] = useState(true);
-  const [expandedComments, setExpandedComments] = useState({});
-  const [commentInputs, setCommentInputs] = useState({});
-  const [replyingTo, setReplyingTo] = useState({});
-  const [comments, setComments] = useState({});
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [commentText, setCommentText] = useState('');
+  const [showCommentInput, setShowCommentInput] = useState({});
+  const [unifiedFeed, setUnifiedFeed] = useState([]);
+  const [isLoadingFeed, setIsLoadingFeed] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
+  const [editContent, setEditContent] = useState('');
+  const [postComments, setPostComments] = useState({});
+  const [showReplyInput, setShowReplyInput] = useState({});
   const [postReactions, setPostReactions] = useState({});
   const [showReactionPicker, setShowReactionPicker] = useState({});
   const [reactionPickerPosition, setReactionPickerPosition] = useState({});
-  const [commentReactions, setCommentReactions] = useState({});
-  const [showCommentReactionPicker, setShowCommentReactionPicker] = useState({});
-  const [commentReactionPickerPosition, setCommentReactionPickerPosition] = useState({});
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [selectedPostForShare, setSelectedPostForShare] = useState(null);
-        
-  // Facebook-like reaction types
-  const reactionTypes = [
-    { type: 'like', emoji: '👍', label: 'Like', color: '#1877f2' },
-    { type: 'love', emoji: '❤️', label: 'Love', color: '#e74c3c' },
-    { type: 'laugh', emoji: '😂', label: 'Haha', color: '#f39c12' },
-    { type: 'wow', emoji: '😮', label: 'Wow', color: '#f1c40f' },
-    { type: 'sad', emoji: '😢', label: 'Sad', color: '#9b59b6' },
-    { type: 'angry', emoji: '😡', label: 'Angry', color: '#e67e22' }
-  ];
+  const [showCreatePostModal, setShowCreatePostModal] = useState(false);
+  const [createPostData, setCreatePostData] = useState({
+    content: '',
+    category: 'general',
+    privacy: 'public'
+  });
+  const [isPosting, setIsPosting] = useState(false);
 
-  // Fetch forum posts from students for alumni dashboard
-  useEffect(() => {
-    const fetchStudentForumPosts = async () => {
-      if (!currentUser) return;
+  // Fetch alumni posts from database
+  // Unified feed function that merges posts and threads with course-based suggestions
+  const fetchUnifiedFeed = async () => {
+    if (!currentUser) return;
+    
+    try {
+      setIsLoadingFeed(true);
       
-      try {
-        setIsLoadingPosts(true);
-        
-        // Fetch real forum posts from students
-        const forumRef = collection(db, 'forum-posts');
-        const q = query(
-          forumRef,
-          where('authorRole', '==', 'student'),
-          orderBy('createdAt', 'desc'),
-          limit(3)
-        );
-        
-        const querySnapshot = await getDocs(q);
-        const forumPosts = querySnapshot.docs.map(doc => {
+      // Fetch both forum posts and threads
+      const [postsSnapshot, threadsSnapshot] = await Promise.all([
+        getDocs(query(collection(db, 'forum-posts'), orderBy('createdAt', 'desc'), limit(20))),
+        getDocs(query(collection(db, 'forum-threads'), orderBy('createdAt', 'desc'), limit(20)))
+      ]);
+      
+      // Process posts
+      const posts = postsSnapshot.docs.map(doc => {
+        try {
           const data = doc.data();
           const timeAgo = data.createdAt ? 
-            Math.floor((new Date() - data.createdAt.toDate()) / (1000 * 60 * 60)) : 
-            Math.floor(Math.random() * 24);
+            getTimeAgo(data.createdAt.toDate()) : 
+            'Just now';
           
           return {
             id: doc.id,
-            avatar: data.authorName ? data.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'S',
-            name: data.authorName || 'Student',
-            meta: `${data.category || 'General'} • ${timeAgo} hours ago`,
+            type: 'post',
+            avatar: data.authorName ? data.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A',
+          name: data.authorName || 'User',
+          role: data.authorRole || 'alumni',
+          meta: `${data.category || 'General'} • ${timeAgo}`,
+          roleLabel: data.authorRole === 'alumni' ? 'Mentor' : data.authorRole === 'student' ? 'Student' : 'User',
             content: data.content || 'No content available',
-            badge: data.category === 'career' ? 'Career Advice' : 
-                   data.category === 'technical' ? 'Technical' : 
-                   data.category === 'general' ? 'General' : 'Forum Post',
-            badgeType: data.category === 'career' ? 'inquiry' : 
-                      data.category === 'technical' ? 'update' : 'job',
+            title: data.title || '',
             likes: data.likes || 0,
-            comments: data.replyCount || 0,
-            isLiked: false,
-            forumPostId: doc.id,
-            category: data.category
+            comments: data.comments || 0,
+            createdAt: data.createdAt,
+            authorId: data.authorId,
+            authorName: data.authorName,
+            authorPhoto: data.authorPhoto,
+            authorRole: data.authorRole,
+            category: data.category,
+            privacy: data.privacy
           };
-        });
-        
-        setFeedPosts(forumPosts);
-        console.log('Fetched student forum posts:', forumPosts.length);
-        console.log('Forum posts data:', forumPosts);
-        
-        // Fetch comments for each post
-        forumPosts.forEach(post => {
-          fetchCommentsForPost(post.id);
-        });
-      } catch (error) {
-        console.error('Error fetching student forum posts:', error);
-        // Fallback to empty array if there's an error
-        setFeedPosts([]);
-      } finally {
-        setIsLoadingPosts(false);
-      }
-    };
-
-    fetchStudentForumPosts();
-  }, [currentUser]);
-
-  // Load comments for existing posts when component mounts or posts change
-  useEffect(() => {
-    if (feedPosts.length > 0) {
-      feedPosts.forEach(post => {
-        // Only fetch if we don't already have comments for this post
-        if (!comments[post.id]) {
-          fetchCommentsForPost(post.id);
+        } catch (error) {
+          console.error('Error processing post:', doc.id, error);
+          return null;
         }
-        // Load reactions for each post
-        fetchPostReactions(post.id);
-      });
-    }
-  }, [feedPosts, currentUser]);
+      }).filter(Boolean);
 
-  // Load comment reactions when comments change
-  useEffect(() => {
-    Object.values(comments).forEach(postComments => {
-      if (postComments && postComments.length > 0) {
-        postComments.forEach(comment => {
-          if (!commentReactions[comment.id]) {
-            fetchCommentReactions(comment.id);
-          }
-        });
-      }
-    });
-  }, [comments, currentUser]);
+      // Process threads
+      const threads = threadsSnapshot.docs.map(doc => {
+        try {
+          const data = doc.data();
+          const timeAgo = data.createdAt ? 
+            getTimeAgo(data.createdAt.toDate()) : 
+            'Just now';
+          
+          return {
+            id: doc.id,
+            type: 'thread',
+            avatar: data.authorName ? data.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'A',
+            name: data.authorName || 'User',
+            role: data.authorRole || 'alumni',
+            meta: `Thread • ${timeAgo}`,
+            roleLabel: data.authorRole === 'alumni' ? 'Mentor' : data.authorRole === 'student' ? 'Student' : 'User',
+            content: data.content || 'No content available',
+            title: data.title || '',
+            likes: data.likes || 0,
+            comments: data.comments || 0,
+            createdAt: data.createdAt,
+            authorId: data.authorId,
+            authorName: data.authorName,
+            authorPhoto: data.authorPhoto,
+            authorRole: data.authorRole,
+            category: data.category,
+            privacy: data.privacy
+          };
+        } catch (error) {
+          console.error('Error processing thread:', doc.id, error);
+          return null;
+        }
+      }).filter(Boolean);
+
+      // Combine and sort by creation time
+      const combinedFeed = [...posts, ...threads].sort((a, b) => {
+        const aTime = a.createdAt?.toDate?.() || new Date(0);
+        const bTime = b.createdAt?.toDate?.() || new Date(0);
+        return bTime - aTime;
+      });
+
+      setUnifiedFeed(combinedFeed);
+      setFeedPosts(combinedFeed);
+    } catch (error) {
+      console.error('Error fetching unified feed:', error);
+    } finally {
+      setIsLoadingFeed(false);
+    }
+  };
 
   // Fetch reactions for a specific post
   const fetchPostReactions = async (postId) => {
@@ -183,112 +195,59 @@ function AlumniDashboard() {
     }
   };
 
-  // Fetch comments for a specific post
-  const fetchCommentsForPost = async (postId) => {
+  // Post creation functionality
+  const handleCreatePostSubmit = async () => {
+    if (!currentUser) {
+      alert('Please log in to create a post');
+      return;
+    }
+
+    if (!createPostData.content.trim()) {
+      alert('Please enter some content for your post');
+      return;
+    }
+
+    setIsPosting(true);
     try {
-      const commentsRef = collection(db, 'post-comments');
-      
-      // Try the indexed query first
-      try {
-      const q = query(
-        commentsRef,
-        where('postId', '==', postId),
-        orderBy('createdAt', 'asc')
-      );
-      
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const commentsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
-        }));
-        
-        setComments(prev => ({
-          ...prev,
-          [postId]: commentsData
-        }));
-          
-          // Auto-expand comments section if there are comments
-          if (commentsData.length > 0) {
-            setExpandedComments(prev => ({
-              ...prev,
-              [postId]: true
-            }));
-          }
-        });
-        
-        return unsubscribe;
-      } catch (indexError) {
-        // If index is not ready, use a fallback query without orderBy
-        console.warn('Index not ready, using fallback query:', indexError.message);
-        
-        const fallbackQuery = query(
-          commentsRef,
-          where('postId', '==', postId)
-        );
-        
-        const unsubscribe = onSnapshot(fallbackQuery, (snapshot) => {
-          const commentsData = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate?.() || new Date(doc.data().createdAt || 0)
-          })).sort((a, b) => a.createdAt - b.createdAt); // Sort in JavaScript
-          
-          setComments(prev => ({
-            ...prev,
-            [postId]: commentsData
-          }));
-          
-          // Auto-expand comments section if there are comments
-          if (commentsData.length > 0) {
-            setExpandedComments(prev => ({
-              ...prev,
-              [postId]: true
-            }));
-          }
+      const postData = {
+        content: createPostData.content.trim(),
+        category: createPostData.category,
+        userId: currentUser.uid,
+        authorId: currentUser.uid,
+        authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        authorPhoto: currentUser.photoURL || null,
+        authorRole: 'alumni',
+        privacy: createPostData.privacy
+      };
+
+      // Use the global posts context
+      await createPost(postData);
+
+      // Reset form
+      setCreatePostData({
+        content: '',
+        category: 'general',
+        privacy: 'public'
       });
-      
-      return unsubscribe;
-      }
+      setShowCreatePostModal(false);
+      alert('Post created successfully!');
     } catch (error) {
-      console.error('Error fetching comments for post:', postId, error);
+      console.error('Error creating post: ', error);
+      alert('Failed to create post. Please try again.');
+    } finally {
+      setIsPosting(false);
     }
   };
 
-  // Fetch mentorship requests from Firestore
+  // Load reactions for existing posts when component mounts or posts change
   useEffect(() => {
-    const fetchMentorshipRequests = async () => {
-      if (!currentUser) return;
-      
-      try {
-        setIsLoadingRequests(true);
-        
-        // Fetch mentorship requests where current user is the mentor
-        const requestsRef = collection(db, 'mentorship-requests');
-        const q = query(
-          requestsRef,
-          where('mentorId', '==', currentUser.uid),
-          orderBy('createdAt', 'desc'),
-          limit(10)
-        );
-        
-        const querySnapshot = await getDocs(q);
-        const requests = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        
-        setMentorshipRequests(requests);
-        console.log('Fetched mentorship requests:', requests.length);
-      } catch (error) {
-        console.error('Error fetching mentorship requests:', error);
-      } finally {
-        setIsLoadingRequests(false);
-      }
-    };
-
-    fetchMentorshipRequests();
-  }, [currentUser]);
+    if (feedPosts.length > 0) {
+      feedPosts.forEach(post => {
+        // Load reactions for each post
+        fetchPostReactions(post.id);
+      });
+    }
+  }, [feedPosts, currentUser, fetchPostReactions]);
 
   // Initialize Vanta.js background
   useEffect(() => {
@@ -302,12 +261,8 @@ function AlumniDashboard() {
         minWidth: 200.00,
         scale: 1.00,
         scaleMobile: 1.00,
-        color: 0x4361ee,
-        backgroundColor: 0x000000,
-        points: 10,
-        maxDistance: 20,
-        spacing: 15,
-        showDots: true
+        color: 0x3a82ff,
+        backgroundColor: 0x0a0a0a
       });
 
       return () => {
@@ -318,29 +273,20 @@ function AlumniDashboard() {
     }
   }, []);
 
-  const handleQuickAccessClick = (cardTitle) => {
-    switch (cardTitle) {
-      case 'Mentor Students':
-        navigate('/mentorship');
-        break;
-      case 'View Student Profiles':
-        navigate('/student-profiles');
-        break;
-      case 'Messages':
-        navigate('/messaging');
-        break;
-      case 'Post an Event/Opportunity':
-        navigate('/events');
-        break;
-      default:
-        alert(`Navigating to ${cardTitle} section`);
-    }
-  };
+  // Load unified feed when component mounts
+  useEffect(() => {
+    fetchUnifiedFeed();
+  }, [currentUser, fetchUnifiedFeed]);
 
-  const handleFilterChange = (filterType) => {
-    setActiveFilter(filterType);
-    console.log(`Filtering feed by: ${filterType}`);
-  };
+  // Reaction types
+  const reactionTypes = [
+    { type: 'like', emoji: '👍', label: 'Like' },
+    { type: 'love', emoji: '❤️', label: 'Love' },
+    { type: 'laugh', emoji: '😂', label: 'Haha' },
+    { type: 'wow', emoji: '😮', label: 'Wow' },
+    { type: 'sad', emoji: '😢', label: 'Sad' },
+    { type: 'angry', emoji: '😡', label: 'Angry' }
+  ];
 
   const handleReaction = async (postId, reactionType) => {
     if (!currentUser) {
@@ -356,530 +302,352 @@ function AlumniDashboard() {
       }
 
       console.log('Handling reaction:', { postId, reactionType, userId: currentUser.uid });
-      
-      // Debug log to see post structure
-      console.log('Post data for reaction:', {
-        id: post.id,
-        authorId: post.authorId,
-        content: post.content?.substring(0, 50),
-        hasAuthorId: !!post.authorId
-      });
 
       const reactionsRef = collection(db, 'forum-posts', postId, 'reactions');
-      const userReactionQuery = query(reactionsRef, where('userId', '==', currentUser.uid));
-      const userReactionSnapshot = await getDocs(userReactionQuery);
-
-      if (userReactionSnapshot.empty) {
+      
+      // Check if user already reacted
+      const existingReaction = postReactions[postId]?.userReaction;
+      
+      if (existingReaction === reactionType) {
+        // Remove reaction
+        const userReactionQuery = query(reactionsRef, where('userId', '==', currentUser.uid), where('type', '==', reactionType));
+        const existingReactions = await getDocs(userReactionQuery);
+        
+        if (!existingReactions.empty) {
+          const reactionDoc = existingReactions.docs[0];
+          await deleteDoc(doc(db, 'forum-posts', postId, 'reactions', reactionDoc.id));
+        }
+      } else {
+        // Remove existing reaction if any
+        if (existingReaction) {
+          const userReactionQuery = query(reactionsRef, where('userId', '==', currentUser.uid));
+          const existingReactions = await getDocs(userReactionQuery);
+          
+          for (const reactionDoc of existingReactions.docs) {
+            await deleteDoc(doc(db, 'forum-posts', postId, 'reactions', reactionDoc.id));
+          }
+        }
+        
         // Add new reaction
-        console.log('Adding new reaction');
         await addDoc(reactionsRef, {
           userId: currentUser.uid,
           type: reactionType,
           createdAt: serverTimestamp()
         });
-        
-        // Create notification for post author (only if authorId exists)
-        if (post.authorId) {
-          await createReactionNotification(post.authorId, postId, reactionType, post.content);
-        }
-      } else {
-        // Update existing reaction
-        const existingReaction = userReactionSnapshot.docs[0];
-        const existingType = existingReaction.data().type;
-        
-        if (existingType === reactionType) {
-          // Remove reaction if same type
-          console.log('Removing existing reaction');
-          await deleteDoc(existingReaction.ref);
-        } else {
-          // Update to new reaction type
-          console.log('Updating reaction type from', existingType, 'to', reactionType);
-          await updateDoc(existingReaction.ref, {
-            type: reactionType,
-            updatedAt: serverTimestamp()
-          });
-          
-          // Create notification for post author (only if authorId exists)
-          if (post.authorId) {
-            await createReactionNotification(post.authorId, postId, reactionType, post.content);
-          }
-        }
       }
 
-      console.log('Reaction handled successfully');
-      
+      // Create notification for post author
+      if (post.authorId !== currentUser.uid) {
+        await createReactionNotification(post.authorId, postId, reactionType, post.content);
+      }
+
     } catch (error) {
       console.error('Error handling reaction:', error);
-      alert('Failed to react to post. Please try again.');
     }
   };
 
   const createReactionNotification = async (authorId, postId, reactionType, postContent) => {
-    // Validate required data
-    if (!authorId || authorId === currentUser.uid) return; // Don't notify self or if no author
-    if (!postId || !reactionType || !postContent) {
-      console.warn('Missing required data for reaction notification:', { authorId, postId, reactionType, postContent });
-      return;
-    }
+    if (authorId === currentUser.uid) return; // Don't notify self
 
     try {
       const reactionEmoji = reactionTypes.find(r => r.type === reactionType)?.emoji || '👍';
       const reactionLabel = reactionTypes.find(r => r.type === reactionType)?.label || 'Like';
       
       const notification = {
-        recipientId: authorId,
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
-        type: 'forum-reaction',
-        title: `${reactionEmoji} New Reaction`,
-        message: `${currentUser.displayName || 'Someone'} reacted with ${reactionLabel} to your post "${postContent.substring(0, 50)}..."`,
-        data: {
-          postId: postId,
-          reactionType: reactionType,
-          postContent: postContent
-        },
-        read: false,
-        createdAt: serverTimestamp()
+        userId: authorId,
+        type: 'reaction',
+        title: `${currentUser.displayName || 'Someone'} reacted with ${reactionEmoji}`,
+        message: `${reactionLabel} your post: "${postContent.substring(0, 50)}${postContent.length > 50 ? '...' : ''}"`,
+        postId: postId,
+        fromUserId: currentUser.uid,
+        fromUserName: currentUser.displayName || 'Someone',
+        fromUserPhoto: currentUser.photoURL || null,
+        createdAt: serverTimestamp(),
+        read: false
       };
 
       await addDoc(collection(db, 'notifications'), notification);
-      console.log('Notification created successfully');
     } catch (error) {
       console.error('Error creating reaction notification:', error);
     }
   };
 
-  // Handle comment reactions
-  const handleCommentReaction = async (commentId, reactionType) => {
+  const handleSharePost = async (postId) => {
     if (!currentUser) {
-      alert('Please log in to react to comments');
+      alert('Please log in to share posts');
       return;
     }
 
     try {
-      console.log('Handling comment reaction:', { commentId, reactionType, userId: currentUser.uid });
+      // Create a shared post
+      const sharedPost = {
+        content: `Shared: ${feedPosts.find(p => p.id === postId)?.content || 'Post'}`,
+        category: 'shared',
+        userId: currentUser.uid,
+        authorId: currentUser.uid,
+        authorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        authorPhoto: currentUser.photoURL || null,
+        authorRole: 'alumni',
+        privacy: 'public',
+        originalPostId: postId,
+        createdAt: serverTimestamp()
+      };
 
-      const commentReactionsRef = collection(db, 'post-comments', commentId, 'reactions');
-      const userReactionQuery = query(commentReactionsRef, where('userId', '==', currentUser.uid));
-      const userReactionSnapshot = await getDocs(userReactionQuery);
+      await addDoc(collection(db, 'forum-posts'), sharedPost);
+      await fetchUnifiedFeed();
+      alert('Post shared successfully!');
+    } catch (error) {
+      console.error('Error sharing post:', error);
+      alert('Failed to share post. Please try again.');
+    }
+  };
 
-      if (userReactionSnapshot.empty) {
-        // Add new reaction
-        console.log('Adding new comment reaction');
-        await addDoc(commentReactionsRef, {
-          userId: currentUser.uid,
-          type: reactionType,
-          createdAt: serverTimestamp()
-        });
-      } else {
-        // Update existing reaction
-        const existingReaction = userReactionSnapshot.docs[0];
-        const existingType = existingReaction.data().type;
-        
-        if (existingType === reactionType) {
-          // Remove reaction if same type
-          console.log('Removing existing comment reaction');
-          await deleteDoc(existingReaction.ref);
-        } else {
-          // Update to new reaction type
-          console.log('Updating comment reaction type from', existingType, 'to', reactionType);
-          await updateDoc(existingReaction.ref, {
-            type: reactionType,
-            updatedAt: serverTimestamp()
-          });
+  const handleComment = async (postId) => {
+    if (!commentText || !commentText.trim()) {
+      alert('Please enter a comment');
+      return;
+    }
+
+    if (!currentUser) {
+      alert('Please log in to post a comment');
+      return;
+    }
+
+    // Find post in both feedPosts and unifiedFeed
+    const post = feedPosts.find(p => p.id === postId) || unifiedFeed.find(p => p.id === postId);
+    if (!post) {
+      console.error('Post not found:', postId);
+      alert('Post not found. Please refresh and try again.');
+      return;
+    }
+
+    try {
+      console.log('Posting comment for post:', postId);
+      console.log('Post authorId:', post.authorId);
+      console.log('Current user:', currentUser.uid);
+      
+      const commentData = {
+        postId: postId,
+        userId: currentUser.uid,
+        userName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        userPhoto: currentUser.photoURL || null,
+        content: commentText.trim(),
+        createdAt: serverTimestamp()
+      };
+
+      // Add comment to Firestore
+      await addDoc(collection(db, 'forum-posts', postId, 'comments'), commentData);
+      
+      // Update comment count
+      const postRef = doc(db, 'forum-posts', postId);
+      await updateDoc(postRef, {
+        comments: (post.comments || 0) + 1,
+        updatedAt: serverTimestamp()
+      });
+
+      // Create notification for post author
+      if (post.authorId && post.authorId !== currentUser.uid) {
+        try {
+          const notification = {
+            userId: post.authorId,
+            type: 'comment',
+            title: `${currentUser.displayName || 'Someone'} commented on your post`,
+            message: `"${commentText.substring(0, 50)}${commentText.length > 50 ? '...' : ''}"`,
+            postId: postId,
+            fromUserId: currentUser.uid,
+            fromUserName: currentUser.displayName || 'Someone',
+            fromUserPhoto: currentUser.photoURL || null,
+            createdAt: serverTimestamp(),
+            read: false
+          };
+
+          await addDoc(collection(db, 'notifications'), notification);
+        } catch (notificationError) {
+          console.warn('Failed to create notification:', notificationError);
+          // Don't fail the comment if notification fails
         }
       }
 
-      console.log('Comment reaction handled successfully');
+      // Clear comment input and hide input section
+      setCommentText('');
+      setShowCommentInput(prev => ({ ...prev, [postId]: false }));
       
-    } catch (error) {
-      console.error('Error handling comment reaction:', error);
-      alert('Failed to react to comment. Please try again.');
-    }
-  };
-
-  // Fetch comment reactions
-  const fetchCommentReactions = async (commentId) => {
-    try {
-      const commentReactionsRef = collection(db, 'post-comments', commentId, 'reactions');
-      const unsubscribe = onSnapshot(commentReactionsRef, (snapshot) => {
-        const reactionsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-
-        // Count reactions by type
-        const counts = {};
-        let userReaction = null;
-        let total = 0;
-
-        reactionsData.forEach(reaction => {
-          if (reaction.userId === currentUser?.uid) {
-            userReaction = reaction.type;
-          }
-          counts[reaction.type] = (counts[reaction.type] || 0) + 1;
-          total++;
-        });
-
-        setCommentReactions(prev => ({
-          ...prev,
-          [commentId]: {
-            counts,
-            userReaction,
-            total
-          }
-        }));
-      });
-
-      return unsubscribe;
-    } catch (error) {
-      console.error('Error fetching comment reactions:', error);
-    }
-  };
-
-  // Handle long press for reaction picker
-  const handleReactionLongPress = (postId, event) => {
-    event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    setReactionPickerPosition({
-      [postId]: {
-        x: rect.left + rect.width / 2,
-        y: rect.top - 80
-      }
-    });
-    setShowReactionPicker(prev => ({
-      ...prev,
-      [postId]: true
-    }));
-  };
-
-  // Handle reaction picker selection
-  const handleReactionSelect = (postId, reactionType, event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    event.nativeEvent.stopImmediatePropagation();
-    
-    // Handle the reaction first
-    handleReaction(postId, reactionType);
-    
-    // Hide picker after a short delay to ensure reaction is processed
-    setTimeout(() => {
-      setShowReactionPicker(prev => ({
-        ...prev,
-        [postId]: false
-      }));
-    }, 100);
-  };
-
-  // Hide reaction picker immediately when mouse leaves
-  const hideReactionPicker = (postId) => {
-    setShowReactionPicker(prev => ({
-      ...prev,
-      [postId]: false
-    }));
-  };
-
-  // Handle mouse enter on reaction picker to keep it open
-  const handleReactionPickerMouseEnter = (postId) => {
-    setShowReactionPicker(prev => ({
-      ...prev,
-      [postId]: true
-    }));
-  };
-
-  // Comment reaction handlers
-  const handleCommentReactionLongPress = (commentId, event) => {
-    event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    setCommentReactionPickerPosition({
-      [commentId]: {
-        x: rect.left + rect.width / 2,
-        y: rect.top - 80
-      }
-    });
-    setShowCommentReactionPicker(prev => ({
-      ...prev,
-      [commentId]: true
-    }));
-  };
-
-  const handleCommentReactionSelect = (commentId, reactionType, event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    event.nativeEvent.stopImmediatePropagation();
-    
-    // Handle the comment reaction
-    handleCommentReaction(commentId, reactionType);
-    
-    // Hide picker after a short delay
-    setTimeout(() => {
-      setShowCommentReactionPicker(prev => ({
-        ...prev,
-        [commentId]: false
-      }));
-    }, 100);
-  };
-
-  const hideCommentReactionPicker = (commentId) => {
-    setShowCommentReactionPicker(prev => ({
-      ...prev,
-      [commentId]: false
-    }));
-  };
-
-  const handleCommentReactionPickerMouseEnter = (commentId) => {
-    setShowCommentReactionPicker(prev => ({
-      ...prev,
-      [commentId]: true
-    }));
-  };
-
-  // Share post handlers
-  const handleSharePost = (post) => {
-    setSelectedPostForShare(post);
-    setShowShareModal(true);
-  };
-
-  const closeShareModal = () => {
-    setShowShareModal(false);
-    setSelectedPostForShare(null);
-  };
-
-  const copyPostLink = async () => {
-    if (!selectedPostForShare) return;
-    
-    try {
-      const postUrl = `${window.location.origin}/post/${selectedPostForShare.id}`;
-      await navigator.clipboard.writeText(postUrl);
-      alert('Post link copied to clipboard!');
-      closeShareModal();
-    } catch (error) {
-      console.error('Failed to copy link:', error);
-      alert('Failed to copy link. Please try again.');
-    }
-  };
-
-  const shareOnFacebook = () => {
-    if (!selectedPostForShare) return;
-    
-    const postUrl = `${window.location.origin}/post/${selectedPostForShare.id}`;
-    const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(postUrl)}`;
-    window.open(facebookUrl, '_blank', 'width=600,height=400');
-    closeShareModal();
-  };
-
-  const shareOnTwitter = () => {
-    if (!selectedPostForShare) return;
-    
-    const postUrl = `${window.location.origin}/post/${selectedPostForShare.id}`;
-    const text = `Check out this post: ${selectedPostForShare.content.substring(0, 100)}...`;
-    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(postUrl)}`;
-    window.open(twitterUrl, '_blank', 'width=600,height=400');
-    closeShareModal();
-  };
-
-  const shareOnLinkedIn = () => {
-    if (!selectedPostForShare) return;
-    
-    const postUrl = `${window.location.origin}/post/${selectedPostForShare.id}`;
-    const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(postUrl)}`;
-    window.open(linkedinUrl, '_blank', 'width=600,height=400');
-    closeShareModal();
-  };
-
-  const shareViaEmail = () => {
-    if (!selectedPostForShare) return;
-    
-    const postUrl = `${window.location.origin}/post/${selectedPostForShare.id}`;
-    const subject = `Check out this post from Connectrix`;
-    const body = `I found this interesting post and wanted to share it with you:\n\n"${selectedPostForShare.content}"\n\nView the full post: ${postUrl}`;
-    
-    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoUrl;
-    closeShareModal();
-  };
-
-  const handlePostAction = (postId, actionType) => {
-    if (actionType === 'like') {
-      handleReaction(postId, 'like');
-    } else if (actionType === 'comment') {
-      // Toggle comment section instead of navigating
-      setExpandedComments(prev => ({
-        ...prev,
-        [postId]: !prev[postId]
-      }));
-    } else if (actionType === 'share') {
-      const post = feedPosts.find(p => p.id === postId);
-      if (post) {
-        handleSharePost(post);
-      }
-    }
-  };
-
-  // Handle comment submission
-  const handleCommentSubmit = async (postId, commentText, parentCommentId = null) => {
-    if (!commentText.trim() || !currentUser) return;
-
-    try {
-      // Get user's actual name from their profile
-      const userRef = doc(db, 'users', currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      const userData = userSnap.exists() ? userSnap.data() : {};
+      // Refresh the feed to show the new comment
+      await fetchUnifiedFeed();
       
-      const authorName = userData.firstName && userData.lastName 
-        ? `${userData.firstName} ${userData.lastName}`
-        : userData.displayName || currentUser.displayName || currentUser.email?.split('@')[0] || 'Alumni';
+      console.log('Comment posted successfully');
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      
+      // Provide more specific error messages
+      if (error.code === 'permission-denied') {
+        alert('You do not have permission to post comments. Please check your account status.');
+      } else if (error.code === 'unavailable') {
+        alert('Service temporarily unavailable. Please try again in a moment.');
+      } else if (error.message.includes('network')) {
+        alert('Network error. Please check your connection and try again.');
+      } else {
+        alert('Failed to post comment. Please try again.');
+      }
+    }
+  };
 
-      const commentData = {
-        postId,
-        content: commentText.trim(),
-        authorId: currentUser.uid,
-        authorName: authorName,
-        authorRole: 'alumni',
-        parentCommentId: parentCommentId || null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+  const handleReply = async (postId, parentCommentId, replyText) => {
+    if (!replyText) {
+      alert('Please enter a reply');
+      return;
+    }
+
+    const post = feedPosts.find(p => p.id === postId);
+    if (!post) {
+      alert('Post not found');
+      return;
+    }
+
+    try {
+      console.log('Posting reply for post:', postId, 'parent comment:', parentCommentId);
+      
+      const replyData = {
+        postId: postId,
+        parentCommentId: parentCommentId,
+        userId: currentUser.uid,
+        userName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        userPhoto: currentUser.photoURL || null,
+        content: replyText.trim(),
+        createdAt: serverTimestamp()
       };
 
-      const commentsRef = collection(db, 'post-comments');
-      await addDoc(commentsRef, commentData);
-
-      // Clear comment input
-      setCommentInputs(prev => ({
-        ...prev,
-        [postId]: ''
-      }));
-
-      // Clear reply state
-      setReplyingTo(prev => ({
-        ...prev,
-        [postId]: null
-      }));
-
-      // Create notification for post author
-      const post = feedPosts.find(p => p.id === postId);
-      if (post && post.authorId && post.authorId !== currentUser.uid) {
-        await createCommentNotification(post.authorId, postId, currentUser);
-      }
-
-      console.log('Comment submitted successfully');
-    } catch (error) {
-      console.error('Error submitting comment:', error);
-      alert('Failed to submit comment. Please try again.');
-    }
-  };
-
-  // Create notification for comment
-  const createCommentNotification = async (recipientId, postId, commenter) => {
-    try {
-      // Get commenter's actual name
-      const userRef = doc(db, 'users', commenter.uid);
-      const userSnap = await getDoc(userRef);
-      const userData = userSnap.exists() ? userSnap.data() : {};
+      await addDoc(collection(db, 'forum-posts', postId, 'comments'), replyData);
       
-      const commenterName = userData.firstName && userData.lastName 
-        ? `${userData.firstName} ${userData.lastName}`
-        : userData.displayName || commenter.displayName || commenter.email?.split('@')[0] || 'Alumni';
-
-      const notificationsRef = collection(db, 'notifications');
-      await addDoc(notificationsRef, {
-        recipientId,
-        type: 'comment',
-        title: 'New Comment',
-        message: `${commenterName} commented on your post`,
-        postId,
-        commenterId: commenter.uid,
-        commenterName: commenterName,
-        read: false,
-        createdAt: serverTimestamp()
+      // Update comment count
+      const postRef = doc(db, 'forum-posts', postId);
+      await updateDoc(postRef, {
+        comments: (post.comments || 0) + 1
       });
+
+      setShowReplyInput(prev => ({ ...prev, [parentCommentId]: false }));
+      await fetchUnifiedFeed();
+      alert('Reply posted successfully!');
     } catch (error) {
-      console.error('Error creating comment notification:', error);
+      console.error('Error posting reply:', error);
+      alert('Failed to post reply. Please try again.');
     }
   };
 
-  // Handle reply to comment
-  const handleReplyToComment = (postId, commentId, commenterName) => {
-    setReplyingTo(prev => ({
-      ...prev,
-      [postId]: commentId
-    }));
-    setCommentInputs(prev => ({
-      ...prev,
-      [postId]: `@${commenterName} `
-    }));
-  };
+  const handleEditPost = async (postId) => {
+    if (!editContent.trim()) {
+      alert('Please enter some content for your post.');
+      return;
+    }
 
-  // Handle comment input change
-  const handleCommentInputChange = (postId, value) => {
-    setCommentInputs(prev => ({
-      ...prev,
-      [postId]: value
-    }));
-  };
-
-  const handleMentorshipRequest = async (requestId, action) => {
     try {
-      const request = mentorshipRequests.find(r => r.id === requestId);
-      if (!request) {
-        console.error('Request not found');
+      const postRef = doc(db, 'forum-posts', postId);
+      await updateDoc(postRef, {
+        content: editContent.trim(),
+        updatedAt: serverTimestamp()
+      });
+      
+      setEditingPost(null);
+      setEditContent('');
+      await fetchUnifiedFeed();
+      alert('Post updated successfully!');
+    } catch (error) {
+      console.error('Error updating post:', error);
+      alert('Failed to update post. Please try again.');
+    }
+  };
+
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm('Are you sure you want to delete this post?')) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'forum-posts', postId));
+      await fetchUnifiedFeed();
+      alert('Post deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting post:', error);
+      alert('Failed to delete post. Please try again.');
+    }
+  };
+
+  const handleMentorshipRequest = async (mentorId) => {
+    if (!currentUser) {
+      alert('Please log in to send a mentorship request.');
+      return;
+    }
+
+    try {
+      // Find the mentor data
+      const mentor = suggestedMentors.find(m => m.id === mentorId);
+      if (!mentor) {
+        alert('Mentor not found');
         return;
       }
 
-      // Update the request in Firestore
-      const requestRef = doc(db, 'mentorship-requests', requestId);
-      await updateDoc(requestRef, {
-        status: action === 'accept' ? 'accepted' : 'declined',
-        updatedAt: serverTimestamp()
-      });
-
-      // Create notification for the student
-      const notification = {
-        recipientId: request.studentId,
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Alumni',
-        type: 'mentorship-response',
-        title: action === 'accept' ? 'Mentorship Request Accepted!' : 'Mentorship Request Declined',
-        message: action === 'accept' 
-          ? `${currentUser.displayName || 'An alumni'} has accepted your mentorship request. You can now start messaging them!`
-          : `${currentUser.displayName || 'An alumni'} has declined your mentorship request.`,
-        data: {
-          requestId: requestId,
-          mentorId: currentUser.uid,
-          mentorName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Alumni',
-          action: action === 'accept' ? 'accepted' : 'declined'
-        },
-        read: false,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+      console.log('Creating mentorship request for mentor:', mentorId);
+      
+      // Create mentorship request
+      const requestData = {
+        studentId: currentUser.uid,
+        studentName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Student',
+        studentEmail: currentUser.email,
+        mentorId: mentorId,
+        mentorName: mentor.name,
+        status: 'pending',
+        message: `Hi ${mentor.name}, I would like to connect with you for mentorship.`,
+        createdAt: serverTimestamp()
       };
 
-      // Add notification to Firestore
+      await addDoc(collection(db, 'mentorship-requests'), requestData);
+      
+      // Create notification for mentor
+      const notification = {
+        userId: mentorId,
+        type: 'mentorship_request',
+        title: 'New Mentorship Request',
+        message: `${currentUser.displayName || 'A student'} wants to connect with you for mentorship.`,
+        fromUserId: currentUser.uid,
+        fromUserName: currentUser.displayName || 'Student',
+        fromUserPhoto: currentUser.photoURL || null,
+        createdAt: serverTimestamp(),
+        read: false
+      };
+
       await addDoc(collection(db, 'notifications'), notification);
-      console.log('Notification created for student:', request.studentId);
-
-      // Update local state
-      setMentorshipRequests(prevRequests =>
-        prevRequests.map(req =>
-          req.id === requestId
-            ? { ...req, status: action === 'accept' ? 'accepted' : 'declined' }
-            : req
-        )
-      );
-
-      const actionText = action === 'accept' ? 'accepted' : 'declined';
-      alert(`Mentorship request from ${request.name} ${actionText}! The student has been notified.`);
+      
+      alert('Mentorship request sent successfully!');
     } catch (error) {
-      console.error('Error updating mentorship request:', error);
-      alert('Failed to update mentorship request. Please try again.');
+      console.error('Error sending mentorship request:', error);
+      alert('Failed to send mentorship request. Please try again.');
     }
   };
 
+  const getBadgeClass = (type) => {
+    switch (type) {
+      case 'job':
+        return 'badge-job';
+      case 'tip':
+        return 'badge-tip';
+      case 'event':
+        return 'badge-event';
+      default:
+        return '';
+    }
+  };
 
-
-  const handleViewAllClick = (e) => {
-    e.preventDefault();
-    alert('View all mentorship requests page would open here');
+  const getBadgeText = (type) => {
+    switch (type) {
+      case 'job':
+        return 'Job';
+      case 'tip':
+        return 'Tip';
+      case 'event':
+        return 'Event';
+      default:
+        return '';
+    }
   };
 
   return (
@@ -906,7 +674,7 @@ function AlumniDashboard() {
       
       {/* Main Dashboard Content */}
       <main className="dashboard" style={{ position: 'relative', zIndex: 1 }}>
-        <div className="dashboard-container">
+        <div className="facebook-dashboard-container">
           {/* Welcome Section */}
           <div className="welcome-section">
             <h1 className="welcome-title">
@@ -915,430 +683,513 @@ function AlumniDashboard() {
                              : currentUser?.displayName || 
                              (currentUser?.email ? currentUser.email.split('@')[0] : 'User')}!
             </h1>
-            <p className="welcome-subtitle">Here's what's happening with your mentorship activities today.</p>
-            
-
+            <p className="welcome-subtitle">Here's what's happening with your mentorship network today.</p>
           </div>
 
-          {/* Quick Access Cards */}
-          <section className="quick-access">
-            <h2 className="section-title">Quick Access</h2>
-            <div className="quick-access-grid">
-              <div className="quick-access-card" onClick={() => handleQuickAccessClick('Mentor Students')}>
-                <div className="card-icon mentor">
-                  <i className="fas fa-chalkboard-teacher"></i>
+          {/* Facebook-style Layout */}
+          <div className="facebook-layout">
+            {/* Main Content - Forum Feed */}
+            <div className="facebook-main-content">
+              {/* What's on your mind? Section */}
+              <div className="whats-on-mind-card">
+                <div className="post-creation-header">
+                  <div className="post-author">
+                    <div className="post-avatar">
+                      {currentUser?.photoURL ? (
+                        <img src={currentUser.photoURL} alt="Profile" />
+                      ) : (
+                        <div className="post-initials">
+                          {currentUser?.displayName ? currentUser.displayName[0] : 'U'}
+                        </div>
+                      )}
+                    </div>
+                    <div className="post-input">
+                    <input 
+                      id="create-post-trigger"
+                      name="createPostTrigger"
+                      type="text" 
+                      placeholder="What's on your mind?"
+                      className="post-text-input"
+                      onClick={() => setShowCreatePostModal(true)}
+                        readOnly
+                      />
+                    </div>
+                  </div>
                 </div>
-                <h3 className="card-title">Mentor Students</h3>
-                <p className="card-description">Connect with students seeking guidance in your field</p>
+                <div className="post-creation-options">
+                  <button 
+                    className="post-option live-video"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-video"></i>
+                    Live video
+                  </button>
+                  <button 
+                    className="post-option photo-video"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-image"></i>
+                    Photo/video
+                  </button>
+                  <button 
+                    className="post-option feeling"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-smile"></i>
+                    Feeling/activity
+                  </button>
+                </div>
               </div>
-              <div className="quick-access-card" onClick={() => {
-                console.log('Forum clicked!');
-                console.log('Navigating to /forum');
-                navigate('/forum');
-              }}>
-                <div className="card-icon forum">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" title="Forum Discussions">
-                    <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
-                  </svg>
-                </div>
-                <h3 className="card-title">Forum Discussions</h3>
-                <p className="card-description">Join discussions and connect with the community</p>
+
+              {/* Recent Student Activity - Facebook Style */}
+              <div className="posts-feed">
+                <h2 className="section-title">Recent Student Activity</h2>
+                {feedPosts.length === 0 ? (
+                  <div className="no-posts">
+                    <p>No posts yet. Be the first to share something!</p>
+                  </div>
+                ) : (
+                  <div className="posts-list">
+                    {feedPosts.map((post) => (
+                      <div key={post.id} className="post-card facebook-post-card">
+                        <div className="post-header">
+                          <div className="post-author-info">
+                            <div className="post-author-avatar">
+                              {post.authorPhoto ? (
+                                <img src={post.authorPhoto} alt="Profile" />
+                              ) : (
+                                <div className="post-initials">
+                                  {post.authorName ? post.authorName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U'}
+                                </div>
+                              )}
+                            </div>
+                            <div className="post-author-details">
+                              <span className="post-author-name">{post.authorName}</span>
+                              <div className="post-meta">
+                                <span className="post-time">{post.createdAt ? getTimeAgo(post.createdAt.toDate()) : 'Recently'}</span>
+                                <span className="post-role">{post.authorRole || 'student'}</span>
+                                <i className="fas fa-globe"></i>
+                              </div>
+                            </div>
+                          </div>
+                          <button className="post-options-btn">
+                            <i className="fas fa-ellipsis-h"></i>
+                          </button>
+                        </div>
+                        <div className="post-content">
+                          <p>{post.content}</p>
+                        </div>
+                        <div className="post-actions">
+                          <button 
+                            className="post-action"
+                            onClick={() => handleReaction(post.id, 'like')}
+                          >
+                            <i className="fas fa-thumbs-up"></i>
+                            Like ({postReactions[post.id]?.counts?.like || 0})
+                          </button>
+                          <button 
+                            className="post-action"
+                            onClick={() => setShowCommentInput(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
+                          >
+                            <i className="fas fa-comment"></i>
+                            Comment ({post.comments || 0})
+                          </button>
+                          <button 
+                            className="post-action"
+                            onClick={() => handleSharePost(post.id)}
+                          >
+                            <i className="fas fa-share"></i>
+                            Share
+                          </button>
+                        </div>
+                        
+                        {/* Comment Input */}
+                        {showCommentInput[post.id] && (
+                          <div className="comment-input-section">
+                            <div className="comment-input">
+                              <div className="comment-avatar">
+                                {currentUser?.photoURL ? (
+                                  <img src={currentUser.photoURL} alt="Profile" />
+                                ) : (
+                                  <div className="comment-initials">
+                                    {currentUser?.displayName?.charAt(0) || 'U'}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="comment-input-field">
+                                <input
+                                  type="text"
+                                  placeholder="Write a comment..."
+                                  value={commentText}
+                                  onChange={(e) => setCommentText(e.target.value)}
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleComment(post.id);
+                                    }
+                                  }}
+                                />
+                                <button 
+                                  className="comment-submit-btn"
+                                  onClick={() => handleComment(post.id)}
+                                >
+                                  <i className="fas fa-paper-plane"></i>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="quick-access-card" onClick={() => handleQuickAccessClick('Messages')}>
-                <div className="card-icon messages">
-                  <i className="fas fa-comments"></i>
+
+              {/* Open Forum Section */}
+              <section className="open-forum">
+            <div className="forum-header">
+              <h2 className="section-title">Open Forum</h2>
+              <button 
+                className="view-all-btn"
+                onClick={() => navigate('/forum')}
+              >
+                View All Posts <i className="fas fa-arrow-right"></i>
+              </button>
+            </div>
+            <div className="feed-container">
+              {/* Post Creation Interface */}
+              <div className="post-creation-card">
+                <div className="post-creation-header">
+                  <div className="post-creation-avatar">
+                    {currentUser?.photoURL ? (
+                      <img 
+                        src={currentUser.photoURL} 
+                        alt="Profile" 
+                        className="creation-profile-image"
+                      />
+                    ) : currentUser?.profilePictureBase64 ? (
+                      <img 
+                        src={currentUser.profilePictureBase64} 
+                        alt="Profile" 
+                        className="creation-profile-image"
+                      />
+                    ) : (
+                      <div className="creation-profile-initial">
+                        {currentUser?.displayName?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
+                      </div>
+                    )}
+                  </div>
+                  <div 
+                    className="post-creation-input"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    What's on your mind?
+                  </div>
                 </div>
-                <h3 className="card-title">Messages</h3>
-                <p className="card-description">Check your conversations with students and alumni</p>
+                
+                <div className="post-creation-separator"></div>
+                
+                <div className="post-creation-actions">
+                  <button 
+                    className="creation-action-btn"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-video"></i>
+                    <span>Live video</span>
+                  </button>
+                  <button 
+                    className="creation-action-btn"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-image"></i>
+                    <span>Photo/video</span>
+                  </button>
+                  <button 
+                    className="creation-action-btn"
+                    onClick={() => setShowCreatePostModal(true)}
+                  >
+                    <i className="fas fa-smile"></i>
+                    <span>Feeling/activity</span>
+                  </button>
+                </div>
               </div>
-              <div className="quick-access-card" onClick={() => handleQuickAccessClick('Post an Event/Opportunity')}>
-                <div className="card-icon post">
-                  <i className="fas fa-plus-circle"></i>
-                </div>
-                <h3 className="card-title">Post an Event/Opportunity</h3>
-                <p className="card-description">Share events, job openings, or opportunities</p>
+
+              {/* Unified Feed */}
+              <div className="unified-feed">
+                {isLoadingFeed ? (
+                  <div className="loading-container">
+                    <div className="loading-spinner"></div>
+                    <p>Loading posts...</p>
+                  </div>
+                ) : unifiedFeed.length === 0 ? (
+                  <div className="no-posts">
+                    <div className="no-posts-icon">
+                      <i className="fas fa-comments"></i>
+                    </div>
+                    <h3>No posts yet</h3>
+                    <p>Be the first to share something in the forum!</p>
+                  </div>
+                ) : (
+                  <div className="feed-posts">
+                    {unifiedFeed.map((item) => (
+                      <div key={item.id} className="feed-post">
+                        <div className="post-header">
+                          <div className="post-author">
+                            <div className="post-avatar">
+                              {item.authorPhoto ? (
+                                <img src={item.authorPhoto} alt="Profile" />
+                              ) : (
+                                <div className="post-initials">
+                                  {item.avatar}
+                                </div>
+                              )}
+                            </div>
+                            <div className="post-author-info">
+                              <div className="post-author-name">
+                                {item.name}
+                                {item.roleLabel && (
+                                  <span className={`role-badge ${item.roleLabel.toLowerCase()}`}>
+                                    {item.roleLabel}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="post-meta">
+                                <span className="post-time">{item.meta}</span>
+                                <i className="fas fa-globe"></i>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="post-options">
+                            <button className="post-option-btn">
+                              <i className="fas fa-ellipsis-h"></i>
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="post-content">
+                          <p>{item.content}</p>
+                        </div>
+                        
+                        <div className="post-actions">
+                          <div className="post-reactions">
+                            <button 
+                              className={`reaction-btn ${postReactions[item.id]?.userReaction === 'like' ? 'active' : ''}`}
+                              onClick={() => handleReaction(item.id, 'like')}
+                            >
+                              <i className="fas fa-thumbs-up"></i>
+                              <span>{postReactions[item.id]?.counts?.like || 0}</span>
+                            </button>
+                            <button 
+                              className={`reaction-btn ${postReactions[item.id]?.userReaction === 'love' ? 'active' : ''}`}
+                              onClick={() => handleReaction(item.id, 'love')}
+                            >
+                              <i className="fas fa-heart"></i>
+                              <span>{postReactions[item.id]?.counts?.love || 0}</span>
+                            </button>
+                            <button 
+                              className={`reaction-btn ${postReactions[item.id]?.userReaction === 'laugh' ? 'active' : ''}`}
+                              onClick={() => handleReaction(item.id, 'laugh')}
+                            >
+                              <i className="fas fa-laugh"></i>
+                              <span>{postReactions[item.id]?.counts?.laugh || 0}</span>
+                            </button>
+                          </div>
+                          
+                          <div className="post-interactions">
+                            <button 
+                              className="interaction-btn"
+                              onClick={() => setShowCommentInput(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                            >
+                              <i className="fas fa-comment"></i>
+                              <span>Comment</span>
+                            </button>
+                            <button 
+                              className="interaction-btn"
+                              onClick={() => handleSharePost(item.id)}
+                            >
+                              <i className="fas fa-share"></i>
+                              <span>Share</span>
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Comment Input */}
+                        {showCommentInput[item.id] && (
+                          <div className="comment-input-section">
+                            <div className="comment-input">
+                              <div className="comment-avatar">
+                                {currentUser?.photoURL ? (
+                                  <img src={currentUser.photoURL} alt="Profile" />
+                                ) : (
+                                  <div className="comment-initials">
+                                    {currentUser?.displayName?.charAt(0) || 'U'}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="comment-input-field">
+                                <input
+                                  type="text"
+                                  placeholder="Write a comment..."
+                                  value={commentText}
+                                  onChange={(e) => setCommentText(e.target.value)}
+                                  onKeyPress={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleComment(item.id);
+                                    }
+                                  }}
+                                />
+                                <button 
+                                  className="comment-submit-btn"
+                                  onClick={() => handleComment(item.id)}
+                                >
+                                  <i className="fas fa-paper-plane"></i>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </section>
+            </div>
 
-          {/* Activity Feed */}
-          <section className="activity-feed">
-            <h2 className="section-title">Activity Feed</h2>
-            <div className="feed-container">
-              <div className="feed-header">
-                <h3>Recent Student Activities</h3>
-                <div className="feed-filters">
-                  {['All', 'Inquiries', 'Updates', 'Job Requests'].map(filter => (
-                    <button
-                      key={filter}
-                      className={`filter-btn ${activeFilter === filter ? 'active' : ''}`}
-                      onClick={() => handleFilterChange(filter)}
-                    >
-                      {filter}
-                    </button>
+            {/* Sidebar */}
+            <div className="facebook-sidebar">
+              {/* Quick Access */}
+              <div className="sidebar-section">
+                <h3 className="sidebar-title">Quick Access</h3>
+                <div className="quick-access-grid">
+                  <button 
+                    className="quick-access-card"
+                    onClick={() => navigate('/mentorship')}
+                  >
+                    <div className="quick-access-icon">
+                      <i className="fas fa-users"></i>
+                    </div>
+                    <span>Mentorship</span>
+                  </button>
+                  <button 
+                    className="quick-access-card"
+                    onClick={() => navigate('/events')}
+                  >
+                    <div className="quick-access-icon">
+                      <i className="fas fa-calendar"></i>
+                    </div>
+                    <span>Events</span>
+                  </button>
+                  <button 
+                    className="quick-access-card"
+                    onClick={() => navigate('/messaging')}
+                  >
+                    <div className="quick-access-icon">
+                      <i className="fas fa-comments"></i>
+                    </div>
+                    <span>Messages</span>
+                  </button>
+                  <button 
+                    className="quick-access-card"
+                    onClick={() => navigate('/profile')}
+                  >
+                    <div className="quick-access-icon">
+                      <i className="fas fa-user"></i>
+                    </div>
+                    <span>Profile</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Suggested Mentors */}
+              <div className="sidebar-section">
+                <h3 className="sidebar-title">Suggested Mentors</h3>
+                <div className="suggested-mentors">
+                  {suggestedMentors.slice(0, 3).map((mentor) => (
+                    <div key={mentor.id} className="mentor-card">
+                      <div className="mentor-avatar">
+                        <div className="mentor-initials">{mentor.avatar}</div>
+                      </div>
+                      <div className="mentor-info">
+                        <div className="mentor-name">{mentor.name}</div>
+                        <div className="mentor-meta">{mentor.meta}</div>
+                      </div>
+                      <button 
+                        className="mentor-connect-btn"
+                        onClick={() => handleMentorshipRequest(mentor.id)}
+                      >
+                        Connect
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
-              <div className="feed-posts">
-                {isLoadingPosts ? (
-                  <div className="loading-state">
-                    <div className="loading-spinner"></div>
-                    <p>Loading student activities...</p>
-                  </div>
-                ) : feedPosts.length > 0 ? (
-                  feedPosts.map(post => (
-                  <div key={post.id} className="feed-post">
-                    <div className="post-header">
-                      <div className="post-avatar">{post.avatar}</div>
-                      <div className="post-user">
-                        <div className="post-name">{post.name}</div>
-                        <div className="post-meta">{post.meta}</div>
-                      </div>
-                      <div className={`post-badge badge-${post.badgeType}`}>
-                        {post.badge}
-                      </div>
-                    </div>
-                    <div className="post-content">
-                      {post.content}
-                    </div>
-                    <div className="post-actions">
-                      <div className="action-buttons">
-                        <button 
-                          className={`action-btn like-btn ${postReactions[post.id]?.userReaction ? 'reacted' : ''}`}
-                          onMouseDown={(e) => handleReactionLongPress(post.id, e)}
-                          onTouchStart={(e) => handleReactionLongPress(post.id, e)}
-                          onMouseLeave={() => hideReactionPicker(post.id)}
-                        >
-                          <i className={`fas fa-thumbs-up ${postReactions[post.id]?.userReaction === 'like' ? 'active' : ''}`}></i>
-                          <span>
-                            {postReactions[post.id]?.userReaction ? 
-                              reactionTypes.find(r => r.type === postReactions[post.id].userReaction)?.emoji : 
-                              'Like'
-                            }
-                          </span>
-                          {postReactions[post.id]?.total > 0 && (
-                            <span className="reaction-count">{postReactions[post.id].total}</span>
-                          )}
-                        </button>
-                        <button 
-                          className="action-btn"
-                        onClick={() => handlePostAction(post.id, 'comment')}
-                      >
-                        <i className="far fa-comment"></i>
-                          Comment
-                        </button>
-                        <button 
-                          className="action-btn"
-                        onClick={() => handlePostAction(post.id, 'share')}
-                      >
-                        <i className="far fa-share"></i>
-                          Share
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Facebook-style Reaction Picker */}
-                    {showReactionPicker[post.id] && (
-                      <div 
-                        className="reaction-picker"
-                        style={{
-                          position: 'fixed',
-                          left: `${reactionPickerPosition[post.id]?.x - 60}px`,
-                          top: `${reactionPickerPosition[post.id]?.y}px`,
-                          zIndex: 1000
-                        }}
-                        onMouseEnter={() => handleReactionPickerMouseEnter(post.id)}
-                        onMouseLeave={() => hideReactionPicker(post.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                      >
-                        <div className="reaction-picker-content">
-                          {reactionTypes.map((reaction, index) => (
-                            <button
-                              key={reaction.type}
-                              className="reaction-option"
-                              onClick={(e) => handleReactionSelect(post.id, reaction.type, e)}
-                              style={{
-                                animationDelay: `${index * 0.1}s`
-                              }}
-                            >
-                              <span className="reaction-emoji">{reaction.emoji}</span>
-                              <span className="reaction-label">{reaction.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Comments Section - Show if expanded OR if there are comments */}
-                    {(expandedComments[post.id] || (comments[post.id] && comments[post.id].length > 0)) && (
-                      <div className="comments-section">
-                        {/* Comments List */}
-                        <div className="comments-list">
-                          {comments[post.id]?.map(comment => (
-                            <div key={comment.id} className="comment-item">
-                              <div className="comment-avatar">
-                                {comment.authorName ? comment.authorName.split(' ').map(n => n[0]).join('') : 'U'}
-                              </div>
-                              <div className="comment-content">
-                                <div className="comment-header">
-                                  <span className="comment-author">{comment.authorName}</span>
-                                  <span className="comment-time">
-                                    {comment.createdAt ? 
-                                      new Date(comment.createdAt).toLocaleDateString() : 
-                                      'Just now'
-                                    }
-                                  </span>
-                                </div>
-                                <div className="comment-text">{comment.content}</div>
-                                <div className="comment-actions">
-                                  <button 
-                                    className={`comment-reaction-btn ${commentReactions[comment.id]?.userReaction ? 'reacted' : ''}`}
-                                    onMouseDown={(e) => handleCommentReactionLongPress(comment.id, e)}
-                                    onTouchStart={(e) => handleCommentReactionLongPress(comment.id, e)}
-                                    onMouseLeave={() => hideCommentReactionPicker(comment.id)}
-                                  >
-                                    <i className={`fas fa-thumbs-up ${commentReactions[comment.id]?.userReaction === 'like' ? 'active' : ''}`}></i>
-                                    <span>
-                                      {commentReactions[comment.id]?.userReaction ? 
-                                        reactionTypes.find(r => r.type === commentReactions[comment.id].userReaction)?.emoji : 
-                                        'Like'
-                                      }
-                                    </span>
-                                    {commentReactions[comment.id]?.total > 0 && (
-                                      <span className="reaction-count">{commentReactions[comment.id].total}</span>
-                                    )}
-                                  </button>
-                                  <button 
-                                    className="reply-btn"
-                                    onClick={() => handleReplyToComment(post.id, comment.id, comment.authorName)}
-                                  >
-                                    Reply
-                                  </button>
-                                </div>
-
-                                {/* Comment Reaction Picker */}
-                                {showCommentReactionPicker[comment.id] && (
-                                  <div 
-                                    className="reaction-picker comment-reaction-picker"
-                                    style={{
-                                      position: 'fixed',
-                                      left: `${commentReactionPickerPosition[comment.id]?.x - 60}px`,
-                                      top: `${commentReactionPickerPosition[comment.id]?.y}px`,
-                                      zIndex: 1000
-                                    }}
-                                    onMouseEnter={() => handleCommentReactionPickerMouseEnter(comment.id)}
-                                    onMouseLeave={() => hideCommentReactionPicker(comment.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onMouseDown={(e) => e.stopPropagation()}
-                                  >
-                                    <div className="reaction-picker-content">
-                                      {reactionTypes.map((reaction, index) => (
-                                        <button
-                                          key={reaction.type}
-                                          className="reaction-option"
-                                          onClick={(e) => handleCommentReactionSelect(comment.id, reaction.type, e)}
-                                          style={{
-                                            animationDelay: `${index * 0.1}s`
-                                          }}
-                                        >
-                                          <span className="reaction-emoji">{reaction.emoji}</span>
-                                          <span className="reaction-label">{reaction.label}</span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                {/* Reply to comment input */}
-                                {replyingTo[post.id] === comment.id && (
-                                  <div className="reply-input">
-                                    <input
-                                      type="text"
-                                      placeholder={`Reply to ${comment.authorName}...`}
-                                      value={commentInputs[post.id] || ''}
-                                      onChange={(e) => handleCommentInputChange(post.id, e.target.value)}
-                                      onKeyPress={(e) => {
-                                        if (e.key === 'Enter') {
-                                          handleCommentSubmit(post.id, e.target.value, comment.id);
-                                        }
-                                      }}
-                                    />
-                                    <button 
-                                      className="reply-submit-btn"
-                                      onClick={() => handleCommentSubmit(post.id, commentInputs[post.id], comment.id)}
-                                    >
-                                      Reply
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Comment Input */}
-                        <div className="comment-input-section">
-                          <div className="comment-input-avatar">
-                            {currentUser ? 
-                              (currentUser.firstName ? currentUser.firstName[0] : currentUser.email[0]) : 
-                              'U'
-                            }
-                          </div>
-                          <div className="comment-input-wrapper">
-                            <input
-                              type="text"
-                              placeholder="Write a comment..."
-                              value={commentInputs[post.id] || ''}
-                              onChange={(e) => handleCommentInputChange(post.id, e.target.value)}
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleCommentSubmit(post.id, e.target.value);
-                                }
-                              }}
-                            />
-                            <button 
-                              className="comment-submit-btn"
-                              onClick={() => handleCommentSubmit(post.id, commentInputs[post.id])}
-                            >
-                              Post
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  ))
-                ) : (
-                  <div className="empty-state">
-                    <div className="empty-icon">
-                      <i className="fas fa-users"></i>
-                    </div>
-                    <h3 className="empty-title">No student activities yet</h3>
-                    <p className="empty-message">Check back later for updates from students.</p>
-                  </div>
-                )}
-              </div>
             </div>
-          </section>
-
-          {/* Mentorship Requests */}
-          <section className="mentorship-requests">
-            <h2 className="section-title">Mentorship Requests</h2>
-            <div className="requests-container">
-              <div className="requests-header">
-                <h3>Pending Requests</h3>
-                <a href="#" className="view-all" onClick={handleViewAllClick}>View All</a>
-              </div>
-              <div className="requests-list">
-                {isLoadingRequests ? (
-                  <div className="loading-state">
-                    <div className="loading-spinner"></div>
-                    <p>Loading mentorship requests...</p>
-                  </div>
-                ) : mentorshipRequests.length > 0 ? (
-                  mentorshipRequests.map(request => (
-                    <div key={request.id} className="request-item" style={{ opacity: request.status === 'declined' ? 0.5 : 1 }}>
-                      <div className="request-avatar">{request.studentName ? request.studentName.split(' ').map(n => n[0]).join('') : 'S'}</div>
-                      <div className="request-info">
-                        <div className="request-name">{request.studentName || 'Student'}</div>
-                        <div className="request-details">{request.message || 'Mentorship request'}</div>
-                      </div>
-                    <div className="request-actions">
-                      {request.status === 'pending' && (
-                        <>
-                          <button 
-                            className="btn btn-primary btn-sm"
-                            onClick={() => handleMentorshipRequest(request.id, 'accept')}
-                          >
-                            Accept
-                          </button>
-                          <button 
-                            className="btn btn-outline btn-sm"
-                            onClick={() => handleMentorshipRequest(request.id, 'decline')}
-                          >
-                            Decline
-                          </button>
-                        </>
-                      )}
-                      {request.status === 'accepted' && (
-                        <button className="btn btn-primary btn-sm" disabled style={{ backgroundColor: 'var(--success-color)' }}>
-                          Accepted
-                        </button>
-                      )}
-                      {request.status === 'declined' && (
-                        <button className="btn btn-outline btn-sm" disabled>
-                          Declined
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  ))
-                ) : (
-                  <div className="empty-state">
-                    <div className="empty-icon">
-                      <i className="fas fa-user-friends"></i>
-                    </div>
-                    <h3 className="empty-title">No Mentorship Requests</h3>
-                    <p className="empty-message">You don't have any mentorship requests at the moment.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
+          </div>
         </div>
       </main>
 
-      {/* Share Post Modal */}
-      {showShareModal && selectedPostForShare && (
-        <div className="modal-overlay" onClick={closeShareModal}>
-          <div className="modal-content share-modal" onClick={(e) => e.stopPropagation()}>
+      {/* Create Post Modal */}
+      {showCreatePostModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div className="modal-header">
-              <h3>Share Post</h3>
-              <button className="close-btn" onClick={closeShareModal}>
+              <h3>Create Post</h3>
+              <button 
+                className="modal-close"
+                onClick={() => setShowCreatePostModal(false)}
+              >
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            
-            <div className="share-post-preview">
-              <div className="post-preview-header">
-                <div className="post-preview-avatar">
-                  {selectedPostForShare.authorName ? selectedPostForShare.authorName.split(' ').map(n => n[0]).join('') : 'U'}
+            <div className="modal-body">
+              <div className="post-creation-form">
+                <div className="form-group">
+                  <label>Content</label>
+                  <textarea
+                    value={createPostData.content}
+                    onChange={(e) => setCreatePostData(prev => ({ ...prev, content: e.target.value }))}
+                    placeholder="What's on your mind?"
+                    rows={4}
+                  />
                 </div>
-                <div className="post-preview-info">
-                  <span className="post-preview-author">{selectedPostForShare.authorName}</span>
-                  <span className="post-preview-role">{selectedPostForShare.authorRole}</span>
+                <div className="form-group">
+                  <label>Category</label>
+                  <select
+                    value={createPostData.category}
+                    onChange={(e) => setCreatePostData(prev => ({ ...prev, category: e.target.value }))}
+                  >
+                    <option value="general">General</option>
+                    <option value="job">Job</option>
+                    <option value="tip">Tip</option>
+                    <option value="event">Event</option>
+                  </select>
                 </div>
-              </div>
-              <div className="post-preview-content">
-                {selectedPostForShare.content}
+                <div className="form-group">
+                  <label>Privacy</label>
+                  <select
+                    value={createPostData.privacy}
+                    onChange={(e) => setCreatePostData(prev => ({ ...prev, privacy: e.target.value }))}
+                  >
+                    <option value="public">Public</option>
+                    <option value="alumni">Alumni Only</option>
+                  </select>
+                </div>
               </div>
             </div>
-
-            <div className="share-options">
-              <button className="share-option" onClick={copyPostLink}>
-                <i className="fas fa-link"></i>
-                <span>Copy Link</span>
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary"
+                onClick={() => setShowCreatePostModal(false)}
+              >
+                Cancel
               </button>
-              
-              <button className="share-option" onClick={shareOnFacebook}>
-                <i className="fab fa-facebook-f"></i>
-                <span>Share on Facebook</span>
-              </button>
-              
-              <button className="share-option" onClick={shareOnTwitter}>
-                <i className="fab fa-twitter"></i>
-                <span>Share on Twitter</span>
-              </button>
-              
-              <button className="share-option" onClick={shareOnLinkedIn}>
-                <i className="fab fa-linkedin-in"></i>
-                <span>Share on LinkedIn</span>
-              </button>
-              
-              <button className="share-option" onClick={shareViaEmail}>
-                <i className="fas fa-envelope"></i>
-                <span>Share via Email</span>
+              <button 
+                className="btn-primary"
+                onClick={handleCreatePostSubmit}
+                disabled={isPosting}
+              >
+                {isPosting ? 'Posting...' : 'Post'}
               </button>
             </div>
           </div>

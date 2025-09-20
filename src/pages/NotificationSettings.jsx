@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
 import { updateDoc, doc } from 'firebase/firestore';
 import { updatePassword, reauthenticateWithCredential, EmailAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
+import YouTubeStyleLayout from '../components/YouTubeStyleLayout';
 import './NotificationSettings.css';
 
 function NotificationSettings() {
@@ -11,16 +12,39 @@ function NotificationSettings() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   
-  // State for active section
+  // State for active section - default to notifications
   const [activeSection, setActiveSection] = useState('notifications');
   
-  // Notification settings state
+  // Enhanced notification settings state
   const [notificationSettings, setNotificationSettings] = useState({
+    // Main toggles
+    pushNotifications: true,
+    emailNotifications: true,
+    smsNotifications: false,
+    
+    // Specific notification types
     mentorshipRequests: true,
     messages: true,
     likesAndComments: true,
-    pushNotifications: true,
-    snoozeUntil: null
+    forumPosts: true,
+    events: true,
+    announcements: true,
+    profileViews: false,
+    connectionRequests: true,
+    
+    // Timing preferences
+    quietHours: false,
+    quietStart: '22:00',
+    quietEnd: '08:00',
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    
+    // Frequency settings
+    digestFrequency: 'daily', // daily, weekly, never
+    instantNotifications: true,
+    
+    // Snooze settings
+    snoozeUntil: null,
+    snoozeAll: false
   });
   
   // Profile editing state - initialize with current user data
@@ -59,10 +83,34 @@ function NotificationSettings() {
   
   
   const [snoozeOptions] = useState([
-    { value: 1, label: '1 hour' },
-    { value: 4, label: '4 hours' },
-    { value: 8, label: '8 hours' },
-    { value: 24, label: '1 day' }
+    { value: 0.5, label: '30 minutes', icon: '⏰' },
+    { value: 1, label: '1 hour', icon: '⏱️' },
+    { value: 2, label: '2 hours', icon: '🕐' },
+    { value: 4, label: '4 hours', icon: '🕓' },
+    { value: 8, label: '8 hours', icon: '🕗' },
+    { value: 12, label: '12 hours', icon: '🕛' },
+    { value: 24, label: '1 day', icon: '📅' },
+    { value: 48, label: '2 days', icon: '📆' },
+    { value: 168, label: '1 week', icon: '🗓️' }
+  ]);
+
+  const [digestOptions] = useState([
+    { value: 'instant', label: 'Instant', description: 'Get notified immediately' },
+    { value: 'daily', label: 'Daily Digest', description: 'Once per day summary' },
+    { value: 'weekly', label: 'Weekly Digest', description: 'Once per week summary' },
+    { value: 'never', label: 'Never', description: 'No digest emails' }
+  ]);
+
+  const [timezoneOptions] = useState([
+    'America/New_York',
+    'America/Chicago', 
+    'America/Denver',
+    'America/Los_Angeles',
+    'Europe/London',
+    'Europe/Paris',
+    'Asia/Tokyo',
+    'Asia/Shanghai',
+    'Australia/Sydney'
   ]);
 
   // Load current user profile data when component mounts
@@ -397,6 +445,34 @@ function NotificationSettings() {
     localStorage.setItem('notificationSettings', JSON.stringify(newSettings));
   };
 
+  const handleSettingChange = (setting, value) => {
+    const newSettings = {
+      ...notificationSettings,
+      [setting]: value
+    };
+    setNotificationSettings(newSettings);
+    localStorage.setItem('notificationSettings', JSON.stringify(newSettings));
+  };
+
+  const handleQuietHoursToggle = () => {
+    const newSettings = {
+      ...notificationSettings,
+      quietHours: !notificationSettings.quietHours
+    };
+    setNotificationSettings(newSettings);
+    localStorage.setItem('notificationSettings', JSON.stringify(newSettings));
+  };
+
+  const handleSnoozeAll = () => {
+    const newSettings = {
+      ...notificationSettings,
+      snoozeAll: !notificationSettings.snoozeAll,
+      snoozeUntil: !notificationSettings.snoozeAll ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null
+    };
+    setNotificationSettings(newSettings);
+    localStorage.setItem('notificationSettings', JSON.stringify(newSettings));
+  };
+
   const handleSnooze = (hours) => {
     const snoozeUntil = new Date();
     snoozeUntil.setHours(snoozeUntil.getHours() + hours);
@@ -454,135 +530,106 @@ function NotificationSettings() {
 
 
   return (
-    <div className="notification-settings">
-      <div className="dashboard-container">
-        <div className="settings-header">
-          <h1>Settings</h1>
-          <p>Manage your notification preferences, profile, and security for Connectrix</p>
-        </div>
-
-        <div className="main-content">
-          {/* Sidebar */}
-          <div className="settings-sidebar">
-            <div className="sidebar-header">
-              <h2 className="sidebar-title">Settings</h2>
-            </div>
-            <div className="sidebar-menu">
-              <div 
-                className={`menu-item ${activeSection === 'notifications' ? 'active' : ''}`}
-                onClick={() => setActiveSection('notifications')}
-              >
-                <i className="fas fa-bell"></i>
-                <span>Notifications</span>
-              </div>
-              <div 
-                className={`menu-item ${activeSection === 'profile' ? 'active' : ''}`}
-                onClick={() => setActiveSection('profile')}
-              >
-                <i className="fas fa-user"></i>
-                <span>Edit Profile</span>
-              </div>
-              <div 
-                className={`menu-item ${activeSection === 'security' ? 'active' : ''}`}
-                onClick={() => setActiveSection('security')}
-              >
-                <i className="fas fa-shield-alt"></i>
-                <span>Change Password</span>
-              </div>
-              
-              {/* Logout Button */}
-              <div className="menu-item logout-item" onClick={handleLogout}>
-                <i className="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
-              </div>
-            </div>
+    <YouTubeStyleLayout currentPage="Settings">
+      <div className="notification-settings">
+        <div className="settings-container">
+          <div className="settings-header">
+            <h1>Settings</h1>
+            <p>Manage your notification preferences, profile, and security for Connectrix</p>
           </div>
 
-          {/* Settings Content */}
           <div className="settings-content">
-            {/* Notifications Section */}
-            <div className={`settings-section ${activeSection === 'notifications' ? 'active' : ''}`}>
+            {/* Settings Navigation */}
+            <div className="settings-nav">
+              <div className="nav-tabs">
+                <button 
+                  className={`nav-tab ${activeSection === 'notifications' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('notifications')}
+                >
+                  <i className="fas fa-bell"></i>
+                  <span>Notifications</span>
+                </button>
+                <button 
+                  className={`nav-tab ${activeSection === 'profile' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('profile')}
+                >
+                  <i className="fas fa-user"></i>
+                  <span>Edit Profile</span>
+                </button>
+                <button 
+                  className={`nav-tab ${activeSection === 'security' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('security')}
+                >
+                  <i className="fas fa-shield-alt"></i>
+                  <span>Change Password</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Enhanced Notifications Section */}
+            <div className={`settings-section ${activeSection === 'notifications' ? 'active' : ''}`} style={{display: activeSection === 'notifications' ? 'block' : 'none'}}>
               <div className="section-header">
-                <h1 className="section-title">Notification Settings</h1>
-                <p className="section-subtitle">Manage your notification preferences</p>
+                <h1 className="section-title">🔔 Notification Settings</h1>
+                <p className="section-subtitle">Customize how and when you receive notifications</p>
               </div>
 
-              {/* Push Notifications Toggle */}
-              <div className="setting-section">
-                <div className="setting-header">
-                  <h3>Push Notifications</h3>
-                  <p>Enable or disable all push notifications</p>
+              {/* Main Notification Toggles */}
+              <div className="setting-section main-toggles">
+                <div className="section-title-bar">
+                  <h3>📱 Notification Channels</h3>
+                  <p>Choose how you want to receive notifications</p>
                 </div>
-                <div className="setting-control">
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.pushNotifications}
-                      onChange={() => handleToggle('pushNotifications')}
-                    />
-                    <span className="slider"></span>
-                  </label>
-                  <span className="setting-status">
-                    {notificationSettings.pushNotifications ? 'ON' : 'OFF'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Notification Types */}
-              <div className="setting-section">
-                <h3>Notification Types</h3>
                 
-                {/* Mentorship Requests */}
-                <div className="setting-item">
-                  <div className="setting-info">
-                    <h4>✅ Mentorship Requests</h4>
-                    <p>Get notified when students request mentorship</p>
-                  </div>
-                  <div className="setting-control">
-                    <label className="toggle-switch">
+                <div className="toggle-grid">
+                  <div className="toggle-card">
+                    <div className="toggle-info">
+                      <div className="toggle-icon">📱</div>
+                      <div className="toggle-details">
+                        <h4>Push Notifications</h4>
+                        <p>Browser and mobile push notifications</p>
+                      </div>
+                    </div>
+                    <label className="toggle-switch large">
                       <input
                         type="checkbox"
-                        checked={notificationSettings.mentorshipRequests && notificationSettings.pushNotifications}
-                        onChange={() => handleToggle('mentorshipRequests')}
-                        disabled={!notificationSettings.pushNotifications}
+                        checked={notificationSettings.pushNotifications}
+                        onChange={() => handleToggle('pushNotifications')}
                       />
                       <span className="slider"></span>
                     </label>
                   </div>
-                </div>
 
-                {/* Messages */}
-                <div className="setting-item">
-                  <div className="setting-info">
-                    <h4>✅ Messages</h4>
-                    <p>Get notified for new chats and messages</p>
-                  </div>
-                  <div className="setting-control">
-                    <label className="toggle-switch">
+                  <div className="toggle-card">
+                    <div className="toggle-info">
+                      <div className="toggle-icon">📧</div>
+                      <div className="toggle-details">
+                        <h4>Email Notifications</h4>
+                        <p>Receive notifications via email</p>
+                      </div>
+                    </div>
+                    <label className="toggle-switch large">
                       <input
                         type="checkbox"
-                        checked={notificationSettings.messages && notificationSettings.pushNotifications}
-                        onChange={() => handleToggle('messages')}
-                        disabled={!notificationSettings.pushNotifications}
+                        checked={notificationSettings.emailNotifications}
+                        onChange={() => handleToggle('emailNotifications')}
                       />
                       <span className="slider"></span>
                     </label>
                   </div>
-                </div>
 
-                {/* Likes & Comments */}
-                <div className="setting-item">
-                  <div className="setting-info">
-                    <h4>✅ Likes & Comments</h4>
-                    <p>Get notified when someone likes or comments on your posts</p>
-                  </div>
-                  <div className="setting-control">
-                    <label className="toggle-switch">
+                  <div className="toggle-card">
+                    <div className="toggle-info">
+                      <div className="toggle-icon">💬</div>
+                      <div className="toggle-details">
+                        <h4>SMS Notifications</h4>
+                        <p>Text message notifications (if available)</p>
+                      </div>
+                    </div>
+                    <label className="toggle-switch large">
                       <input
                         type="checkbox"
-                        checked={notificationSettings.likesAndComments && notificationSettings.pushNotifications}
-                        onChange={() => handleToggle('likesAndComments')}
-                        disabled={!notificationSettings.pushNotifications}
+                        checked={notificationSettings.smsNotifications}
+                        onChange={() => handleToggle('smsNotifications')}
                       />
                       <span className="slider"></span>
                     </label>
@@ -590,85 +637,224 @@ function NotificationSettings() {
                 </div>
               </div>
 
-              {/* Snooze Notifications */}
-              <div className="setting-section">
-                <h3>Snooze Notifications</h3>
-                <p>Temporarily pause notifications for a set period</p>
+              {/* Specific Notification Types */}
+              <div className="setting-section notification-types">
+                <div className="section-title-bar">
+                  <h3>🎯 Notification Types</h3>
+                  <p>Choose which activities trigger notifications</p>
+                </div>
                 
-                <div className="snooze-options">
-                  {snoozeOptions.map(option => (
-                    <button
-                      key={option.value}
-                      className="btn btn-outline snooze-btn"
-                      onClick={() => handleSnooze(option.value)}
-                      disabled={isSnoozed}
-                    >
-                      {option.label}
-                    </button>
+                <div className="notification-grid">
+                  {[
+                    { key: 'mentorshipRequests', icon: '🤝', title: 'Mentorship Requests', desc: 'When students request mentorship' },
+                    { key: 'messages', icon: '💬', title: 'Messages', desc: 'New chats and direct messages' },
+                    { key: 'likesAndComments', icon: '❤️', title: 'Likes & Comments', desc: 'Activity on your posts' },
+                    { key: 'forumPosts', icon: '📝', title: 'Forum Posts', desc: 'New posts in forums you follow' },
+                    { key: 'events', icon: '📅', title: 'Events', desc: 'Upcoming events and reminders' },
+                    { key: 'announcements', icon: '📢', title: 'Announcements', desc: 'Important platform updates' },
+                    { key: 'profileViews', icon: '👀', title: 'Profile Views', desc: 'When someone views your profile' },
+                    { key: 'connectionRequests', icon: '🔗', title: 'Connections', desc: 'New connection requests' }
+                  ].map(notification => (
+                    <div key={notification.key} className="notification-item">
+                      <div className="notification-info">
+                        <div className="notification-icon">{notification.icon}</div>
+                        <div className="notification-details">
+                          <h4>{notification.title}</h4>
+                          <p>{notification.desc}</p>
+                        </div>
+                      </div>
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={notificationSettings[notification.key] && notificationSettings.pushNotifications}
+                          onChange={() => handleToggle(notification.key)}
+                          disabled={!notificationSettings.pushNotifications}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
                   ))}
                 </div>
-                
-                {isSnoozed && (
-                  <div className="snooze-status">
-                    <p>Notifications snoozed until: {getSnoozeStatus()}</p>
-                    <button 
-                      className="btn btn-primary clear-snooze-btn"
-                      onClick={clearSnooze}
-                    >
-                      Clear Snooze
-                    </button>
-                  </div>
-                )}
               </div>
 
+              {/* Timing Preferences */}
+              <div className="setting-section timing-preferences">
+                <div className="section-title-bar">
+                  <h3>⏰ Timing Preferences</h3>
+                  <p>Control when you receive notifications</p>
+                </div>
 
+                <div className="timing-grid">
+                  <div className="timing-card">
+                    <div className="timing-header">
+                      <h4>🌙 Quiet Hours</h4>
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          checked={notificationSettings.quietHours}
+                          onChange={handleQuietHoursToggle}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+                    {notificationSettings.quietHours && (
+                      <div className="time-inputs">
+                        <div className="time-input-group">
+                          <label>Start Time</label>
+                          <input
+                            type="time"
+                            value={notificationSettings.quietStart}
+                            onChange={(e) => handleSettingChange('quietStart', e.target.value)}
+                          />
+                        </div>
+                        <div className="time-input-group">
+                          <label>End Time</label>
+                          <input
+                            type="time"
+                            value={notificationSettings.quietEnd}
+                            onChange={(e) => handleSettingChange('quietEnd', e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
-                             {/* Current Status */}
-               <div className="setting-section status-section">
-                 <h3>Current Status</h3>
-                 <div className="status-grid">
-                   <div className="status-item">
-                     <span className="status-label">Push Notifications:</span>
-                     <span className={`status-value ${notificationSettings.pushNotifications ? 'active' : 'inactive'}`}>
-                       {notificationSettings.pushNotifications ? 'Enabled' : 'Disabled'}
-                     </span>
-                   </div>
-                   <div className="status-item">
-                     <span className="status-label">Mentorship Requests:</span>
-                     <span className={`status-value ${notificationSettings.mentorshipRequests && notificationSettings.pushNotifications ? 'active' : 'inactive'}`}>
-                       {notificationSettings.mentorshipRequests && notificationSettings.pushNotifications ? 'Enabled' : 'Disabled'}
-                     </span>
-                   </div>
-                   <div className="status-item">
-                     <span className="status-label">Messages:</span>
-                     <span className={`status-value ${notificationSettings.messages && notificationSettings.pushNotifications ? 'active' : 'inactive'}`}>
-                       {notificationSettings.messages && notificationSettings.pushNotifications ? 'Enabled' : 'Disabled'}
-                     </span>
-                   </div>
-                   <div className="status-item">
-                     <span className="status-label">Likes & Comments:</span>
-                     <span className={`status-value ${notificationSettings.likesAndComments && notificationSettings.pushNotifications ? 'active' : 'inactive'}`}>
-                       {notificationSettings.likesAndComments && notificationSettings.pushNotifications ? 'Enabled' : 'Disabled'}
-                     </span>
-                   </div>
-                   <div className="status-item">
-                     <span className="status-label">Snooze Status:</span>
-                     <span className={`status-value ${isSnoozed ? 'snoozed' : 'active'}`}>
-                       {isSnoozed ? `Snoozed (${getSnoozeStatus()})` : 'Active'}
-                     </span>
-                   </div>
-                   <div className="status-item">
-                     <span className="status-label">Notifications:</span>
-                     <span className="status-value active">
-                       Check notification popup for details
-                     </span>
-                   </div>
-                 </div>
-               </div>
+                  <div className="timing-card">
+                    <div className="timing-header">
+                      <h4>📧 Digest Frequency</h4>
+                    </div>
+                    <div className="digest-options">
+                      {digestOptions.map(option => (
+                        <label key={option.value} className="digest-option">
+                          <input
+                            type="radio"
+                            name="digestFrequency"
+                            value={option.value}
+                            checked={notificationSettings.digestFrequency === option.value}
+                            onChange={(e) => handleSettingChange('digestFrequency', e.target.value)}
+                          />
+                          <div className="digest-info">
+                            <span className="digest-label">{option.label}</span>
+                            <span className="digest-desc">{option.description}</span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Snooze Controls */}
+              <div className="setting-section snooze-controls">
+                <div className="section-title-bar">
+                  <h3>😴 Snooze Controls</h3>
+                  <p>Temporarily pause notifications</p>
+                </div>
+
+                <div className="snooze-grid">
+                  <div className="snooze-card">
+                    <div className="snooze-header">
+                      <h4>⏸️ Quick Snooze</h4>
+                      <p>Pause notifications for a specific duration</p>
+                    </div>
+                    <div className="snooze-options-grid">
+                      {snoozeOptions.map(option => (
+                        <button
+                          key={option.value}
+                          className={`snooze-option-btn ${isSnoozed ? 'disabled' : ''}`}
+                          onClick={() => handleSnooze(option.value)}
+                          disabled={isSnoozed}
+                        >
+                          <span className="snooze-icon">{option.icon}</span>
+                          <span className="snooze-label">{option.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="snooze-card">
+                    <div className="snooze-header">
+                      <h4>🔕 Snooze All</h4>
+                      <p>Pause all notifications temporarily</p>
+                    </div>
+                    <div className="snooze-all-controls">
+                      <label className="toggle-switch large">
+                        <input
+                          type="checkbox"
+                          checked={notificationSettings.snoozeAll}
+                          onChange={handleSnoozeAll}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                      {isSnoozed && (
+                        <div className="snooze-status">
+                          <p>⏰ Snoozed until: {getSnoozeStatus()}</p>
+                          <button 
+                            className="btn btn-primary clear-snooze-btn"
+                            onClick={clearSnooze}
+                          >
+                            Clear Snooze
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notification Summary */}
+              <div className="setting-section notification-summary">
+                <div className="section-title-bar">
+                  <h3>📊 Notification Summary</h3>
+                  <p>Current notification status overview</p>
+                </div>
+                
+                <div className="summary-grid">
+                  <div className="summary-card">
+                    <div className="summary-icon">📱</div>
+                    <div className="summary-details">
+                      <h4>Push Notifications</h4>
+                      <span className={`status-badge ${notificationSettings.pushNotifications ? 'active' : 'inactive'}`}>
+                        {notificationSettings.pushNotifications ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="summary-card">
+                    <div className="summary-icon">📧</div>
+                    <div className="summary-details">
+                      <h4>Email Notifications</h4>
+                      <span className={`status-badge ${notificationSettings.emailNotifications ? 'active' : 'inactive'}`}>
+                        {notificationSettings.emailNotifications ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="summary-card">
+                    <div className="summary-icon">🌙</div>
+                    <div className="summary-details">
+                      <h4>Quiet Hours</h4>
+                      <span className={`status-badge ${notificationSettings.quietHours ? 'active' : 'inactive'}`}>
+                        {notificationSettings.quietHours ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="summary-card">
+                    <div className="summary-icon">😴</div>
+                    <div className="summary-details">
+                      <h4>Snooze Status</h4>
+                      <span className={`status-badge ${isSnoozed ? 'snoozed' : 'active'}`}>
+                        {isSnoozed ? 'Snoozed' : 'Active'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Profile Section */}
-            <div className={`settings-section ${activeSection === 'profile' ? 'active' : ''}`}>
+            <div className={`settings-section ${activeSection === 'profile' ? 'active' : ''}`} style={{display: activeSection === 'profile' ? 'block' : 'none'}}>
               <div className="section-header">
                 <h1 className="section-title">Edit Profile</h1>
                 <p className="section-subtitle">Update your profile information</p>
@@ -818,7 +1004,7 @@ function NotificationSettings() {
             </div>
 
             {/* Security Section */}
-            <div className={`settings-section ${activeSection === 'security' ? 'active' : ''}`}>
+            <div className={`settings-section ${activeSection === 'security' ? 'active' : ''}`} style={{display: activeSection === 'security' ? 'block' : 'none'}}>
               <div className="section-header">
                 <h1 className="section-title">Change Password</h1>
                 <p className="section-subtitle">Update your password to keep your account secure</p>
@@ -908,7 +1094,7 @@ function NotificationSettings() {
           </div>
         </div>
       </div>
-    </div>
+    </YouTubeStyleLayout>
   );
 }
 

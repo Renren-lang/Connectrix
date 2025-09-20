@@ -7,6 +7,220 @@
   min-height: 100vh;
 }
 
+/* Facebook Post Card Styles */
+.facebook-post-card {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  border: 1px solid #dadde1;
+}
+
+.facebook-post-card .post-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.facebook-post-card .post-author-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.facebook-post-card .post-author-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1877f2;
+  color: white;
+  font-weight: bold;
+}
+
+.facebook-post-card .post-author-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.facebook-post-card .post-initials {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.facebook-post-card .post-author-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.facebook-post-card .post-author-name {
+  font-weight: 600;
+  color: #1c1e21;
+  font-size: 15px;
+}
+
+.facebook-post-card .post-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #65676b;
+}
+
+.facebook-post-card .post-time {
+  font-size: 13px;
+  color: #65676b;
+}
+
+.facebook-post-card .post-role {
+  background: #e4e6ea;
+  color: #65676b;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.facebook-post-card .post-options-btn {
+  background: none;
+  border: none;
+  color: #65676b;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.facebook-post-card .post-options-btn:hover {
+  background: #f0f2f5;
+}
+
+.facebook-post-card .post-content {
+  margin-bottom: 12px;
+  line-height: 1.4;
+  color: #1c1e21;
+  font-size: 15px;
+}
+
+.facebook-post-card .post-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid #dadde1;
+}
+
+.facebook-post-card .post-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: #65676b;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  flex: 1;
+  justify-content: center;
+}
+
+.facebook-post-card .post-action:hover {
+  background: #f0f2f5;
+}
+
+.facebook-post-card .post-action i {
+  font-size: 16px;
+}
+
+/* Comment Input Section */
+.comment-input-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #dadde1;
+}
+
+.comment-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1877f2;
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.comment-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.comment-input-field {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  background: #f0f2f5;
+  border-radius: 20px;
+  padding: 8px 12px;
+  gap: 8px;
+}
+
+.comment-input-field input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 14px;
+  color: #1c1e21;
+}
+
+.comment-input-field input::placeholder {
+  color: #65676b;
+}
+
+.comment-submit-btn {
+  background: #1877f2;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.comment-submit-btn:hover {
+  background: #166fe5;
+}
+
+.comment-submit-btn i {
+  font-size: 12px;
+}
+
 /* Loading Spinner */
 .loading-spinner {
   display: flex;

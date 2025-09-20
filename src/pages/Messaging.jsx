@@ -73,6 +73,110 @@ function Messaging() {
     }
   };
 
+  // Set up online status tracking
+  const setupOnlineStatus = async () => {
+    if (!shouldAttemptOnlineStatus()) return;
+    
+    try {
+      const userStatusRef = doc(db, 'userStatus', currentUser.uid);
+      
+      // Set user as online
+      await setDoc(userStatusRef, {
+        uid: currentUser.uid,
+        online: true,
+        lastSeen: serverTimestamp(),
+        role: currentUser.role || 'user'
+      });
+      
+      console.log('Online status set up for user:', currentUser.uid);
+    } catch (error) {
+      // Handle permission errors gracefully - online status is optional
+      console.warn('Could not set up online status (this is normal if user lacks permissions):', error.message);
+    }
+  };
+
+  // Clean up online status when component unmounts
+  const cleanupOnlineStatus = async () => {
+    if (!shouldAttemptOnlineStatus()) return;
+    
+    try {
+      const userStatusRef = doc(db, 'userStatus', currentUser.uid);
+      await setDoc(userStatusRef, {
+        uid: currentUser.uid,
+        online: false,
+        lastSeen: serverTimestamp(),
+        role: currentUser.role || 'user'
+      });
+      console.log('User marked as offline:', currentUser.uid);
+    } catch (error) {
+      // Handle permission errors gracefully - online status is optional
+      console.warn('Could not clean up online status (this is normal if user lacks permissions):', error.message);
+    }
+  };
+
+  // Update user activity in Firestore
+  const updateUserActivity = async () => {
+    if (!shouldAttemptOnlineStatus()) return;
+    
+    try {
+      const userStatusRef = doc(db, 'userStatus', currentUser.uid);
+      await setDoc(userStatusRef, {
+        uid: currentUser.uid,
+        online: true,
+        lastSeen: serverTimestamp(),
+        role: currentUser.role || 'user'
+      }, { merge: true });
+      console.log('User activity updated:', currentUser.uid);
+    } catch (error) {
+      // Handle permission errors gracefully - online status is optional
+      console.warn('Could not update user activity (this is normal if user lacks permissions):', error.message);
+    }
+  };
+
+  // Listen for online status changes of other users
+  const setupOnlineStatusListener = () => {
+    if (!shouldAttemptOnlineStatus() || chats.length === 0) return () => {};
+    
+    try {
+      // Get all other user IDs from chats
+      const otherUserIds = chats
+        .flatMap(chat => chat.participants || [])
+        .filter(id => id !== currentUser.uid);
+      
+      if (otherUserIds.length === 0) return () => {};
+      
+      const statusRef = collection(db, 'userStatus');
+      const q = query(statusRef, where('uid', 'in', otherUserIds));
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          const statusData = change.doc.data();
+          const userId = statusData.uid;
+          
+          // Update the chat with online status
+          setChats(prevChats => 
+            prevChats.map(chat => {
+              if (chat.participants?.includes(userId)) {
+                return {
+                  ...chat,
+                  otherUserOnline: statusData.online || false,
+                  otherUserLastSeen: statusData.lastSeen
+                };
+              }
+              return chat;
+            })
+          );
+        });
+      });
+      
+      return unsubscribe;
+    } catch (error) {
+      // Handle permission errors gracefully - online status is optional
+      console.warn('Could not set up online status listener (this is normal if user lacks permissions):', error.message);
+      return () => {};
+    }
+  };
+
   // Listen for navigation events to refresh profile data
   useEffect(() => {
     const handleFocus = () => {
@@ -82,7 +186,7 @@ function Messaging() {
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, []);
+  }, [refreshUserProfile]);
 
   // Set up online status when component mounts
   useEffect(() => {
@@ -106,7 +210,7 @@ function Messaging() {
     }
     // When ENABLE_ONLINE_STATUS is false, no Firebase operations are performed
     // All users will appear as offline, but messaging functionality remains intact
-  }, [currentUser]);
+  }, [currentUser, setupOnlineStatus, updateUserActivity, cleanupOnlineStatus]);
 
   // Set up online status listener when chats change
   useEffect(() => {
@@ -125,7 +229,7 @@ function Messaging() {
         return () => {};
       }
     }
-  }, [chats, currentUser]);
+  }, [chats, currentUser, shouldAttemptOnlineStatus, setupOnlineStatusListener]);
 
   // Set up activity tracking to keep user marked as online
   useEffect(() => {
@@ -148,7 +252,7 @@ function Messaging() {
         messageInput.removeEventListener('input', handleMessageActivity);
       }
     };
-  }, [currentUser]);
+  }, [currentUser, shouldAttemptOnlineStatus, updateUserActivity]);
   
   // UI state
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -520,129 +624,6 @@ function Messaging() {
     }
   };
 
-  // Set up online status tracking
-  const setupOnlineStatus = async () => {
-    if (!shouldAttemptOnlineStatus()) return;
-    
-    try {
-      const userStatusRef = doc(db, 'userStatus', currentUser.uid);
-      
-      // Set user as online
-      await setDoc(userStatusRef, {
-        uid: currentUser.uid,
-        online: true,
-        lastSeen: serverTimestamp(),
-        role: currentUser.role || 'user'
-      });
-      
-      console.log('Online status set up for user:', currentUser.uid);
-    } catch (error) {
-      // Handle permission errors gracefully - online status is optional
-      console.warn('Could not set up online status (this is normal if user lacks permissions):', error.message);
-    }
-  };
-
-  // Clean up online status when component unmounts
-  const cleanupOnlineStatus = async () => {
-    if (!shouldAttemptOnlineStatus()) return;
-    
-    try {
-      const userStatusRef = doc(db, 'userStatus', currentUser.uid);
-      await setDoc(userStatusRef, {
-        uid: currentUser.uid,
-        online: false,
-        lastSeen: serverTimestamp(),
-        role: currentUser.role || 'user'
-      });
-      console.log('User marked as offline:', currentUser.uid);
-    } catch (error) {
-      // Handle permission errors gracefully - online status is optional
-      console.warn('Could not clean up online status (this is normal if user lacks permissions):', error.message);
-    }
-  };
-
-  // Listen for online status changes of other users
-  const setupOnlineStatusListener = () => {
-    if (!shouldAttemptOnlineStatus() || chats.length === 0) return () => {};
-    
-    try {
-      // Get all other user IDs from chats
-      const otherUserIds = chats
-        .map(chat => chat.participants?.find(id => id !== currentUser.uid))
-        .filter(Boolean);
-      
-      if (otherUserIds.length === 0) return () => {};
-      
-      // Instead of using onSnapshot with an array of document references,
-      // we'll use a collection query to listen for status changes
-      const statusRef = collection(db, 'userStatus');
-      const q = query(statusRef, where('uid', 'in', otherUserIds));
-      
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          const statusData = change.doc.data();
-          const userId = change.doc.id;
-          
-          // Update chat with new online status
-          setChats(prevChats => prevChats.map(chat => {
-            const otherUserId = chat.participants?.find(id => id !== currentUser.uid);
-            if (otherUserId === userId) {
-              return {
-                ...chat,
-                otherUser: {
-                  ...chat.otherUser,
-                  online: statusData.online || false,
-                  lastSeen: statusData.lastSeen
-                }
-              };
-            }
-            return chat;
-          }));
-          
-          // Update active chat if it's the same user
-          if (activeChat && activeChat.participants?.includes(userId)) {
-            setActiveChat(prev => ({
-              ...prev,
-              otherUser: {
-                ...prev.otherUser,
-                online: statusData.online || false,
-                lastSeen: statusData.lastSeen
-              }
-            }));
-          }
-        });
-      }, (error) => {
-        // Handle permission errors gracefully - online status is optional
-        console.warn('Error listening to online status (this is normal if user lacks permissions):', error.message);
-      });
-      
-      return unsubscribe;
-    } catch (error) {
-      // Handle permission errors gracefully - online status is optional
-      console.warn('Could not set up online status listener (this is normal if user lacks permissions):', error.message);
-      // Return empty cleanup function
-      return () => {};
-    }
-  };
-
-  // Update user activity in Firestore
-  const updateUserActivity = async () => {
-    if (!shouldAttemptOnlineStatus()) return;
-    
-    try {
-      const userStatusRef = doc(db, 'userStatus', currentUser.uid);
-      await setDoc(userStatusRef, {
-        uid: currentUser.uid,
-        online: true,
-        lastSeen: serverTimestamp(),
-        role: currentUser.role || 'user'
-      }, { merge: true });
-      console.log('User activity updated:', currentUser.uid);
-    } catch (error) {
-      // Handle permission errors gracefully - online status is optional
-      console.warn('Could not update user activity (this is normal if user lacks permissions):', error.message);
-    }
-  };
 
   // Helper function to format last seen timestamp
   const formatLastSeen = (timestamp) => {
@@ -1127,7 +1108,7 @@ function Messaging() {
                    name="searchConversations"
                    type="text"
                    className="search-input"
-                   placeholder="Search conversations..."
+                   placeholder="Search chats..."
                    value={searchQuery}
                    onChange={(e) => setSearchQuery(e.target.value)}
                    autoComplete="off"

@@ -87,7 +87,7 @@ const Profile = () => {
         }
       }
     };
-  }, [userId]);
+  }, [userId, fetchUserData, fetchPosts]);
 
   const fetchUserData = async () => {
     try {
