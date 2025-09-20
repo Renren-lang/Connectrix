@@ -394,6 +394,17 @@ export function AuthProvider({ children }) {
       return { success: true, user: userWithProfile };
       
     } catch (error) {
+      // Handle specific error cases with better user guidance BEFORE logging
+      if (error.code === 'auth/popup-closed-by-user') {
+        // Don't log as error for popup closed, just return a failure
+        console.log('ℹ️ User closed the popup or it was closed by browser');
+        return { success: false, error: 'popup_closed', message: 'Sign-in popup was closed. Please try again.' };
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        console.log('ℹ️ Popup request was cancelled');
+        return { success: false, error: 'cancelled', message: 'Sign-in was cancelled. Please try again.' };
+      }
+      
+      // Log other errors normally
       console.error('Google sign-in error:', error);
       console.error('Error details:', {
         code: error.code,
@@ -401,16 +412,9 @@ export function AuthProvider({ children }) {
         stack: error.stack
       });
       
-      // Handle specific error cases with better user guidance
+      // Handle remaining error cases
       if (error.code === 'auth/popup-blocked') {
         throw new Error('Popup was blocked by your browser. Please allow popups for this site and try again.');
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        // Don't throw an error for popup closed, just return a failure
-        console.log('ℹ️ User closed the popup or it was closed by browser');
-        return { success: false, error: 'popup_closed', message: 'Sign-in popup was closed. Please try again.' };
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        console.log('ℹ️ Popup request was cancelled');
-        return { success: false, error: 'cancelled', message: 'Sign-in was cancelled. Please try again.' };
       } else if (error.code === 'auth/operation-not-allowed') {
         throw new Error('Google sign-in is not enabled. Please contact support.');
       } else if (error.code === 'auth/network-request-failed') {
