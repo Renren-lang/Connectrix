@@ -5,8 +5,6 @@ import {
   signOut, 
   updateProfile,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   GoogleAuthProvider,
   sendEmailVerification
 } from 'firebase/auth';
@@ -337,9 +335,9 @@ export function AuthProvider({ children }) {
     try {
       const provider = new GoogleAuthProvider();
       
-      // Add custom parameters to prevent repeated account selection
+      // Add custom parameters for better UX
       provider.setCustomParameters({
-        prompt: 'select_account' // This will show account selection but remember the choice
+        prompt: 'consent' // This will ask for consent but remember the choice
       });
       
       console.log('🔧 Starting Google authentication with provider:', provider);
@@ -403,22 +401,13 @@ export function AuthProvider({ children }) {
         stack: error.stack
       });
       
-      // Handle popup failures by using redirect
-      if (error.code === 'auth/popup-blocked' || 
-          error.code === 'auth/popup-closed-by-user' || 
-          error.code === 'auth/cancelled-popup-request') {
-        
-        console.log('🔄 Popup failed, trying redirect method...');
-        
-        try {
-          // Use redirect method as fallback
-          await signInWithRedirect(auth, provider);
-          // The page will redirect, so we don't need to return anything here
-          return { success: true, redirect: true };
-        } catch (redirectError) {
-          console.error('Redirect also failed:', redirectError);
-          throw new Error('Both popup and redirect methods failed. Please try again or check your browser settings.');
-        }
+      // Handle specific error cases
+      if (error.code === 'auth/popup-blocked') {
+        throw new Error('Popup was blocked by your browser. Please allow popups for this site and try again.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        throw new Error('Sign-in was cancelled. Please try again.');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        throw new Error('Sign-in was cancelled. Please try again.');
       } else if (error.code === 'auth/operation-not-allowed') {
         throw new Error('Google sign-in is not enabled. Please contact support.');
       } else if (error.code === 'auth/network-request-failed') {
@@ -434,71 +423,8 @@ export function AuthProvider({ children }) {
 
 
 
-  // Handle Google redirect result
-  useEffect(() => {
-    const handleGoogleRedirect = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          console.log('🔄 Google redirect result received:', result);
-          
-          // Get stored data from redirect
-          const storedRole = localStorage.getItem('googleAuthRole') || 'student';
-          const storedData = localStorage.getItem('googleAuthData');
-          const additionalData = storedData ? JSON.parse(storedData) : {};
-          
-          // Process the user data
-          const user = result.user;
-          const userRef = doc(db, 'users', user.uid);
-          const userSnap = await getDoc(userRef);
-
-          if (!userSnap.exists()) {
-            const newUser = {
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName,
-              role: storedRole,
-              firstName: user.displayName?.split(' ')[0] || '',
-              lastName: user.displayName?.split(' ').slice(1).join(' ') || '',
-              createdAt: new Date(),
-              profilePictureUrl: user.photoURL || '',
-              ...additionalData
-            };
-            await setDoc(userRef, newUser);
-            console.log('Google user created in Firestore via redirect');
-          } else {
-            console.log('Google user already exists in Firestore via redirect');
-          }
-
-          // Get the Firebase ID token for backend authentication
-          const idToken = await user.getIdToken();
-          localStorage.setItem('firebaseToken', idToken);
-          
-          // Save to localStorage for persistence
-          localStorage.setItem("user", JSON.stringify(user));
-          localStorage.setItem("userRole", storedRole);
-          
-          // Set user state immediately
-          const profileData = await fetchUserProfile(user.uid);
-          const userWithProfile = { ...user, ...profileData };
-          setCurrentUser(userWithProfile);
-          setUserRole(profileData?.role || storedRole);
-          setLoading(false);
-          
-          // Clean up stored data
-          localStorage.removeItem('googleAuthRole');
-          localStorage.removeItem('googleAuthData');
-          
-          console.log('✅ Google redirect authentication successful');
-        }
-      } catch (error) {
-        console.error('Error handling Google redirect:', error);
-        setLoading(false);
-      }
-    };
-
-    handleGoogleRedirect();
-  }, []);
+  // Note: Redirect handling removed for simplicity and reliability
+  // All Google authentication now uses popup method only
 
   // Initialize authentication state from localStorage on app start
   useEffect(() => {

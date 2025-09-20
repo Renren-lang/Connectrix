@@ -16,10 +16,8 @@ const FirestoreDebugger = () => {
     }
   };
 
-  // Only show in development or when there are connection issues
-  if (process.env.NODE_ENV === 'production') {
-    return null;
-  }
+  // Show in both development and production for debugging purposes
+  // Always show the reset button for debugging
 
   return (
     <div style={{
@@ -27,11 +25,12 @@ const FirestoreDebugger = () => {
       bottom: '20px',
       right: '20px',
       zIndex: 9999,
-      background: '#f8f9fa',
-      border: '1px solid #dee2e6',
+      background: 'rgba(0, 123, 255, 0.9)',
+      border: '1px solid #007bff',
       borderRadius: '8px',
       padding: '10px',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+      boxShadow: '0 4px 15px rgba(0,123,255,0.3)',
+      backdropFilter: 'blur(10px)'
     }}>
       <button
         onClick={handleResetConnection}
