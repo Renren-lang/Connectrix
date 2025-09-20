@@ -364,9 +364,9 @@ function Login() {
 
   const onFailure = (error) => {
     if (error.error === 'popup_closed_by_user') {
-      alert('Login popup was closed before completing authentication.');
+      alert('Sign-in was cancelled. Please try again to continue with Google authentication.');
     } else {
-      alert('Login failed: ' + error.error);
+      alert('Sign-in failed. Please try again.');
     }
   };
 
