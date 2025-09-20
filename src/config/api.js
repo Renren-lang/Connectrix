@@ -7,6 +7,9 @@ const API_CONFIG = {
   // Production API URL (Railway deployment)
   production: 'https://connectrix-backend-production.up.railway.app',
   
+  // Google OAuth Client ID
+  googleClientId: '628107878370-googleusercontent.com', // This should be your actual Google OAuth client ID
+  
   // Get current API URL based on environment
   getBaseURL: () => {
     if (process.env.NODE_ENV === 'production') {

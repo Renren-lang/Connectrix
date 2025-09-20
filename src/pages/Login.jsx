@@ -10,6 +10,9 @@ import { debugAuthError, debugLoginAttempt, validateEmail, validatePassword as v
 import logoImage from '../components/Logo2.png';
 import PopupInstructions from '../components/PopupInstructions';
 
+// Google OAuth Client ID
+const CLIENT_ID = API_CONFIG.googleClientId;
+
 function Login() {
   const navigate = useNavigate();
   const { currentUser, userRole, loading, login, signInWithGoogle } = useAuth();
@@ -314,10 +317,7 @@ function Login() {
       setShowRoleSelection(true);
     } catch (error) {
       console.error('Google login error:', error);
-      setErrors({
-        email: '',
-        password: 'Google login failed'
-      });
+      onFailure({ error: 'google_login_initiation_failed' });
     } finally {
       setIsSubmitting(false);
     }
@@ -362,11 +362,18 @@ function Login() {
     }
   };
 
+  const onSuccess = (response) => {
+    console.log('Google Login Success:', response);
+    // Handle successful login here
+    // The response will be processed by the existing signInWithGoogle function
+  };
+
   const onFailure = (error) => {
+    console.log('Login Failed:', error);
     if (error.error === 'popup_closed_by_user') {
-      alert('Sign-in was cancelled. Please try again to continue with Google authentication.');
+      alert('Login was cancelled because the popup was closed.');
     } else {
-      alert('Sign-in failed. Please try again.');
+      alert('Login failed: ' + error.error);
     }
   };
 
@@ -389,6 +396,9 @@ function Login() {
       if (result.success) {
         console.log('✅ Google popup authentication successful');
         console.log('✅ Selected role:', googleSelectedRole);
+        
+        // Call onSuccess callback
+        onSuccess(result);
         
         // Close the role selection modal
         setShowRoleSelection(false);
